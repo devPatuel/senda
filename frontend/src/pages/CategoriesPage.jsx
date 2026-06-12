@@ -1,8 +1,415 @@
-// Placeholder: the categories screen is built by the screens agent.
-export default function CategoriesPage() {
+import { useEffect, useState } from 'react'
+import {
+  listCategories,
+  createCategory,
+  updateCategory,
+  removeCategory,
+} from '../api/categories'
+import { Field, FormError, SubmitButton } from '../components/form'
+import { ConfirmDialog, ErrorState, LoadingState, Modal } from '../components/ui'
+
+const PALETTE = [
+  '#ef4444',
+  '#f97316',
+  '#f59e0b',
+  '#84cc16',
+  '#10b981',
+  '#06b6d4',
+  '#3b82f6',
+  '#8b5cf6',
+  '#ec4899',
+  '#64748b',
+]
+
+const GROUPS = [
+  { type: 'EXPENSE', title: 'Gastos' },
+  { type: 'INCOME', title: 'Ingresos' },
+]
+
+function ColorPicker({ value, onChange }) {
   return (
-    <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-      Categorías
-    </h1>
+    <div>
+      <span className="mb-1.5 block text-sm font-medium text-slate-700">Color</span>
+      <div className="flex flex-wrap items-center gap-2">
+        {PALETTE.map((color) => (
+          <button
+            key={color}
+            type="button"
+            onClick={() => onChange(color)}
+            aria-label={`Color ${color}`}
+            aria-pressed={value === color}
+            className={[
+              'h-8 w-8 rounded-full border transition-transform',
+              value === color
+                ? 'scale-110 border-slate-400 ring-2 ring-slate-300 ring-offset-1'
+                : 'border-slate-200 hover:scale-105',
+            ].join(' ')}
+            style={{ backgroundColor: color }}
+          />
+        ))}
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label="Color personalizado"
+          className="h-8 w-8 cursor-pointer rounded-full border border-slate-200 bg-white p-0.5"
+        />
+      </div>
+    </div>
+  )
+}
+
+function CategoryForm({ category, onClose, onSaved }) {
+  const isEdit = Boolean(category)
+  const [form, setForm] = useState(() =>
+    category
+      ? { name: category.name, type: category.type, color: category.color }
+      : { name: '', type: 'EXPENSE', color: PALETTE[4] },
+  )
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [error, setError] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError(null)
+
+    const name = form.name.trim()
+    if (!name) {
+      setFieldErrors({ name: 'Introduce un nombre' })
+      return
+    }
+    setFieldErrors({})
+
+    setSaving(true)
+    try {
+      if (isEdit) {
+        await updateCategory(category.id, {
+          name,
+          type: category.type,
+          color: form.color,
+          active: category.active,
+        })
+      } else {
+        await createCategory({ name, type: form.type, color: form.color })
+      }
+      onSaved()
+    } catch (err) {
+      setError(err.message || 'No se ha podido guardar la categoría')
+      if (err.fieldErrors) setFieldErrors(err.fieldErrors)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title={isEdit ? 'Editar categoría' : 'Nueva categoría'} onClose={onClose}>
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <FormError message={error} />
+
+        <Field
+          label="Nombre"
+          name="name"
+          type="text"
+          placeholder="Ej.: suscripciones"
+          value={form.name}
+          onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+          error={fieldErrors.name}
+        />
+
+        {!isEdit && (
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1" role="group" aria-label="Tipo">
+            <button
+              type="button"
+              onClick={() => setForm((prev) => ({ ...prev, type: 'EXPENSE' }))}
+              aria-pressed={form.type === 'EXPENSE'}
+              className={[
+                'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                form.type === 'EXPENSE'
+                  ? 'bg-white text-red-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700',
+              ].join(' ')}
+            >
+              Gasto
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm((prev) => ({ ...prev, type: 'INCOME' }))}
+              aria-pressed={form.type === 'INCOME'}
+              className={[
+                'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                form.type === 'INCOME'
+                  ? 'bg-white text-emerald-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700',
+              ].join(' ')}
+            >
+              Ingreso
+            </button>
+          </div>
+        )}
+
+        <ColorPicker
+          value={form.color}
+          onChange={(color) => setForm((prev) => ({ ...prev, color }))}
+        />
+
+        <SubmitButton loading={saving} loadingText="Guardando…">
+          {isEdit ? 'Guardar cambios' : 'Crear categoría'}
+        </SubmitButton>
+      </form>
+    </Modal>
+  )
+}
+
+export default function CategoriesPage() {
+  const [categories, setCategories] = useState(null)
+  const [showInactive, setShowInactive] = useState(false)
+  const [error, setError] = useState(null)
+  const [reloadKey, setReloadKey] = useState(0)
+  // "loading" is derived: the request in flight has not been marked as loaded
+  const [loadedKey, setLoadedKey] = useState(null)
+  const requestKey = `${showInactive}-${reloadKey}`
+  const loading = loadedKey !== requestKey
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingCategory, setEditingCategory] = useState(null)
+  const [toDelete, setToDelete] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [notice, setNotice] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const key = `${showInactive}-${reloadKey}`
+    listCategories(showInactive ? { includeInactive: true } : {})
+      .then((list) => {
+        if (!cancelled) {
+          setCategories(list)
+          setError(null)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message || 'No se han podido cargar las categorías')
+      })
+      .finally(() => {
+        if (!cancelled) setLoadedKey(key)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [showInactive, reloadKey])
+
+  function handleSaved() {
+    setFormOpen(false)
+    setEditingCategory(null)
+    setNotice(null)
+    setReloadKey((k) => k + 1)
+  }
+
+  async function handleDelete() {
+    setDeleting(true)
+    setNotice(null)
+    try {
+      await removeCategory(toDelete.id)
+      // The backend deactivates instead of deleting when the category has
+      // transactions: re-fetch with inactives to know which case happened.
+      const all = await listCategories({ includeInactive: true })
+      const remaining = all.find((c) => c.id === toDelete.id)
+      setNotice(
+        remaining
+          ? `«${toDelete.name}» tenía movimientos, así que se ha desactivado en lugar de eliminarse.`
+          : `Categoría «${toDelete.name}» eliminada.`,
+      )
+      setCategories(showInactive ? all : all.filter((c) => c.active))
+      setToDelete(null)
+    } catch (err) {
+      setToDelete(null)
+      setError(err.message || 'No se ha podido eliminar la categoría')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  async function handleReactivate(category) {
+    setNotice(null)
+    try {
+      await updateCategory(category.id, {
+        name: category.name,
+        type: category.type,
+        color: category.color,
+        active: true,
+      })
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      setError(err.message || 'No se ha podido reactivar la categoría')
+    }
+  }
+
+  function groupItems(type) {
+    return (categories ?? [])
+      .filter((c) => c.type === type)
+      .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, 'es'))
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Categorías</h1>
+        <button
+          type="button"
+          onClick={() => {
+            setEditingCategory(null)
+            setFormOpen(true)
+          }}
+          className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Nueva categoría
+        </button>
+      </div>
+
+      <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-slate-600">
+        <input
+          type="checkbox"
+          checked={showInactive}
+          onChange={(e) => setShowInactive(e.target.checked)}
+          className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
+        />
+        Mostrar inactivas
+      </label>
+
+      {notice && (
+        <div
+          role="status"
+          className="flex items-start justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-800"
+        >
+          <span>{notice}</span>
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            aria-label="Cerrar aviso"
+            className="shrink-0 text-emerald-600 hover:text-emerald-800"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {loading && !categories && <LoadingState label="Cargando categorías…" />}
+
+      {error && !loading && (
+        <ErrorState message={error} onRetry={() => setReloadKey((k) => k + 1)} />
+      )}
+
+      {!error && categories && (
+        <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+          {GROUPS.map((group) => {
+            const items = groupItems(group.type)
+            return (
+              <section key={group.type} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <h2 className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+                  {group.title}
+                </h2>
+                {items.length === 0 ? (
+                  <p className="px-4 py-6 text-sm text-slate-500">
+                    No hay categorías de este tipo.
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-slate-100">
+                    {items.map((c) => (
+                      <li key={c.id} className="flex items-center gap-3 px-4 py-3">
+                        <span
+                          className={[
+                            'h-5 w-5 shrink-0 rounded-full border border-slate-200',
+                            c.active ? '' : 'opacity-40',
+                          ].join(' ')}
+                          style={{ backgroundColor: c.color }}
+                          aria-hidden="true"
+                        />
+                        <span
+                          className={[
+                            'min-w-0 flex-1 truncate text-sm font-medium',
+                            c.active ? 'text-slate-900' : 'text-slate-400 line-through',
+                          ].join(' ')}
+                        >
+                          {c.name}
+                        </span>
+                        {!c.active && (
+                          <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                            Inactiva
+                          </span>
+                        )}
+                        {c.active ? (
+                          <div className="flex shrink-0 items-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCategory(c)
+                                setFormOpen(true)
+                              }}
+                              aria-label={`Editar ${c.name}`}
+                              className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+                                <path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setToDelete(c)}
+                              aria-label={`Eliminar ${c.name}`}
+                              className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+                                <path d="M3 6h18" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              </svg>
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleReactivate(c)}
+                            aria-label={`Reactivar ${c.name}`}
+                            className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-emerald-300 hover:text-emerald-700"
+                          >
+                            Reactivar
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )
+          })}
+        </div>
+      )}
+
+      {formOpen && (
+        <CategoryForm
+          category={editingCategory}
+          onClose={() => {
+            setFormOpen(false)
+            setEditingCategory(null)
+          }}
+          onSaved={handleSaved}
+        />
+      )}
+
+      {toDelete && (
+        <ConfirmDialog
+          title="Eliminar categoría"
+          message={`¿Seguro que quieres eliminar «${toDelete.name}»? Si tiene movimientos asociados se desactivará en lugar de eliminarse.`}
+          confirmLabel="Eliminar"
+          loading={deleting}
+          onCancel={() => setToDelete(null)}
+          onConfirm={handleDelete}
+        />
+      )}
+    </div>
   )
 }
