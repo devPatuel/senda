@@ -1,0 +1,21 @@
+# Development compose: only Postgres. Backend and frontend run locally with hot-reload.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: senda-postgres
+    environment:
+      POSTGRES_DB: senda
+      POSTGRES_USER: senda
+      POSTGRES_PASSWORD: senda
+    ports:
+      - "5432:5432"
+    volumes:
+      - senda_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U senda -d senda"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  senda_pgdata:

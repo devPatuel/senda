@@ -1,0 +1,46 @@
+# Production compose (target: home NAS). Builds and runs the full stack.
+#
+# Usage:
+#   SENDA_DB_PASSWORD=... SENDA_JWT_SECRET=... docker compose -f docker-compose.prod.yml up -d --build
+services:
+  postgres:
+    image: postgres:16-alpine
+    # No host port: only reachable from the backend through the compose network
+    environment:
+      POSTGRES_DB: senda
+      POSTGRES_USER: senda
+      POSTGRES_PASSWORD: ${SENDA_DB_PASSWORD:-senda}
+    volumes:
+      - senda_pgdata_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U senda -d senda"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/senda
+      SPRING_DATASOURCE_USERNAME: senda
+      SPRING_DATASOURCE_PASSWORD: ${SENDA_DB_PASSWORD:-senda}
+      # Must be provided via environment; no default in production
+      SENDA_JWT_SECRET: ${SENDA_JWT_SECRET:?SENDA_JWT_SECRET is required in production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      # 8088 instead of 80: NAS systems (Synology DSM, etc.) usually reserve 80/443
+      # for their own admin UI or reverse proxy
+      - "8088:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  senda_pgdata_prod:
