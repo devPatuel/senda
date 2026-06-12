@@ -44,7 +44,7 @@ public class Transaction {
     @Column(nullable = false)
     private LocalDate date;
 
-    @Column
+    @Column(length = 500)
     private String description;
 
     @Column(name = "created_at", nullable = false, updatable = false)
