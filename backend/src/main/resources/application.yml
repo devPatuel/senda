@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: senda
+  datasource:
+    url: jdbc:postgresql://localhost:5432/senda
+    username: senda
+    password: senda
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+
+server:
+  port: 8080
+
+senda:
+  jwt:
+    # Default value is for local development ONLY. Set SENDA_JWT_SECRET in any real environment.
+    secret: ${SENDA_JWT_SECRET:senda-dev-only-secret-8f3kQ2j9Xd7sH5h1Vm4n6Lp0qZc8rT3wYb5uE1aG9iK7oM2}
+    expiration: 24h
