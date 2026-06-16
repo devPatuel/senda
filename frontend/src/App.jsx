@@ -10,6 +10,8 @@ import AccountsPage from './pages/AccountsPage'
 import DebtsPage from './pages/DebtsPage'
 import InvestmentsPage from './pages/InvestmentsPage'
 import AllocationPage from './pages/AllocationPage'
+import NetWorthPage from './pages/NetWorthPage'
+import ShoppingPage from './pages/ShoppingPage'
 
 export default function App() {
   return (
@@ -26,6 +28,8 @@ export default function App() {
           <Route path="/deudas" element={<DebtsPage />} />
           <Route path="/inversiones" element={<InvestmentsPage />} />
           <Route path="/reparto" element={<AllocationPage />} />
+          <Route path="/patrimonio" element={<NetWorthPage />} />
+          <Route path="/compra" element={<ShoppingPage />} />
         </Route>
       </Route>
 
