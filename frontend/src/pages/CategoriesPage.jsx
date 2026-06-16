@@ -6,7 +6,7 @@ import {
   removeCategory,
 } from '../api/categories'
 import { Field, FormError, SubmitButton } from '../components/form'
-import { ConfirmDialog, ErrorState, LoadingState, Modal } from '../components/ui'
+import { ConfirmDialog, ErrorState, LoadingState, Modal, Notice } from '../components/ui'
 
 const PALETTE = [
   '#ef4444',
@@ -103,7 +103,11 @@ function CategoryForm({ category, onClose, onSaved }) {
   }
 
   return (
-    <Modal title={isEdit ? 'Editar categoría' : 'Nueva categoría'} onClose={onClose}>
+    <Modal
+      title={isEdit ? 'Editar categoría' : 'Nueva categoría'}
+      onClose={onClose}
+      dismissable={!saving}
+    >
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <FormError message={error} />
 
@@ -165,6 +169,9 @@ export default function CategoriesPage() {
   const [categories, setCategories] = useState(null)
   const [showInactive, setShowInactive] = useState(false)
   const [error, setError] = useState(null)
+  // Action (delete/reactivate) errors live apart from load errors so a failed
+  // action never unmounts the already-loaded list.
+  const [actionError, setActionError] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
   // "loading" is derived: the request in flight has not been marked as loaded
   const [loadedKey, setLoadedKey] = useState(null)
@@ -201,35 +208,46 @@ export default function CategoriesPage() {
     setFormOpen(false)
     setEditingCategory(null)
     setNotice(null)
+    setActionError(null)
     setReloadKey((k) => k + 1)
   }
 
   async function handleDelete() {
+    const category = toDelete
     setDeleting(true)
     setNotice(null)
+    setActionError(null)
     try {
-      await removeCategory(toDelete.id)
-      // The backend deactivates instead of deleting when the category has
-      // transactions: re-fetch with inactives to know which case happened.
+      await removeCategory(category.id)
+    } catch (err) {
+      setActionError(err.message || 'No se ha podido eliminar la categoría')
+      return
+    } finally {
+      setToDelete(null)
+      setDeleting(false)
+    }
+    // The delete succeeded: refresh through the keyed effect, which already
+    // handles errors and cancellation (a manual setCategories could race with it)
+    setReloadKey((k) => k + 1)
+    // Best-effort check to tell apart "deleted" from "deactivated" (the backend
+    // deactivates instead of deleting when the category has transactions)
+    try {
       const all = await listCategories({ includeInactive: true })
-      const remaining = all.find((c) => c.id === toDelete.id)
+      const remaining = all.some((c) => c.id === category.id)
       setNotice(
         remaining
-          ? `«${toDelete.name}» tenía movimientos, así que se ha desactivado en lugar de eliminarse.`
-          : `Categoría «${toDelete.name}» eliminada.`,
+          ? `«${category.name}» tenía movimientos, así que se ha desactivado en lugar de eliminarse.`
+          : `Categoría «${category.name}» eliminada.`,
       )
-      setCategories(showInactive ? all : all.filter((c) => c.active))
-      setToDelete(null)
-    } catch (err) {
-      setToDelete(null)
-      setError(err.message || 'No se ha podido eliminar la categoría')
-    } finally {
-      setDeleting(false)
+    } catch {
+      // The delete already happened; do not report it as failed
+      setNotice(`Categoría «${category.name}» eliminada o desactivada.`)
     }
   }
 
   async function handleReactivate(category) {
     setNotice(null)
+    setActionError(null)
     try {
       await updateCategory(category.id, {
         name: category.name,
@@ -239,7 +257,7 @@ export default function CategoriesPage() {
       })
       setReloadKey((k) => k + 1)
     } catch (err) {
-      setError(err.message || 'No se ha podido reactivar la categoría')
+      setActionError(err.message || 'No se ha podido reactivar la categoría')
     }
   }
 
@@ -278,23 +296,12 @@ export default function CategoriesPage() {
         Mostrar inactivas
       </label>
 
-      {notice && (
-        <div
-          role="status"
-          className="flex items-start justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-800"
-        >
-          <span>{notice}</span>
-          <button
-            type="button"
-            onClick={() => setNotice(null)}
-            aria-label="Cerrar aviso"
-            className="shrink-0 text-emerald-600 hover:text-emerald-800"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4" aria-hidden="true">
-              <path d="M6 6l12 12M18 6 6 18" />
-            </svg>
-          </button>
-        </div>
+      {notice && <Notice onClose={() => setNotice(null)}>{notice}</Notice>}
+
+      {actionError && (
+        <Notice tone="error" onClose={() => setActionError(null)}>
+          {actionError}
+        </Notice>
       )}
 
       {loading && !categories && <LoadingState label="Cargando categorías…" />}

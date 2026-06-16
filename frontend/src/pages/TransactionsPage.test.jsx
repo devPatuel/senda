@@ -151,6 +151,38 @@ describe('TransactionsPage', () => {
     )
   })
 
+  it('shows the inactive current category when editing and keeps it on submit', async () => {
+    // The transaction's category was soft-deleted: it must stay visible and
+    // selected so the user can edit other fields without changing it
+    listCategories.mockResolvedValue([
+      { id: 1, name: 'Comida', type: 'EXPENSE', color: '#ef4444', active: false },
+      { id: 2, name: 'Transporte', type: 'EXPENSE', color: '#3b82f6', active: true },
+    ])
+    listTransactions.mockResolvedValue(PAGE_WITH_ONE)
+    updateTransaction.mockResolvedValue(EXISTING_TRANSACTION)
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('Cena')
+    await user.click(screen.getByRole('button', { name: 'Editar movimiento' }))
+
+    const select = screen.getByLabelText('Categoría')
+    expect(select).toHaveValue('1')
+    expect(within(select).getByRole('option', { name: 'Comida (inactiva)' })).toBeDisabled()
+
+    const amountInput = screen.getByLabelText('Importe (€)')
+    await user.clear(amountInput)
+    await user.type(amountInput, '30')
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+    await waitFor(() =>
+      expect(updateTransaction).toHaveBeenCalledWith(
+        7,
+        expect.objectContaining({ categoryId: 1, amount: 30 }),
+      ),
+    )
+  })
+
   it('deletes a transaction only after confirmation', async () => {
     listTransactions.mockResolvedValue(PAGE_WITH_ONE)
     removeTransaction.mockResolvedValue(null)
@@ -166,5 +198,67 @@ describe('TransactionsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Eliminar' }))
 
     await waitFor(() => expect(removeTransaction).toHaveBeenCalledWith(7))
+  })
+
+  it('keeps the loaded list visible and shows a banner when the delete fails', async () => {
+    listTransactions.mockResolvedValue(PAGE_WITH_ONE)
+    removeTransaction.mockRejectedValue(new Error('No se ha podido eliminar el movimiento'))
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('Cena')
+    await user.click(screen.getByRole('button', { name: 'Eliminar movimiento' }))
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No se ha podido eliminar el movimiento',
+    )
+    // The list does not unmount and no full-screen retry replaces it
+    expect(screen.getByText('Cena')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument()
+  })
+
+  it('does not dismiss the confirm dialog while the delete is in flight', async () => {
+    listTransactions.mockResolvedValue(PAGE_WITH_ONE)
+    let resolveDelete
+    removeTransaction.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDelete = resolve
+      }),
+    )
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('Cena')
+    await user.click(screen.getByRole('button', { name: 'Eliminar movimiento' }))
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+
+    // Escape, overlay click and the X must be inert while the request runs
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cerrar' })).toBeDisabled()
+
+    resolveDelete(null)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('clamps to the last available page when the current page falls out of range', async () => {
+    listTransactions.mockImplementation(({ page = 0 }) =>
+      page === 0
+        ? Promise.resolve({ ...PAGE_WITH_ONE, totalElements: 21, totalPages: 2 })
+        : // Data changed elsewhere: the requested page no longer exists
+          Promise.resolve({ content: [], page, size: 20, totalElements: 1, totalPages: 1 }),
+    )
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('Cena')
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
+
+    await waitFor(() =>
+      expect(listTransactions).toHaveBeenLastCalledWith(expect.objectContaining({ page: 0 })),
+    )
+    expect(await screen.findByText('Cena')).toBeInTheDocument()
+    expect(screen.queryByText('Aún no hay movimientos')).not.toBeInTheDocument()
   })
 })

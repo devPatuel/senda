@@ -45,6 +45,10 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
+                        // Unauthenticated on purpose: Docker healthchecks have no JWT.
+                        // It only leaks UP/DOWN (details require authorization), and the
+                        // backend port is not published to the host in production.
+                        .requestMatchers("/actuator/health").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling.authenticationEntryPoint(this::writeUnauthorized))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

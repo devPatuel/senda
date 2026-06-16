@@ -67,7 +67,8 @@ pagos recurrentes) no toca los existentes.
 
 Convención de códigos: 201 en alta, 400 validación, 401 credenciales o token inválido,
 404 recurso inexistente **o de otro usuario** (nunca 403, para no revelar existencia),
-409 email duplicado.
+409 conflicto de estado (email ya registrado, nombre de categoría duplicado para ese
+usuario y tipo, categoría inactiva al crear/editar un movimiento).
 
 ### Dinero y fechas
 
@@ -117,9 +118,13 @@ Ver [ADR 0002](adr/0002-jwt-stateless.md).
 ```
 
 - HS256 (jjwt 0.12.x), claim `sub` = userId, expiración 24 h.
-- Secreto en la propiedad `senda.jwt.secret`, leída del env `SENDA_JWT_SECRET`
-  (default solo de desarrollo en `application.yml`).
-- Contraseñas con BCrypt. Endpoints públicos: solo `/api/auth/**`.
+- Secreto en la propiedad `senda.jwt.secret`, leída del env `SENDA_JWT_SECRET`.
+  **Sin default**: si falta la variable, el backend no arranca (un secreto por defecto
+  committeado permitiría forjar tokens de cualquier usuario). En desarrollo se usa el
+  perfil `local` (`application-local.yml`).
+- Contraseñas con BCrypt (máx. 72 bytes UTF-8, validado en los DTOs).
+  Endpoints públicos: solo `/api/auth/**` (y `/actuator/health`), con rate limiting
+  en memoria por IP (10 peticiones/minuto) para frenar fuerza bruta y abuso de CPU.
 - **Aislamiento multiusuario**: toda consulta filtra por el `user_id` extraído del token,
   nunca por parámetros del cliente. Un recurso de otro usuario responde 404.
 - 401 de la API en el frontend → logout y redirección a login.
@@ -144,6 +149,16 @@ React + Vite + Tailwind con componentes propios, en JavaScript sin TypeScript
   local con hot-reload (ver [setup-local.md](setup-local.md)).
 - **Producción (futuro NAS)**: `docker-compose.prod.yml` levanta los tres servicios.
   nginx sirve la SPA y hace proxy de `/api/` al backend; Postgres no expone puerto al host.
+  El backend expone `/actuator/health` (sin autenticación, solo estado) para el
+  healthcheck del compose; el frontend no arranca hasta que el backend está sano.
+
+> **⚠️ TLS obligatorio antes de uso real.** El stack expone HTTP plano en el puerto
+> `8088`: credenciales de login/registro y el JWT (`Authorization: Bearer`) viajarían
+> en claro por la LAN. El despliegue real debe ir **detrás del reverse proxy del NAS
+> con TLS terminado allí** (y, una vez con HTTPS, añadir HSTS en ese proxy). El
+> `nginx.conf` del frontend ya añade cabeceras de seguridad al SPA
+> (`X-Content-Type-Options`, `X-Frame-Options`, CSP); la CSP importa especialmente
+> porque el token vive en `localStorage` y un XSS es el vector directo para robarlo.
 
 ## Decisiones clave (ADRs)
 

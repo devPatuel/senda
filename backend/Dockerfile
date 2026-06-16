@@ -13,6 +13,11 @@ RUN mvn -B package -DskipTests
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
+# curl is needed by the compose healthcheck (GET /actuator/health)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Run as non-root user
 RUN groupadd --system senda && useradd --system --gid senda senda
 USER senda

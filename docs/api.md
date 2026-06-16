@@ -23,11 +23,16 @@ Autenticación por header `Authorization: Bearer <jwt>` en todos los endpoints s
 | 400 | Validación de entrada fallida |
 | 401 | Credenciales incorrectas, token ausente/inválido/expirado |
 | 404 | Recurso inexistente **o de otro usuario** (nunca 403) |
-| 409 | Email ya registrado |
+| 409 | Conflicto de estado: email ya registrado, nombre de categoría duplicado (mismo usuario y tipo), categoría inactiva al crear/editar un movimiento |
+| 429 | Demasiados intentos en `/api/auth/**` (límite por IP: 10 peticiones/minuto) |
 
 ---
 
 ## Auth
+
+Los dos endpoints son públicos y tienen **rate limiting por IP** (10 peticiones/minuto
+entre ambos): al superarlo devuelven `429 Too Many Requests`. Protege contra fuerza
+bruta y contra agotamiento de CPU (cada intento ejecuta BCrypt).
 
 ### POST /api/auth/register
 
@@ -38,6 +43,9 @@ Body:
 ```json
 { "email": "jordi@example.com", "password": "secreta123", "name": "Jordi" }
 ```
+
+`password`: mínimo 8 caracteres y máximo **72 bytes UTF-8** (límite duro de BCrypt;
+ojo, bytes y no caracteres: con tildes o eñes cada carácter puede ocupar 2 bytes).
 
 Respuesta `201 Created`:
 
@@ -60,7 +68,8 @@ Body:
 
 Respuesta `200 OK`: mismo cuerpo que register (`token` + `user`).
 
-Errores: `401` credenciales incorrectas.
+Errores: `401` credenciales incorrectas, `400` validación (p. ej. contraseña de más
+de 72 bytes, que nunca puede ser válida).
 
 ---
 
@@ -107,13 +116,25 @@ Body:
 
 Respuesta `201 Created`: `CategoryResponse`.
 
-Errores: `400` validación (incluye nombre duplicado para ese usuario y tipo).
+Errores: `400` validación, `409` nombre duplicado para ese usuario y tipo.
 
 ### PUT /api/categories/{id}
 
-Mismo body que el POST. Respuesta `200 OK`: `CategoryResponse`.
+Body (distinto del POST):
 
-Errores: `404` si no existe o es de otro usuario, `400` validación.
+```json
+{ "name": "Mascotas", "color": "#F97316", "active": true }
+```
+
+- `type` **no se puede cambiar**: es inmutable tras la creación. Si se envía un campo
+  `type` en el JSON, se ignora silenciosamente.
+- `active` es opcional: si se omite (o es `null`) se conserva el valor actual.
+  Enviar `active: true` es la forma de **reactivar** una categoría desactivada.
+
+Respuesta `200 OK`: `CategoryResponse`.
+
+Errores: `404` si no existe o es de otro usuario, `400` validación,
+`409` nombre duplicado para ese usuario y tipo.
 
 ### DELETE /api/categories/{id}
 
@@ -184,13 +205,15 @@ Body:
 Respuesta `201 Created`: `TransactionResponse`.
 
 Errores: `400` validación (importe ≤ 0, tipo que no coincide con la categoría…),
-`404` si la categoría no existe o es de otro usuario.
+`404` si la categoría no existe o es de otro usuario,
+`409` si la categoría está inactiva (desactivada con el DELETE de categorías).
 
 ### PUT /api/transactions/{id}
 
 Mismo body que el POST. Respuesta `200 OK`: `TransactionResponse`.
 
-Errores: `404` si no existe o es de otro usuario, `400` validación.
+Errores: `404` si no existe o es de otro usuario, `400` validación,
+`409` si la categoría destino está inactiva.
 
 ### DELETE /api/transactions/{id}
 

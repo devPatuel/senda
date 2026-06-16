@@ -137,6 +137,39 @@ class TransactionServiceTest {
     }
 
     @Test
+    void updateKeepingInactiveCategorySucceeds() {
+        // The category was soft-deleted after the transaction was created:
+        // editing amount/date while keeping the category must still work.
+        Category inactive = category(5L, "Comida", TransactionType.EXPENSE, false);
+        Transaction existing = new Transaction(USER_ID, inactive, TransactionType.EXPENSE,
+                new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch");
+        ReflectionTestUtils.setField(existing, "id", 10L);
+        when(transactionRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findByIdAndUserId(5L, USER_ID)).thenReturn(Optional.of(inactive));
+
+        TransactionRequest request = new TransactionRequest(5L, TransactionType.EXPENSE,
+                new BigDecimal("20.00"), LocalDate.of(2026, 6, 11), "Lunch");
+        TransactionResponse response = service.update(USER_ID, 10L, request);
+
+        assertThat(response.categoryId()).isEqualTo(5L);
+        assertThat(response.amount()).isEqualByComparingTo("20.00");
+        assertThat(response.date()).isEqualTo(LocalDate.of(2026, 6, 11));
+    }
+
+    @Test
+    void updateChangingToInactiveCategoryThrowsConflict() {
+        Transaction existing = new Transaction(USER_ID, expenseCategory, TransactionType.EXPENSE,
+                new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch");
+        ReflectionTestUtils.setField(existing, "id", 10L);
+        Category otherInactive = category(7L, "Caprichos", TransactionType.EXPENSE, false);
+        when(transactionRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(otherInactive));
+
+        assertThatThrownBy(() -> service.update(USER_ID, 10L, expenseRequest(7L)))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
     void updateForeignOrMissingTransactionThrowsNotFound() {
         when(transactionRepository.findByIdAndUserId(99L, USER_ID)).thenReturn(Optional.empty());
 

@@ -2,6 +2,14 @@
 #
 # Usage:
 #   SENDA_DB_PASSWORD=... SENDA_JWT_SECRET=... docker compose -f docker-compose.prod.yml up -d --build
+#
+# WARNING — TLS: the frontend serves plain HTTP on port 8088. Credentials and the
+# JWT (Authorization header) travel in cleartext, so any device on the LAN could
+# capture them. Before real use, put this stack behind the NAS reverse proxy with
+# TLS terminated there (and enable HSTS on that proxy). See docs/arquitectura.md.
+#
+# NOTE — DB password: a Postgres volume keeps the password it was initialized
+# with; exporting a different SENDA_DB_PASSWORD later does NOT change it.
 services:
   postgres:
     image: postgres:16-alpine
@@ -9,7 +17,8 @@ services:
     environment:
       POSTGRES_DB: senda
       POSTGRES_USER: senda
-      POSTGRES_PASSWORD: ${SENDA_DB_PASSWORD:-senda}
+      # No default: failing fast beats silently booting with the dev password
+      POSTGRES_PASSWORD: ${SENDA_DB_PASSWORD:?SENDA_DB_PASSWORD is required in production}
     volumes:
       - senda_pgdata_prod:/var/lib/postgresql/data
     healthcheck:
@@ -24,22 +33,34 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/senda
       SPRING_DATASOURCE_USERNAME: senda
-      SPRING_DATASOURCE_PASSWORD: ${SENDA_DB_PASSWORD:-senda}
+      SPRING_DATASOURCE_PASSWORD: ${SENDA_DB_PASSWORD:?SENDA_DB_PASSWORD is required in production}
       # Must be provided via environment; no default in production
       SENDA_JWT_SECRET: ${SENDA_JWT_SECRET:?SENDA_JWT_SECRET is required in production}
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      # Actuator health is the only unauthenticated non-auth endpoint (status only)
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      # Give Spring time to boot and run Flyway migrations before counting failures
+      start_period: 60s
     restart: unless-stopped
 
   frontend:
     build: ./frontend
     ports:
       # 8088 instead of 80: NAS systems (Synology DSM, etc.) usually reserve 80/443
-      # for their own admin UI or reverse proxy
-      - "8088:80"
+      # for their own admin UI or reverse proxy. Container port is 8080 because
+      # nginx runs unprivileged (non-root) inside the image.
+      - "8088:8080"
     depends_on:
-      - backend
+      # Wait for a healthy backend so nginx never starts serving 502s on /api
+      # (and resolves the backend's final IP, not a stale one)
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

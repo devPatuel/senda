@@ -9,12 +9,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -107,5 +109,75 @@ class AuthControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.error").value("Unauthorized"));
+    }
+
+    // --- BCrypt 72-byte limit: must be a 400 validation error, never a 500 ---
+
+    @Test
+    void registerWithPasswordOver72BytesReturns400() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "jordi@example.com", "password": "%s", "name": "Jordi"}
+                                """.formatted("a".repeat(73))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.fieldErrors.password").exists());
+        verifyNoInteractions(authService);
+    }
+
+    @Test
+    void registerWithMultibytePasswordOver72BytesReturns400() throws Exception {
+        // 40 characters but 80 UTF-8 bytes: BCrypt's limit is bytes, not characters
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "jordi@example.com", "password": "%s", "name": "Jordi"}
+                                """.formatted("ñ".repeat(40))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.password").exists());
+        verifyNoInteractions(authService);
+    }
+
+    @Test
+    void registerWithPasswordOfExactly72BytesIsAccepted() throws Exception {
+        when(authService.register(any(RegisterRequest.class))).thenReturn(RESPONSE);
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "jordi@example.com", "password": "%s", "name": "Jordi"}
+                                """.formatted("a".repeat(72))))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void loginWithPasswordOver72BytesReturns400() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "jordi@example.com", "password": "%s"}
+                                """.formatted("a".repeat(73))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.password").exists());
+        verifyNoInteractions(authService);
+    }
+
+    // --- check-then-act race: DB constraint violation must map to 409, not 500 ---
+
+    @Test
+    void registerRaceHittingDbUniqueConstraintReturns409() throws Exception {
+        when(authService.register(any(RegisterRequest.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint"));
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "jordi@example.com", "password": "password123", "name": "Jordi"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.message").value("Resource conflict, please retry"));
     }
 }

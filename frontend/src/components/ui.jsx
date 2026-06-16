@@ -2,20 +2,23 @@
 // Complements form.jsx (Field, FormError, SubmitButton) from the foundations.
 import { useEffect } from 'react'
 
-export function Modal({ title, onClose, children }) {
+// `dismissable` lets callers make Escape/overlay/X inert while a request is in
+// flight, so "closing" cannot pretend to cancel an operation that will still run.
+export function Modal({ title, onClose, dismissable = true, children }) {
   useEffect(() => {
+    if (!dismissable) return undefined
     function handleKeyDown(e) {
       if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  }, [onClose, dismissable])
 
   return (
     <div className="fixed inset-0 z-30 flex items-end justify-center sm:items-center sm:p-4">
       <div
         className="absolute inset-0 bg-slate-900/40"
-        onClick={onClose}
+        onClick={dismissable ? onClose : undefined}
         aria-hidden="true"
       />
       {/* Bottom sheet on mobile, centered card on desktop */}
@@ -30,8 +33,9 @@ export function Modal({ title, onClose, children }) {
           <button
             type="button"
             onClick={onClose}
+            disabled={!dismissable}
             aria-label="Cerrar"
-            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-5 w-5" aria-hidden="true">
               <path d="M6 6l12 12M18 6 6 18" />
@@ -46,7 +50,7 @@ export function Modal({ title, onClose, children }) {
 
 export function ConfirmDialog({ title, message, confirmLabel, loading, onCancel, onConfirm }) {
   return (
-    <Modal title={title} onClose={onCancel}>
+    <Modal title={title} onClose={onCancel} dismissable={!loading}>
       <p className="text-sm text-slate-600">{message}</p>
       <div className="mt-5 flex justify-end gap-2">
         <button
@@ -93,6 +97,41 @@ export function SelectField({ label, name, error, children, ...selectProps }) {
         {children}
       </select>
       {error && <p className="mt-1.5 text-sm text-red-600">{error}</p>}
+    </div>
+  )
+}
+
+// Dismissible inline banner for the outcome of one-off actions (delete,
+// reactivate...). Kept separate from ErrorState so an action failure never
+// unmounts already-loaded content.
+export function Notice({ tone = 'success', onClose, children }) {
+  const isError = tone === 'error'
+  return (
+    <div
+      role={isError ? 'alert' : 'status'}
+      className={[
+        'flex items-start justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-sm',
+        isError
+          ? 'border-red-200 bg-red-50 text-red-800'
+          : 'border-emerald-200 bg-emerald-50 text-emerald-800',
+      ].join(' ')}
+    >
+      <span>{children}</span>
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar aviso"
+          className={[
+            'shrink-0',
+            isError ? 'text-red-600 hover:text-red-800' : 'text-emerald-600 hover:text-emerald-800',
+          ].join(' ')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4" aria-hidden="true">
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }

@@ -14,6 +14,7 @@ import {
   ErrorState,
   LoadingState,
   Modal,
+  Notice,
   SelectField,
 } from '../components/ui'
 
@@ -37,6 +38,13 @@ function TransactionForm({ categories, transaction, onClose, onSaved }) {
   const [saving, setSaving] = useState(false)
 
   const availableCategories = categories.filter((c) => c.active && c.type === form.type)
+  // The transaction's category may have been deactivated (soft delete): keep it
+  // visible as the selected option, but disabled so it cannot be re-picked.
+  const inactiveCurrentCategory = isEdit
+    ? categories.find(
+        (c) => c.id === transaction.categoryId && !c.active && c.type === form.type,
+      )
+    : null
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -91,7 +99,12 @@ function TransactionForm({ categories, transaction, onClose, onSaved }) {
       }
       onSaved()
     } catch (err) {
-      setError(err.message || 'No se ha podido guardar el movimiento')
+      // The backend's 409 ("Category is inactive") is in English: translate it
+      setError(
+        err.status === 409
+          ? 'La categoría seleccionada está desactivada. Elige una categoría activa.'
+          : err.message || 'No se ha podido guardar el movimiento',
+      )
       if (err.fieldErrors) setFieldErrors(err.fieldErrors)
     } finally {
       setSaving(false)
@@ -99,7 +112,11 @@ function TransactionForm({ categories, transaction, onClose, onSaved }) {
   }
 
   return (
-    <Modal title={isEdit ? 'Editar movimiento' : 'Nuevo movimiento'} onClose={onClose}>
+    <Modal
+      title={isEdit ? 'Editar movimiento' : 'Nuevo movimiento'}
+      onClose={onClose}
+      dismissable={!saving}
+    >
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <FormError message={error} />
 
@@ -140,6 +157,11 @@ function TransactionForm({ categories, transaction, onClose, onSaved }) {
           error={fieldErrors.categoryId}
         >
           <option value="">Selecciona una categoría</option>
+          {inactiveCurrentCategory && (
+            <option value={inactiveCurrentCategory.id} disabled>
+              {inactiveCurrentCategory.name} (inactiva)
+            </option>
+          )}
           {availableCategories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -194,6 +216,9 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(0)
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
+  // Action (delete) errors live apart from load errors so a failed delete
+  // never unmounts the already-loaded list.
+  const [actionError, setActionError] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
   // "loading" is derived: the request in flight has not been marked as loaded
   const [loadedKey, setLoadedKey] = useState(null)
@@ -206,7 +231,9 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     let cancelled = false
-    listCategories()
+    // Include inactive ones: existing transactions may reference soft-deleted
+    // categories, which must still be displayed in filters and the edit form
+    listCategories({ includeInactive: true })
       .then((list) => {
         if (!cancelled) setCategories(list)
       })
@@ -223,10 +250,16 @@ export default function TransactionsPage() {
     const key = JSON.stringify([page, filters, reloadKey])
     listTransactions({ page, ...filters })
       .then((result) => {
-        if (!cancelled) {
-          setData(result)
-          setError(null)
+        if (cancelled) return
+        // The page can fall out of range when data changes elsewhere (another
+        // tab/device): clamp to the last available page instead of rendering
+        // an empty state without pagination controls.
+        if (result.content.length === 0 && page > 0 && result.totalElements > 0) {
+          setPage(Math.max(result.totalPages - 1, 0))
+          return
         }
+        setData(result)
+        setError(null)
       })
       .catch((err) => {
         if (!cancelled) setError(err.message || 'No se han podido cargar los movimientos')
@@ -263,14 +296,15 @@ export default function TransactionsPage() {
   function handleSaved() {
     setFormOpen(false)
     setEditingTransaction(null)
+    setActionError(null)
     setReloadKey((k) => k + 1)
   }
 
   async function handleDelete() {
     setDeleting(true)
+    setActionError(null)
     try {
       await removeTransaction(toDelete.id)
-      setToDelete(null)
       // If we removed the last row of a later page, step back one page
       if (data && data.content.length === 1 && page > 0) {
         setPage(page - 1)
@@ -278,9 +312,9 @@ export default function TransactionsPage() {
         setReloadKey((k) => k + 1)
       }
     } catch (err) {
-      setToDelete(null)
-      setError(err.message || 'No se ha podido eliminar el movimiento')
+      setActionError(err.message || 'No se ha podido eliminar el movimiento')
     } finally {
+      setToDelete(null)
       setDeleting(false)
     }
   }
@@ -360,7 +394,7 @@ export default function TransactionsPage() {
                 <option value="">Todas</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name}
+                    {c.active ? c.name : `${c.name} (inactiva)`}
                   </option>
                 ))}
               </SelectField>
@@ -382,6 +416,12 @@ export default function TransactionsPage() {
           </div>
         )}
       </div>
+
+      {actionError && (
+        <Notice tone="error" onClose={() => setActionError(null)}>
+          {actionError}
+        </Notice>
+      )}
 
       {loading && !data && <LoadingState label="Cargando movimientos…" />}
 

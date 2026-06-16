@@ -1,0 +1,9 @@
+# Keep the build context minimal and the image build reproducible:
+# `COPY . .` must never bring host artifacts (node_modules has host-specific
+# native binaries and would override the `npm ci` install inside the image).
+node_modules
+dist
+.env
+.env.*
+Dockerfile
+.dockerignore

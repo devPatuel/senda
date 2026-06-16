@@ -55,7 +55,7 @@ public class TransactionService {
 
     @Transactional
     public TransactionResponse create(Long userId, TransactionRequest request) {
-        Category category = resolveCategory(userId, request);
+        Category category = resolveCategory(userId, request, null);
         Transaction transaction = new Transaction(userId, category, request.type(),
                 request.amount(), request.date(), request.description());
         return TransactionResponse.from(transactionRepository.save(transaction));
@@ -69,7 +69,7 @@ public class TransactionService {
     @Transactional
     public TransactionResponse update(Long userId, Long id, TransactionRequest request) {
         Transaction transaction = findOwned(userId, id);
-        Category category = resolveCategory(userId, request);
+        Category category = resolveCategory(userId, request, transaction.getCategory().getId());
         transaction.setCategory(category);
         transaction.setType(request.type());
         transaction.setAmount(request.amount());
@@ -107,10 +107,14 @@ public class TransactionService {
                 .orElseThrow(() -> new NotFoundException("Transaction not found"));
     }
 
-    private Category resolveCategory(Long userId, TransactionRequest request) {
+    private Category resolveCategory(Long userId, TransactionRequest request, Long currentCategoryId) {
         Category category = categoryRepository.findByIdAndUserId(request.categoryId(), userId)
                 .orElseThrow(() -> new NotFoundException("Category not found"));
-        if (!category.isActive()) {
+        // Keeping the transaction's current category is allowed even when it was
+        // deactivated (soft-deleted): otherwise a transaction whose category was
+        // deactivated could never be edited without also changing its category.
+        boolean keepsCurrentCategory = category.getId().equals(currentCategoryId);
+        if (!category.isActive() && !keepsCurrentCategory) {
             throw new ConflictException("Category is inactive");
         }
         if (category.getType() != request.type()) {

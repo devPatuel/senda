@@ -2,6 +2,7 @@ package dev.jordi.senda.common;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -52,6 +53,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(409, "Conflict", ex.getMessage()));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        // Safety net for check-then-act races: concurrent requests can slip past the
+        // exists() checks and hit the DB UNIQUE/FK constraints. Map to 409 (the API
+        // contract for conflicts) with a generic message that leaks no schema details.
+        log.warn("Data integrity violation mapped to 409: {}", ex.getMostSpecificCause().getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(409, "Conflict", "Resource conflict, please retry"));
     }
 
     @ExceptionHandler({AuthenticationException.class, AccessDeniedException.class})
