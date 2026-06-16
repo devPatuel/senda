@@ -5,6 +5,9 @@ import dev.jordi.senda.category.CategoryRepository;
 import dev.jordi.senda.category.DefaultCategories;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.JwtService;
+import dev.jordi.senda.investment.AssetClass;
+import dev.jordi.senda.investment.AssetClassRepository;
+import dev.jordi.senda.investment.DefaultAssetClasses;
 import dev.jordi.senda.user.User;
 import dev.jordi.senda.user.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -34,6 +37,8 @@ class AuthServiceTest {
     private UserRepository userRepository;
     @Mock
     private CategoryRepository categoryRepository;
+    @Mock
+    private AssetClassRepository assetClassRepository;
     @Mock
     private PasswordEncoder passwordEncoder;
     @Mock
@@ -77,6 +82,15 @@ class AuthServiceTest {
             assertThat(category.isActive()).isTrue();
         });
         assertThat(categories).extracting(Category::getName).contains("Comida", "Nómina");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<AssetClass>> assetClassesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(assetClassRepository).saveAll(assetClassesCaptor.capture());
+        List<AssetClass> assetClasses = assetClassesCaptor.getValue();
+        assertThat(assetClasses).hasSize(DefaultAssetClasses.ALL.size());
+        assertThat(assetClasses).allSatisfy(assetClass ->
+                assertThat(assetClass.getUserId()).isEqualTo(7L));
+        assertThat(assetClasses).extracting(AssetClass::getName).contains("Cripto", "Fondos", "Oro", "Plata");
     }
 
     @Test
