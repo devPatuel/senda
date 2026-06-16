@@ -40,7 +40,7 @@ public class DebtService {
             return List.of();
         }
         // Single aggregate query for all debts instead of one sum per debt (no N+1)
-        Map<Long, BigDecimal> paidByDebtId = paidAmounts(debts.stream().map(Debt::getId).toList());
+        Map<Long, BigDecimal> paidByDebtId = paidAmounts(userId, debts.stream().map(Debt::getId).toList());
         return debts.stream()
                 .map(d -> DebtResponse.from(d, paidByDebtId.getOrDefault(d.getId(), BigDecimal.ZERO)))
                 .toList();
@@ -161,8 +161,8 @@ public class DebtService {
         return paymentRepository.sumByDebtId(debtId);
     }
 
-    private Map<Long, BigDecimal> paidAmounts(List<Long> debtIds) {
-        return paymentRepository.sumByDebtIds(debtIds).stream()
+    private Map<Long, BigDecimal> paidAmounts(Long userId, List<Long> debtIds) {
+        return paymentRepository.sumByDebtIds(userId, debtIds).stream()
                 .collect(Collectors.toMap(
                         row -> (Long) row[0],
                         row -> (BigDecimal) row[1]));

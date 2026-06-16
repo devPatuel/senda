@@ -226,7 +226,7 @@ class DebtServiceTest {
         when(debtRepository.findByUserId(USER_ID)).thenReturn(List.of(d1, d2));
         // list() uses the batched sum query to avoid an N+1. d2 has no payments, so
         // it is simply absent from the result rows (defaults to zero in the service).
-        when(paymentRepository.sumByDebtIds(List.of(1L, 2L))).thenReturn(List.<Object[]>of(
+        when(paymentRepository.sumByDebtIds(USER_ID, List.of(1L, 2L))).thenReturn(List.<Object[]>of(
                 new Object[]{1L, new BigDecimal("30.00")}));
 
         List<DebtResponse> result = service.list(USER_ID, null, null);

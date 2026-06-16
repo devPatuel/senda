@@ -23,10 +23,14 @@ public interface DebtPaymentRepository extends JpaRepository<DebtPayment, Long> 
     /**
      * Paid totals for many debts in a single query, to avoid an N+1 when listing.
      * Each row is {@code [debtId, sum]}; debts with no payments are simply absent.
+     *
+     * <p>Scoped by {@code userId} as defense in depth: every tenant aggregation
+     * must filter by user, not trust that the caller already narrowed the ids.
      */
     @Query("select p.debtId, coalesce(sum(p.amount), 0) from DebtPayment p "
-            + "where p.debtId in :debtIds group by p.debtId")
-    List<Object[]> sumByDebtIds(@Param("debtIds") Collection<Long> debtIds);
+            + "where p.userId = :userId and p.debtId in :debtIds group by p.debtId")
+    List<Object[]> sumByDebtIds(@Param("userId") Long userId,
+                                @Param("debtIds") Collection<Long> debtIds);
 
     Optional<DebtPayment> findByIdAndUserId(Long id, Long userId);
 }
