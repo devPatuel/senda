@@ -244,6 +244,175 @@ Errores: `400` si `year`/`month` faltan o no son válidos.
 
 ---
 
+## Cuentas (dinero líquido)
+
+`AccountResponse`:
+
+```json
+{ "id": 1, "name": "Cuenta nómina", "type": "BANK", "balance": 1500.00, "currency": "EUR", "archived": false, "createdAt": "2026-06-16T10:00:00Z" }
+```
+
+`type`: `BANK` | `CASH`. El saldo se actualiza **a mano**. `currency` es opcional al crear
+(default `EUR`).
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/accounts?includeArchived=false` | Lista las cuentas (solo no archivadas por defecto) |
+| GET | `/api/accounts/balance` | Saldo total de las cuentas no archivadas: `{ "total": 1550.00 }` |
+| POST | `/api/accounts` | Crea una cuenta (`201`). Body: `name`, `type`, `balance`, `currency?` |
+| PUT | `/api/accounts/{id}` | Edita (incluye `archived` para archivar/restaurar) |
+| DELETE | `/api/accounts/{id}` | Borrado físico (`204`) |
+
+Errores: `400` validación, `404` cuenta inexistente o de otro usuario.
+
+---
+
+## Deudas
+
+`DebtResponse` incluye el importe original, lo **pagado** y lo **pendiente**:
+
+```json
+{ "id": 1, "direction": "THEY_OWE_ME", "counterparty": "Rodrigo", "concept": "Cena",
+  "originalAmount": 100.00, "paidAmount": 30.00, "pendingAmount": 70.00,
+  "settled": false, "date": "2026-06-01", "createdAt": "2026-06-16T10:00:00Z" }
+```
+
+`direction`: `THEY_OWE_ME` (me deben) | `I_OWE` (debo).
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/debts?direction=&settled=` | Lista las deudas (filtros opcionales por dirección y estado) |
+| POST | `/api/debts` | Crea (`201`). Body: `direction`, `counterparty`, `concept`, `originalAmount`, `date` |
+| GET | `/api/debts/{id}` | Una deuda |
+| PUT | `/api/debts/{id}` | Edita; el nuevo `originalAmount` no puede ser menor que lo ya pagado (`400`) |
+| DELETE | `/api/debts/{id}` | Borra la deuda y sus pagos (`204`) |
+| POST | `/api/debts/{id}/payments` | Registra un abono (`201`). Body: `amount`, `date`, `note?` |
+| GET | `/api/debts/{id}/payments` | Lista los abonos de la deuda |
+| DELETE | `/api/debts/{id}/payments/{paymentId}` | Borra un abono (`204`) |
+
+Reglas: el pendiente = `originalAmount − SUM(pagos)`; un abono que **excede el pendiente**
+da `400`; al llegar a 0 la deuda queda `settled` (se revierte al borrar un abono).
+Errores: `400` validación / abono excesivo, `404` recurso inexistente o de otro usuario.
+
+---
+
+## Inversiones
+
+### Clases de activo
+
+`AssetClassResponse`: `{ "id": 1, "name": "Cripto", "pricingSource": "CRYPTO" }`.
+`pricingSource`: `CRYPTO` (auto vía CoinGecko) | `METAL` | `FUND` | `MANUAL` (estos tres,
+precio a mano). Al registrarse se siembran por defecto: Cripto, Fondos, Oro, Plata.
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/investments/asset-classes` | Lista las clases del usuario |
+| POST | `/api/investments/asset-classes` | Crea (`201`). `409` si el nombre ya existe |
+| PUT | `/api/investments/asset-classes/{id}` | Edita; `409` al cambiar `pricingSource` si ya tiene posiciones |
+| DELETE | `/api/investments/asset-classes/{id}` | Borra; `409` si tiene posiciones |
+
+### Posiciones (holdings)
+
+`HoldingResponse` incluye valor de mercado y P&L calculados:
+
+```json
+{ "id": 1, "assetClassId": 1, "assetClassName": "Cripto", "pricingSource": "CRYPTO",
+  "symbol": "BTC", "name": "Bitcoin", "quantity": 0.50000000, "avgCost": 50000.00000000,
+  "currentPrice": 58000.00000000, "lastPricedAt": "2026-06-16T10:00:00Z",
+  "cost": 25000.00, "marketValue": 29000.00, "pnl": 4000.00 }
+```
+
+`marketValue` y `pnl` son `null` cuando no hay `currentPrice`. `symbol` debe ser
+alfanumérico.
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/investments/holdings?assetClassId=` | Lista las posiciones (filtro opcional por clase) |
+| POST | `/api/investments/holdings` | Crea (`201`). `400` si `quantity` 0 con `avgCost` ≠ 0 |
+| GET | `/api/investments/holdings/{id}` | Una posición |
+| POST | `/api/investments/holdings/{id}/buys` | Registra una compra (`201`): recalcula cantidad y coste medio y guarda un lote. Body: `quantity`, `unitPrice`, `date` |
+| GET | `/api/investments/holdings/{id}/lots` | Histórico de compras |
+| PUT | `/api/investments/holdings/{id}/price` | Fija el precio a mano (MANUAL/FUND/METAL). Body: `price` |
+| DELETE | `/api/investments/holdings/{id}` | Borra la posición y sus lotes (`204`) |
+| POST | `/api/investments/refresh-prices` | Refresca los precios CRYPTO de las posiciones y devuelve la lista actualizada |
+
+### NFTs
+
+`NftResponse` incluye `currentPurchaseValue` = `buyCryptoAmount ×` precio actual de
+`buyCryptoSymbol` (cuánto vale **hoy** lo que se pagó; `null` si no hay precio):
+
+```json
+{ "id": 1, "name": "Punk", "collection": "Larva Labs", "buyCryptoSymbol": "ETH",
+  "buyCryptoAmount": 2.00000000, "fiatValueAtPurchase": 4000.00, "ourCurrentValue": 8000.00,
+  "currentPurchaseValue": 6000.00, "utility": "Acceso a la comunidad", "createdAt": "..." }
+```
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET / POST / PUT / DELETE | `/api/investments/nfts[/{id}]` | CRUD de NFTs |
+
+Errores comunes de inversiones: `400` validación, `404` recurso ajeno/inexistente, `409`
+conflictos de clase de activo.
+
+---
+
+## Reparto de sueldo (sobres)
+
+`EnvelopeResponse`: `{ "id": 1, "name": "Ahorro", "percentage": 50.00, "position": 0, "balance": 700.00 }`.
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/allocation/envelopes` | Lista el plan de sobres con su saldo acumulado |
+| PUT | `/api/allocation/envelopes` | Guarda el **plan completo** (atómico). Body: `{ "envelopes": [ { "id?": 1, "name": "Ahorro", "percentage": 50.00 }, ... ] }`. `409` si los porcentajes no suman exactamente 100 |
+| POST | `/api/allocation/distribute` | Reparte un importe por sobre. Body: `{ "amount": 2000.00, "persist": false }` |
+
+`distribute` devuelve el reparto por sobre (ajustando los céntimos del redondeo en el
+último para que la suma cuadre con el importe). Con `persist=true` acumula cada parte en
+el saldo del sobre. Errores: `400` validación / sin sobres definidos, `409` plan que no
+suma 100.
+
+---
+
+## Patrimonio
+
+`GET /api/networth` — agrega cuentas, inversiones y deudas del usuario:
+
+```json
+{ "liquid": 1550.00, "investments": 37000.00, "investmentsHoldings": 29000.00,
+  "investmentsNfts": 8000.00, "debtsInFavor": 70.00, "debtsAgainst": 300.00,
+  "net": 38320.00 }
+```
+
+`net` = `liquid + investments + debtsInFavor − debtsAgainst`. Solo lectura.
+
+---
+
+## Lista de la compra y deseos
+
+`ShoppingItemResponse`:
+
+```json
+{ "id": 1, "listType": "WISHLIST", "name": "NAS", "estimatedPrice": 600.00,
+  "envelopeId": 2, "envelopeName": "Inversión", "envelopeBalance": 800.00,
+  "priority": 1, "bought": false, "feasible": true, "notes": null, "createdAt": "..." }
+```
+
+`listType`: `GROCERY` (comida, check/uncheck) | `WISHLIST` (deseos). `feasible` (solo
+deseos con sobre y precio) = saldo del sobre asociado ≥ `estimatedPrice`; `null` si no
+aplica. `priority`: 1–5.
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/shopping/items?listType=` | Lista los items (filtro opcional por tipo) |
+| POST | `/api/shopping/items` | Crea (`201`). `404` si el `envelopeId` no es del usuario |
+| PUT | `/api/shopping/items/{id}` | Edita; el `listType` no se puede cambiar (`400`) |
+| PATCH | `/api/shopping/items/{id}/bought` | Marca comprado/no comprado. Body: `{ "bought": true }` |
+| DELETE | `/api/shopping/items/{id}` | Borra (`204`) |
+
+Errores: `400` validación / cambio de `listType`, `404` item o sobre ajeno/inexistente.
+
+---
+
 ## Flujo completo con curl
 
 ```bash
