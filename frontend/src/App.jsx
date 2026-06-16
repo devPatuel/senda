@@ -7,6 +7,9 @@ import DashboardPage from './pages/DashboardPage'
 import TransactionsPage from './pages/TransactionsPage'
 import CategoriesPage from './pages/CategoriesPage'
 import AccountsPage from './pages/AccountsPage'
+import DebtsPage from './pages/DebtsPage'
+import InvestmentsPage from './pages/InvestmentsPage'
+import AllocationPage from './pages/AllocationPage'
 
 export default function App() {
   return (
@@ -20,6 +23,9 @@ export default function App() {
           <Route path="/movimientos" element={<TransactionsPage />} />
           <Route path="/categorias" element={<CategoriesPage />} />
           <Route path="/cuentas" element={<AccountsPage />} />
+          <Route path="/deudas" element={<DebtsPage />} />
+          <Route path="/inversiones" element={<InvestmentsPage />} />
+          <Route path="/reparto" element={<AllocationPage />} />
         </Route>
       </Route>
 

@@ -46,6 +46,38 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  {
+    to: '/deudas',
+    label: 'Deudas',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
+        <path d="M16 8a6 6 0 1 0-8 5.66" />
+        <path d="M12 6v6l3 2" />
+        <path d="M16 16h6" />
+        <path d="M19 13v6" />
+      </svg>
+    ),
+  },
+  {
+    to: '/inversiones',
+    label: 'Inversiones',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
+        <path d="M3 17l6-6 4 4 8-8" />
+        <path d="M17 7h4v4" />
+      </svg>
+    ),
+  },
+  {
+    to: '/reparto',
+    label: 'Reparto',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 3v9l6 4" />
+      </svg>
+    ),
+  },
 ]
 
 function navLinkClasses({ isActive }, base) {
