@@ -6,6 +6,7 @@ import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
 import TransactionsPage from './pages/TransactionsPage'
 import CategoriesPage from './pages/CategoriesPage'
+import AccountsPage from './pages/AccountsPage'
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/movimientos" element={<TransactionsPage />} />
           <Route path="/categorias" element={<CategoriesPage />} />
+          <Route path="/cuentas" element={<AccountsPage />} />
         </Route>
       </Route>
 
