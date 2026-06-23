@@ -12,6 +12,7 @@ import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 
 /**
  * A payment that repeats on a fixed schedule (subscriptions, insurance...).
@@ -45,9 +46,17 @@ public class RecurringPayment {
     @Column(name = "day_of_month", nullable = false)
     private int dayOfMonth;
 
-    // Only used for ANNUAL payments; null for MONTHLY.
+    // Required for ANNUAL and QUARTERLY (the anchor month); null otherwise.
     @Column
     private Integer month;
+
+    // ISO day of week (1=Monday..7=Sunday); only used for WEEKLY, null otherwise.
+    @Column(name = "day_of_week")
+    private Integer dayOfWeek;
+
+    // Optional cancellation deadline; informational reminder only.
+    @Column(name = "end_date")
+    private LocalDate endDate;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -62,7 +71,7 @@ public class RecurringPayment {
     }
 
     public RecurringPayment(Long userId, String name, BigDecimal amount, RecurringFrequency frequency,
-                            Long categoryId, int dayOfMonth, Integer month) {
+                            Long categoryId, int dayOfMonth, Integer month, Integer dayOfWeek, LocalDate endDate) {
         this.userId = userId;
         this.name = name;
         this.amount = amount;
@@ -70,6 +79,8 @@ public class RecurringPayment {
         this.categoryId = categoryId;
         this.dayOfMonth = dayOfMonth;
         this.month = month;
+        this.dayOfWeek = dayOfWeek;
+        this.endDate = endDate;
     }
 
     public Long getId() {
@@ -126,5 +137,21 @@ public class RecurringPayment {
 
     public void setMonth(Integer month) {
         this.month = month;
+    }
+
+    public Integer getDayOfWeek() {
+        return dayOfWeek;
+    }
+
+    public void setDayOfWeek(Integer dayOfWeek) {
+        this.dayOfWeek = dayOfWeek;
+    }
+
+    public LocalDate getEndDate() {
+        return endDate;
+    }
+
+    public void setEndDate(LocalDate endDate) {
+        this.endDate = endDate;
     }
 }

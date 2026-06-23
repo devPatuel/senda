@@ -105,6 +105,64 @@ class RecurringPaymentIntegrationTest {
     }
 
     @Test
+    void weeklyRoundTripDerivesNextDueDate() throws Exception {
+        long categoryId = expenseCategoryId(tokenA, "Comida");
+
+        createPayment(tokenA, """
+                {"name": "Limpieza", "amount": 10.00, "frequency": "WEEKLY", "categoryId": %d, "dayOfMonth": 1, "dayOfWeek": 3}
+                """.formatted(categoryId));
+
+        mockMvc.perform(get("/api/recurring").header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].frequency").value("WEEKLY"))
+                .andExpect(jsonPath("$[0].dayOfWeek").value(3))
+                .andExpect(jsonPath("$[0].monthlyEquivalent").value(43.33))  // 10 * 52 / 12
+                .andExpect(jsonPath("$[0].nextDueDate").exists());
+    }
+
+    @Test
+    void weeklyWithoutDayOfWeekIsRejected() throws Exception {
+        long categoryId = expenseCategoryId(tokenA, "Comida");
+
+        mockMvc.perform(post("/api/recurring")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "Limpieza", "amount": 10.00, "frequency": "WEEKLY", "categoryId": %d, "dayOfMonth": 1}
+                                """.formatted(categoryId)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void quarterlyRoundTripDerivesNextDueDate() throws Exception {
+        long categoryId = expenseCategoryId(tokenA, "Salud");
+
+        createPayment(tokenA, """
+                {"name": "Cuota", "amount": 30.00, "frequency": "QUARTERLY", "categoryId": %d, "dayOfMonth": 10, "month": 2}
+                """.formatted(categoryId));
+
+        mockMvc.perform(get("/api/recurring").header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].frequency").value("QUARTERLY"))
+                .andExpect(jsonPath("$[0].month").value(2))
+                .andExpect(jsonPath("$[0].monthlyEquivalent").value(10.00))  // 30 / 3
+                .andExpect(jsonPath("$[0].nextDueDate").exists());
+    }
+
+    @Test
+    void endDateRoundTrips() throws Exception {
+        long categoryId = expenseCategoryId(tokenA, "Ocio");
+
+        createPayment(tokenA, """
+                {"name": "Netflix", "amount": 12.99, "frequency": "MONTHLY", "categoryId": %d, "dayOfMonth": 5, "endDate": "2026-12-31"}
+                """.formatted(categoryId));
+
+        mockMvc.perform(get("/api/recurring").header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].endDate").value("2026-12-31"));
+    }
+
+    @Test
     void annualWithoutMonthIsRejected() throws Exception {
         long categoryId = expenseCategoryId(tokenA, "Salud");
 

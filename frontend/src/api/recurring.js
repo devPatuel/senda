@@ -1,7 +1,7 @@
 // API module for /api/recurring (recurring payments — forecast only).
 import { http } from './http'
 
-/** @typedef {'MONTHLY'|'ANNUAL'} RecurringFrequency */
+/** @typedef {'WEEKLY'|'MONTHLY'|'QUARTERLY'|'ANNUAL'} RecurringFrequency */
 
 /**
  * @typedef {Object} RecurringPayment
@@ -13,9 +13,11 @@ import { http } from './http'
  * @property {string} categoryName
  * @property {string} categoryColor
  * @property {number} dayOfMonth
- * @property {number|null} month            - 1-12 for ANNUAL, null for MONTHLY
+ * @property {number|null} month            - 1-12 anchor month for ANNUAL/QUARTERLY, null otherwise
+ * @property {number|null} dayOfWeek        - 1 (Mon) - 7 (Sun) for WEEKLY, null otherwise
  * @property {string} nextDueDate           - ISO date (YYYY-MM-DD), derived
- * @property {number} monthlyEquivalent     - amount for MONTHLY, amount/12 for ANNUAL
+ * @property {number} monthlyEquivalent     - normalized monthly cost (weekly*52/12, quarterly/3, annual/12)
+ * @property {string|null} endDate          - ISO date cancellation reminder, or null
  */
 
 /**
@@ -27,7 +29,7 @@ export function getRecurring() {
 }
 
 /**
- * @param {{name: string, amount: number, frequency: RecurringFrequency, categoryId: number, dayOfMonth: number, month?: number|null}} data
+ * @param {{name: string, amount: number, frequency: RecurringFrequency, categoryId: number, dayOfMonth: number, month?: number|null, dayOfWeek?: number|null, endDate?: string|null}} data
  * @returns {Promise<RecurringPayment>}
  */
 export function createRecurring(data) {
@@ -36,7 +38,7 @@ export function createRecurring(data) {
 
 /**
  * @param {number} id
- * @param {{name: string, amount: number, frequency: RecurringFrequency, categoryId: number, dayOfMonth: number, month?: number|null}} data
+ * @param {{name: string, amount: number, frequency: RecurringFrequency, categoryId: number, dayOfMonth: number, month?: number|null, dayOfWeek?: number|null, endDate?: string|null}} data
  * @returns {Promise<RecurringPayment>}
  */
 export function updateRecurring(id, data) {

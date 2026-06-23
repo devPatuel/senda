@@ -1,24 +1,57 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import DashboardPage from './DashboardPage'
-import { getSummary } from '../api/transactions'
+import { getSummary, createTransaction } from '../api/transactions'
+import { getNetWorth } from '../api/networth'
+import { getRecurring } from '../api/recurring'
+import { listCategories } from '../api/categories'
 import { formatCurrency, formatMonthLabel } from '../lib/format'
 
 vi.mock('../api/transactions', () => ({
   getSummary: vi.fn(),
+  createTransaction: vi.fn(),
 }))
+vi.mock('../api/networth', () => ({ getNetWorth: vi.fn() }))
+vi.mock('../api/recurring', () => ({ getRecurring: vi.fn() }))
+vi.mock('../api/categories', () => ({ listCategories: vi.fn() }))
 
 // Testing Library normalizes whitespace in the DOM, so the non-breaking
 // space Intl puts before "€" must be normalized in the expected string too.
 function visibleCurrency(value) {
-  return formatCurrency(value).replace(/[\u00a0\u202f]/g, ' ')
+  return formatCurrency(value).replace(/[  ]/g, ' ')
 }
 
 const now = new Date()
 const year = now.getFullYear()
 const month = now.getMonth() + 1
+const prev = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 }
+
+// ISO date `days` from today (for date-relative assertions).
+function isoInDays(days) {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + days)
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
+const NET_WORTH = {
+  liquid: 1000,
+  investments: 0,
+  investmentsHoldings: 0,
+  investmentsNfts: 0,
+  debtsInFavor: 0,
+  debtsAgainst: 0,
+  net: 1000,
+}
+
+const CATEGORIES = [
+  { id: 1, name: 'Comida', type: 'EXPENSE', color: '#ef4444', active: true },
+  { id: 2, name: 'Nómina', type: 'INCOME', color: '#10b981', active: true },
+]
 
 function buildSummary(overrides = {}) {
   return {
@@ -45,15 +78,17 @@ function renderDashboard() {
 
 describe('DashboardPage', () => {
   beforeEach(() => {
-    getSummary.mockReset()
+    vi.clearAllMocks()
+    getSummary.mockResolvedValue(buildSummary())
+    getNetWorth.mockResolvedValue(NET_WORTH)
+    getRecurring.mockResolvedValue([])
+    listCategories.mockResolvedValue(CATEGORIES)
   })
 
   it('renders the monthly summary for the current month', async () => {
-    getSummary.mockResolvedValue(buildSummary())
     renderDashboard()
 
     expect(await screen.findByText(visibleCurrency(1149.75))).toBeInTheDocument()
-    // Income total appears in the card and in the breakdown row
     expect(screen.getAllByText(visibleCurrency(1500)).length).toBeGreaterThan(0)
     expect(screen.getAllByText(visibleCurrency(350.25)).length).toBeGreaterThan(0)
     expect(screen.getByText('Comida')).toBeInTheDocument()
@@ -62,17 +97,41 @@ describe('DashboardPage', () => {
     expect(getSummary).toHaveBeenCalledWith(year, month)
   })
 
-  it('navigates to the previous month and fetches its summary', async () => {
-    getSummary.mockResolvedValue(buildSummary())
+  it('also fetches the previous month to compute deltas', async () => {
+    renderDashboard()
+
+    await screen.findByText(formatMonthLabel(year, month))
+    // The summary effect fetches both the current and the previous month
+    expect(getSummary).toHaveBeenCalledWith(prev.year, prev.month)
+  })
+
+  it('shows the per-category variation vs the previous month', async () => {
+    getSummary.mockImplementation((y, m) => {
+      if (y === year && m === month) return Promise.resolve(buildSummary())
+      // Previous month: Comida was 200 -> 350.25 is +75%
+      return Promise.resolve(
+        buildSummary({
+          byCategory: [
+            { categoryId: 1, categoryName: 'Comida', categoryColor: '#ef4444', type: 'EXPENSE', total: 200 },
+            { categoryId: 2, categoryName: 'Nómina', categoryColor: '#10b981', type: 'INCOME', total: 1500 },
+          ],
+        }),
+      )
+    })
+    renderDashboard()
+
+    await screen.findByText('Comida')
+    expect(await screen.findByText(/75%/)).toBeInTheDocument()
+  })
+
+  it('navigates to the previous month', async () => {
     const user = userEvent.setup()
     renderDashboard()
 
     await screen.findByText(formatMonthLabel(year, month))
     await user.click(screen.getByRole('button', { name: 'Mes anterior' }))
 
-    const prev = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 }
     expect(await screen.findByText(formatMonthLabel(prev.year, prev.month))).toBeInTheDocument()
-    expect(getSummary).toHaveBeenLastCalledWith(prev.year, prev.month)
   })
 
   it('shows a friendly empty state when the month has no transactions', async () => {
@@ -86,5 +145,51 @@ describe('DashboardPage', () => {
       'href',
       '/movimientos',
     )
+  })
+
+  it('shows cancellation reminders for recurring payments ending soon', async () => {
+    getRecurring.mockResolvedValue([
+      {
+        id: 9,
+        name: 'Netflix',
+        amount: 12.99,
+        frequency: 'MONTHLY',
+        categoryId: 2,
+        categoryName: 'Ocio',
+        categoryColor: '#f59e0b',
+        dayOfMonth: 5,
+        month: null,
+        dayOfWeek: null,
+        nextDueDate: isoInDays(40),
+        monthlyEquivalent: 12.99,
+        endDate: isoInDays(5),
+      },
+    ])
+    renderDashboard()
+
+    expect(await screen.findByText('Recordatorios de baja (14 días)')).toBeInTheDocument()
+    expect(screen.getByText(/Cancelar/)).toBeInTheDocument()
+    expect(screen.getByText('«Netflix»')).toBeInTheDocument()
+  })
+
+  it('creates a movement from the quick-add FAB and refreshes the summary', async () => {
+    createTransaction.mockResolvedValue({})
+    const user = userEvent.setup()
+    renderDashboard()
+
+    await screen.findByText(formatMonthLabel(year, month))
+    const callsBefore = getSummary.mock.calls.length
+
+    await user.click(screen.getByRole('button', { name: 'Nuevo movimiento' }))
+    // The shared transaction form opens
+    await screen.findByText('Nuevo movimiento', { selector: 'h2' })
+
+    await user.selectOptions(screen.getByLabelText('Categoría'), '1')
+    await user.type(screen.getByLabelText('Importe (€)'), '20')
+    await user.click(screen.getByRole('button', { name: 'Crear movimiento' }))
+
+    await waitFor(() => expect(createTransaction).toHaveBeenCalledTimes(1))
+    // Saving triggers a refresh: the summary is fetched again
+    await waitFor(() => expect(getSummary.mock.calls.length).toBeGreaterThan(callsBefore))
   })
 })

@@ -100,8 +100,8 @@ public class CategoryService {
      */
     @Transactional(readOnly = true)
     public CategoryBudgetResponse budget(Long userId) {
-        Map<Long, BigDecimal> balances = categoryBalanceRepository.findByUserId(userId).stream()
-                .collect(Collectors.toMap(CategoryBalance::getCategoryId, CategoryBalance::getBalance));
+        Map<Long, CategoryBalance> balances = categoryBalanceRepository.findByUserId(userId).stream()
+                .collect(Collectors.toMap(CategoryBalance::getCategoryId, b -> b));
 
         LocalDate from = LocalDate.now().withDayOfMonth(1);
         LocalDate to = from.plusMonths(1).minusDays(1);
@@ -112,13 +112,17 @@ public class CategoryService {
                 .filter(c -> c.getType() == TransactionType.EXPENSE)
                 .sorted(Comparator.comparing(Category::getName, String.CASE_INSENSITIVE_ORDER)
                         .thenComparing(Category::getId, Comparator.nullsLast(Comparator.naturalOrder())))
-                .map(c -> new CategoryBudgetLine(
-                        c.getId(),
-                        c.getName(),
-                        c.getColor(),
-                        balances.getOrDefault(c.getId(), ZERO),
-                        spent.getOrDefault(c.getId(), ZERO),
-                        c.getTargetPercentage()))
+                .map(c -> {
+                    CategoryBalance b = balances.get(c.getId());
+                    return new CategoryBudgetLine(
+                            c.getId(),
+                            c.getName(),
+                            c.getColor(),
+                            b != null ? b.getBalance() : ZERO,
+                            spent.getOrDefault(c.getId(), ZERO),
+                            c.getTargetPercentage(),
+                            b != null ? b.getTargetAmount() : null);
+                })
                 .toList();
 
         BigDecimal totalAccounts = accountRepository.sumActiveBalance(userId);
@@ -126,6 +130,7 @@ public class CategoryService {
             totalAccounts = ZERO;
         }
         BigDecimal totalAssigned = balances.values().stream()
+                .map(CategoryBalance::getBalance)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2);
         BigDecimal toAssign = totalAccounts.subtract(totalAssigned);
@@ -147,6 +152,24 @@ public class CategoryService {
         CategoryBalance balance = categoryBalanceRepository.findByCategoryId(categoryId)
                 .orElseGet(() -> new CategoryBalance(categoryId, userId));
         balance.setBalance(balance.getBalance().add(request.amount()));
+        categoryBalanceRepository.save(balance);
+        return budget(userId);
+    }
+
+    /**
+     * Sets (or clears, with a null amount) the funding target of an expense
+     * category's envelope. Creates the balance row lazily if needed. Returns the
+     * refreshed budget so the caller can update the whole view in one round-trip.
+     */
+    @Transactional
+    public CategoryBudgetResponse setTarget(Long userId, Long categoryId, TargetRequest request) {
+        Category category = findOwned(userId, categoryId);
+        if (category.getType() != TransactionType.EXPENSE) {
+            throw new ConflictException("Only expense categories can hold a target");
+        }
+        CategoryBalance balance = categoryBalanceRepository.findByCategoryId(categoryId)
+                .orElseGet(() -> new CategoryBalance(categoryId, userId));
+        balance.setTargetAmount(request.targetAmount());
         categoryBalanceRepository.save(balance);
         return budget(userId);
     }

@@ -32,6 +32,10 @@ public class CategoryBalance {
     @Column(nullable = false)
     private BigDecimal balance;
 
+    // Optional funding target for the envelope; null when no target is set.
+    @Column(name = "target_amount")
+    private BigDecimal targetAmount;
+
     protected CategoryBalance() {
         // JPA only
     }
@@ -60,5 +64,13 @@ public class CategoryBalance {
 
     public void setBalance(BigDecimal balance) {
         this.balance = balance;
+    }
+
+    public BigDecimal getTargetAmount() {
+        return targetAmount;
+    }
+
+    public void setTargetAmount(BigDecimal targetAmount) {
+        this.targetAmount = targetAmount;
     }
 }

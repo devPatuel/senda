@@ -96,6 +96,21 @@ class CategoryBudgetIntegrationTest {
                                 """.formatted(amount)));
     }
 
+    private void setTarget(long categoryId, String targetAmountJson) throws Exception {
+        mockMvc.perform(post("/api/categories/" + categoryId + "/target")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"targetAmount": %s}
+                                """.formatted(targetAmountJson)))
+                .andExpect(status().isOk());
+    }
+
+    private static Object categoryRaw(String json, String name, String field) {
+        List<Object> vals = JsonPath.read(json, "$.categories[?(@.name=='" + name + "')]." + field);
+        return vals.isEmpty() ? null : vals.get(0);
+    }
+
     // -------------------------------------------------------------------------
     // Tests
     // -------------------------------------------------------------------------
@@ -169,5 +184,63 @@ class CategoryBudgetIntegrationTest {
 
         String body = budgetJson();
         assertThat(categoryField(body, "Comida", "spentThisMonth")).isEqualTo(40.0);
+    }
+
+    @Test
+    void categoriesHaveNoTargetByDefault() throws Exception {
+        String body = budgetJson();
+        assertThat(categoryRaw(body, "Comida", "targetAmount")).isNull();
+    }
+
+    @Test
+    void setTargetShowsInBudgetAndCanBeCleared() throws Exception {
+        long comida = categoryId("EXPENSE", "Comida");
+
+        setTarget(comida, "200.00");
+        assertThat(categoryField(budgetJson(), "Comida", "targetAmount")).isEqualTo(200.0);
+
+        // A null amount clears the target
+        setTarget(comida, "null");
+        assertThat(categoryRaw(budgetJson(), "Comida", "targetAmount")).isNull();
+    }
+
+    @Test
+    void setTargetOnIncomeCategoryIsRejected() throws Exception {
+        long nomina = categoryId("INCOME", "Nómina");
+
+        mockMvc.perform(post("/api/categories/" + nomina + "/target")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"targetAmount": 100.00}
+                                """))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void negativeTargetIsRejected() throws Exception {
+        long comida = categoryId("EXPENSE", "Comida");
+
+        mockMvc.perform(post("/api/categories/" + comida + "/target")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"targetAmount": -5.00}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void targetOnForeignCategoryReturns404() throws Exception {
+        long comida = categoryId("EXPENSE", "Comida");
+        String otherToken = register("budget-other@example.com", "Other");
+
+        mockMvc.perform(post("/api/categories/" + comida + "/target")
+                        .header("Authorization", "Bearer " + otherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"targetAmount": 50.00}
+                                """))
+                .andExpect(status().isNotFound());
     }
 }

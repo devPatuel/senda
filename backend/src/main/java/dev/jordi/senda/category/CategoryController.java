@@ -45,6 +45,12 @@ public class CategoryController {
         return categoryService.assign(CurrentUser.id(), id, request);
     }
 
+    @PostMapping("/{id}/target")
+    public CategoryBudgetResponse target(@PathVariable Long id,
+                                         @Valid @RequestBody TargetRequest request) {
+        return categoryService.setTarget(CurrentUser.id(), id, request);
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CategoryResponse create(@Valid @RequestBody CategoryRequest request) {

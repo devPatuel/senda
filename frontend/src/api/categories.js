@@ -60,6 +60,7 @@ export function removeCategory(id) {
  * @property {number}      balance           - persisted envelope balance (may be negative)
  * @property {number}      spentThisMonth    - expense total for the current calendar month
  * @property {number|null} targetPercentage  - share in the allocation plan, null if not in it
+ * @property {number|null} targetAmount       - envelope funding target, null if not set
  */
 
 /**
@@ -87,4 +88,15 @@ export function getBudget() {
  */
 export function assignToCategory(id, amount) {
   return http.post(`/categories/${id}/assign`, { amount })
+}
+
+/**
+ * Sets (or clears, with null) an expense category's funding target.
+ * Returns the refreshed budget.
+ * @param {number} id
+ * @param {number|null} targetAmount
+ * @returns {Promise<CategoryBudget>}
+ */
+export function setCategoryTarget(id, targetAmount) {
+  return http.post(`/categories/${id}/target`, { targetAmount })
 }

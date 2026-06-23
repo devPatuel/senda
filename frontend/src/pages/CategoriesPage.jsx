@@ -6,6 +6,7 @@ import {
   removeCategory,
   getBudget,
   assignToCategory,
+  setCategoryTarget,
 } from '../api/categories'
 import { formatCurrency } from '../lib/format'
 import { Field, FormError, SubmitButton } from '../components/form'
@@ -238,10 +239,69 @@ function AssignForm({ category, currentBalance, onClose, onSaved }) {
   )
 }
 
+// Set or clear an expense category's funding target.
+function TargetForm({ category, currentTarget, onClose, onSaved }) {
+  const [value, setValue] = useState(currentTarget != null ? String(currentTarget) : '')
+  const [fieldError, setFieldError] = useState(null)
+  const [error, setError] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError(null)
+    const trimmed = value.trim()
+    // An empty value clears the target (sends null)
+    let targetAmount = null
+    if (trimmed !== '') {
+      const amount = parseDecimal(trimmed)
+      if (Number.isNaN(amount) || amount < 0) {
+        setFieldError('Introduce un importe mayor o igual que 0')
+        return
+      }
+      targetAmount = amount
+    }
+    setFieldError(null)
+    setSaving(true)
+    try {
+      const budget = await setCategoryTarget(category.id, targetAmount)
+      onSaved(budget)
+    } catch (err) {
+      setError(err.message || 'No se ha podido guardar el objetivo')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title={`Objetivo de · ${category.name}`} onClose={onClose} dismissable={!saving}>
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <FormError message={error} />
+        <p className="text-sm text-slate-500">
+          Importe que quieres mantener asignado en esta categoría. Déjalo vacío para quitar el objetivo.
+        </p>
+        <Field
+          label="Importe objetivo"
+          name="targetAmount"
+          type="text"
+          inputMode="decimal"
+          placeholder="0,00"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          error={fieldError}
+        />
+        <SubmitButton loading={saving} loadingText="Guardando…">
+          Guardar objetivo
+        </SubmitButton>
+      </form>
+    </Modal>
+  )
+}
+
 export default function CategoriesPage() {
   const [categories, setCategories] = useState(null)
   const [budget, setBudget] = useState(null)
   const [assigning, setAssigning] = useState(null)
+  const [targeting, setTargeting] = useState(null)
   const [showInactive, setShowInactive] = useState(false)
   const [error, setError] = useState(null)
   // Action (delete/reactivate) errors live apart from load errors so a failed
@@ -438,7 +498,8 @@ export default function CategoriesPage() {
                     {items.map((c) => {
                       const b = group.type === 'EXPENSE' ? budgetById.get(c.id) : null
                       return (
-                      <li key={c.id} className="flex items-center gap-3 px-4 py-3">
+                      <li key={c.id} className="px-4 py-3">
+                        <div className="flex items-center gap-3">
                         <span
                           className={[
                             'h-5 w-5 shrink-0 rounded-full border border-slate-200',
@@ -486,6 +547,15 @@ export default function CategoriesPage() {
                                 Asignar
                               </button>
                             )}
+                            {b && (
+                              <button
+                                type="button"
+                                onClick={() => setTargeting(c)}
+                                className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-emerald-300 hover:text-emerald-700"
+                              >
+                                Objetivo
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => {
@@ -521,6 +591,29 @@ export default function CategoriesPage() {
                           >
                             Reactivar
                           </button>
+                        )}
+                        </div>
+                        {b && c.active && b.targetAmount != null && Number(b.targetAmount) > 0 && (
+                          <div className="mt-2 space-y-1">
+                            <div className="flex items-center justify-between text-xs text-slate-400">
+                              <span>objetivo {formatCurrency(b.targetAmount)}</span>
+                              <span className="tabular-nums">
+                                {Math.round(
+                                  Math.min(Math.max((Number(b.balance) / Number(b.targetAmount)) * 100, 0), 100),
+                                )}
+                                %
+                              </span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${Math.min(Math.max((Number(b.balance) / Number(b.targetAmount)) * 100, 0), 100)}%`,
+                                  backgroundColor: c.color,
+                                }}
+                              />
+                            </div>
+                          </div>
                         )}
                       </li>
                       )
@@ -564,6 +657,20 @@ export default function CategoriesPage() {
             setBudget(updatedBudget)
             setAssigning(null)
             setNotice(`Saldo de «${assigning.name}» actualizado.`)
+            setActionError(null)
+          }}
+        />
+      )}
+
+      {targeting && (
+        <TargetForm
+          category={targeting}
+          currentTarget={budgetById.get(targeting.id)?.targetAmount ?? null}
+          onClose={() => setTargeting(null)}
+          onSaved={(updatedBudget) => {
+            setBudget(updatedBudget)
+            setTargeting(null)
+            setNotice(`Objetivo de «${targeting.name}» actualizado.`)
             setActionError(null)
           }}
         />
