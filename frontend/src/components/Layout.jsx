@@ -79,14 +79,14 @@ const NAV_ITEMS = [
     ),
   },
   {
-    to: '/patrimonio',
-    label: 'Patrimonio',
+    to: '/recurrentes',
+    label: 'Recurrentes',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
-        <path d="M3 21h18" />
-        <path d="M7 21v-8" />
-        <path d="M12 21V7" />
-        <path d="M17 21v-5" />
+        <path d="M17 2l4 4-4 4" />
+        <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+        <path d="M7 22l-4-4 4-4" />
+        <path d="M21 13v2a4 4 0 0 1-4 4H3" />
       </svg>
     ),
   },

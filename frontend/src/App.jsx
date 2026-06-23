@@ -11,6 +11,7 @@ import DebtsPage from './pages/DebtsPage'
 import InvestmentsPage from './pages/InvestmentsPage'
 import AllocationPage from './pages/AllocationPage'
 import NetWorthPage from './pages/NetWorthPage'
+import RecurringPage from './pages/RecurringPage'
 import ShoppingPage from './pages/ShoppingPage'
 
 export default function App() {
@@ -28,6 +29,8 @@ export default function App() {
           <Route path="/deudas" element={<DebtsPage />} />
           <Route path="/inversiones" element={<InvestmentsPage />} />
           <Route path="/reparto" element={<AllocationPage />} />
+          <Route path="/recurrentes" element={<RecurringPage />} />
+          {/* Patrimonio no longer has a menu entry; reachable by direct URL */}
           <Route path="/patrimonio" element={<NetWorthPage />} />
           <Route path="/compra" element={<ShoppingPage />} />
         </Route>
