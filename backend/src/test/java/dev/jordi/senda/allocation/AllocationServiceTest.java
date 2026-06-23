@@ -1,7 +1,12 @@
 package dev.jordi.senda.allocation;
 
+import dev.jordi.senda.category.Category;
+import dev.jordi.senda.category.CategoryBalance;
+import dev.jordi.senda.category.CategoryBalanceRepository;
+import dev.jordi.senda.category.CategoryRepository;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.NotFoundException;
+import dev.jordi.senda.common.TransactionType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,6 +21,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -24,40 +30,42 @@ import static org.mockito.Mockito.when;
 class AllocationServiceTest {
 
     private static final Long USER_ID = 1L;
-    private static final Long OTHER_USER_ID = 2L;
 
     @Mock
-    private AllocationEnvelopeRepository envelopeRepository;
+    private CategoryRepository categoryRepository;
 
     @Mock
-    private EnvelopeBalanceRepository balanceRepository;
+    private CategoryBalanceRepository balanceRepository;
 
     private AllocationService service;
 
     @BeforeEach
     void setUp() {
-        service = new AllocationService(envelopeRepository, balanceRepository);
+        service = new AllocationService(categoryRepository, balanceRepository);
     }
 
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
-    private static AllocationEnvelope envelope(Long id, Long userId, String name, String pct, int pos) {
-        AllocationEnvelope e = new AllocationEnvelope(userId, name, new BigDecimal(pct), pos);
-        ReflectionTestUtils.setField(e, "id", id);
-        return e;
+    private static Category expenseCategory(Long id, Long userId, String name, String pct) {
+        Category c = new Category(userId, name, TransactionType.EXPENSE, "#10b981");
+        ReflectionTestUtils.setField(c, "id", id);
+        if (pct != null) {
+            c.setTargetPercentage(new BigDecimal(pct));
+        }
+        return c;
     }
 
-    private static EnvelopeBalance balance(Long envelopeId, Long userId, String amount) {
-        EnvelopeBalance b = new EnvelopeBalance(envelopeId, userId);
+    private static CategoryBalance balance(Long categoryId, Long userId, String amount) {
+        CategoryBalance b = new CategoryBalance(categoryId, userId);
         b.setBalance(new BigDecimal(amount));
-        ReflectionTestUtils.setField(b, "id", envelopeId * 10);
+        ReflectionTestUtils.setField(b, "id", categoryId * 10);
         return b;
     }
 
-    private static EnvelopeLineRequest line(Long id, String name, String pct) {
-        return new EnvelopeLineRequest(id, name, new BigDecimal(pct));
+    private static EnvelopeLineRequest line(Long categoryId, String pct) {
+        return new EnvelopeLineRequest(categoryId, new BigDecimal(pct));
     }
 
     // -------------------------------------------------------------------------
@@ -67,38 +75,84 @@ class AllocationServiceTest {
     @Test
     void savePlanThrowsConflictWhenPercentagesDontSumTo100() {
         EnvelopePlanRequest request = new EnvelopePlanRequest(List.of(
-                line(null, "Ahorro", "50"),
-                line(null, "Ocio", "30")));  // sum = 80, not 100
+                line(1L, "50"),
+                line(2L, "30")));  // sum = 80, not 100
 
         assertThatThrownBy(() -> service.savePlan(USER_ID, request))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("100");
 
-        verify(envelopeRepository, never()).save(any());
+        verify(balanceRepository, never()).save(any());
     }
 
     @Test
-    void savePlanAcceptsExactly100() {
-        EnvelopePlanRequest request = new EnvelopePlanRequest(List.of(
-                line(null, "Ahorro", "50"),
-                line(null, "Inversión", "20"),
-                line(null, "Ocio", "30")));
+    void savePlanAcceptsExactly100AndSetsTargets() {
+        Category c1 = expenseCategory(1L, USER_ID, "Ahorro", null);
+        Category c2 = expenseCategory(2L, USER_ID, "Inversión", null);
+        Category c3 = expenseCategory(3L, USER_ID, "Ocio", null);
 
-        when(envelopeRepository.findByUserIdOrderByPosition(USER_ID)).thenReturn(List.of());
-        when(envelopeRepository.save(any())).thenAnswer(inv -> {
-            AllocationEnvelope e = inv.getArgument(0);
-            ReflectionTestUtils.setField(e, "id", (long) (Math.random() * 1000 + 1));
-            return e;
-        });
+        when(categoryRepository.findByUserId(USER_ID)).thenReturn(List.of(c1, c2, c3));
+        when(balanceRepository.findByCategoryId(any())).thenReturn(Optional.empty());
         when(balanceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(balanceRepository.findByEnvelopeId(any())).thenReturn(Optional.empty());
+        // list() after the mutation
+        when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(c1, c2, c3));
         when(balanceRepository.findByUserId(USER_ID)).thenReturn(List.of());
+
+        EnvelopePlanRequest request = new EnvelopePlanRequest(List.of(
+                line(1L, "50"), line(2L, "20"), line(3L, "30")));
 
         List<EnvelopeResponse> result = service.savePlan(USER_ID, request);
 
-        assertThat(result).hasSize(3);
         assertThat(result).extracting(EnvelopeResponse::name)
                 .containsExactly("Ahorro", "Inversión", "Ocio");
+        assertThat(c1.getTargetPercentage()).isEqualByComparingTo("50");
+        assertThat(c2.getTargetPercentage()).isEqualByComparingTo("20");
+        assertThat(c3.getTargetPercentage()).isEqualByComparingTo("30");
+    }
+
+    @Test
+    void savePlanClearsTargetOnCategoriesNotInPlan() {
+        Category inPlan = expenseCategory(1L, USER_ID, "Ahorro", null);
+        Category dropped = expenseCategory(2L, USER_ID, "Viejo", "40");  // had a target
+
+        when(categoryRepository.findByUserId(USER_ID)).thenReturn(List.of(inPlan, dropped));
+        when(balanceRepository.findByCategoryId(any())).thenReturn(Optional.empty());
+        when(balanceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(inPlan, dropped));
+        when(balanceRepository.findByUserId(USER_ID)).thenReturn(List.of());
+
+        service.savePlan(USER_ID, new EnvelopePlanRequest(List.of(line(1L, "100"))));
+
+        assertThat(inPlan.getTargetPercentage()).isEqualByComparingTo("100");
+        assertThat(dropped.getTargetPercentage()).isNull();
+    }
+
+    @Test
+    void savePlanReturns404WhenCategoryBelongsToAnotherUser() {
+        // No categories for USER_ID, but request references id=99
+        when(categoryRepository.findByUserId(USER_ID)).thenReturn(List.of());
+
+        EnvelopePlanRequest request = new EnvelopePlanRequest(List.of(line(99L, "100")));
+
+        assertThatThrownBy(() -> service.savePlan(USER_ID, request))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void savePlanRejectsForeignIdBeforeAnyMutation() {
+        // The user owns category 5 and sneaks a foreign id (99) into the plan.
+        // Authorization must fail BEFORE any target is changed.
+        Category own = expenseCategory(5L, USER_ID, "Mío", null);
+        when(categoryRepository.findByUserId(USER_ID)).thenReturn(List.of(own));
+
+        EnvelopePlanRequest request = new EnvelopePlanRequest(List.of(
+                line(5L, "50"), line(99L, "50")));
+
+        assertThatThrownBy(() -> service.savePlan(USER_ID, request))
+                .isInstanceOf(NotFoundException.class);
+
+        assertThat(own.getTargetPercentage()).isNull();   // not mutated
+        verify(balanceRepository, never()).save(any());
     }
 
     // -------------------------------------------------------------------------
@@ -106,13 +160,13 @@ class AllocationServiceTest {
     // -------------------------------------------------------------------------
 
     @Test
-    void distributeReturnsCorrectSplitAndAdjustsCentsOnLastEnvelope() {
+    void distributeReturnsCorrectSplitAndAdjustsCentsOnLastCategory() {
         // 33.33 + 33.33 + 33.34 = 100.00 exactly (classic rounding problem)
-        AllocationEnvelope e1 = envelope(1L, USER_ID, "A", "33.33", 0);
-        AllocationEnvelope e2 = envelope(2L, USER_ID, "B", "33.33", 1);
-        AllocationEnvelope e3 = envelope(3L, USER_ID, "C", "33.34", 2);
+        Category c1 = expenseCategory(1L, USER_ID, "A", "33.33");
+        Category c2 = expenseCategory(2L, USER_ID, "B", "33.33");
+        Category c3 = expenseCategory(3L, USER_ID, "C", "33.34");
 
-        when(envelopeRepository.findByUserIdOrderByPosition(USER_ID)).thenReturn(List.of(e1, e2, e3));
+        when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(c1, c2, c3));
         when(balanceRepository.findByUserId(USER_ID)).thenReturn(List.of(
                 balance(1L, USER_ID, "0.00"),
                 balance(2L, USER_ID, "0.00"),
@@ -127,78 +181,48 @@ class AllocationServiceTest {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         assertThat(total).isEqualByComparingTo("100.00");
-
-        // The first two get exactly 33.33 each; the last absorbs the residual to sum to 100
         assertThat(lines.get(0).allocated()).isEqualByComparingTo("33.33");
         assertThat(lines.get(1).allocated()).isEqualByComparingTo("33.33");
-        // Third envelope: 100 - 33.33 - 33.33 = 33.34
         assertThat(lines.get(2).allocated()).isEqualByComparingTo("33.34");
     }
 
     @Test
     void distributeWithPersistAccumulatesBalances() {
-        AllocationEnvelope e1 = envelope(1L, USER_ID, "Ahorro", "60", 0);
-        AllocationEnvelope e2 = envelope(2L, USER_ID, "Ocio", "40", 1);
+        Category c1 = expenseCategory(1L, USER_ID, "Ahorro", "60");
+        Category c2 = expenseCategory(2L, USER_ID, "Ocio", "40");
 
-        EnvelopeBalance b1 = balance(1L, USER_ID, "100.00");
-        EnvelopeBalance b2 = balance(2L, USER_ID, "50.00");
+        CategoryBalance b1 = balance(1L, USER_ID, "100.00");
+        CategoryBalance b2 = balance(2L, USER_ID, "50.00");
 
-        when(envelopeRepository.findByUserIdOrderByPosition(USER_ID)).thenReturn(List.of(e1, e2));
+        when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(c1, c2));
         when(balanceRepository.findByUserId(USER_ID)).thenReturn(List.of(b1, b2));
+        lenient().when(balanceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         service.distribute(USER_ID, new DistributeRequest(new BigDecimal("1000.00"), true));
 
-        // Balances should be updated in-place (dirty checking)
         assertThat(b1.getBalance()).isEqualByComparingTo("700.00");   // 100 + 600
         assertThat(b2.getBalance()).isEqualByComparingTo("450.00");   // 50 + 400
     }
 
     @Test
-    void distributeThrowsConflictWhenPlanDoesNotSumTo100() {
-        // Simulate a corrupted plan (should never happen through normal API but guard anyway)
-        AllocationEnvelope e1 = envelope(1L, USER_ID, "Ahorro", "50", 0);
+    void distributeThrowsWhenNoPlanDefined() {
+        // Categories exist but none has a target percentage → no plan
+        Category c1 = expenseCategory(1L, USER_ID, "Ahorro", null);
+        when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(c1));
 
-        when(envelopeRepository.findByUserIdOrderByPosition(USER_ID)).thenReturn(List.of(e1));
+        assertThatThrownBy(() -> service.distribute(USER_ID,
+                new DistributeRequest(new BigDecimal("1000.00"), false)))
+                .isInstanceOf(InvalidAllocationException.class);
+    }
+
+    @Test
+    void distributeThrowsConflictWhenPlanDoesNotSumTo100() {
+        // A single category with 50% is a corrupted plan
+        Category c1 = expenseCategory(1L, USER_ID, "Ahorro", "50");
+        when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(c1));
 
         assertThatThrownBy(() -> service.distribute(USER_ID,
                 new DistributeRequest(new BigDecimal("1000.00"), false)))
                 .isInstanceOf(ConflictException.class);
-    }
-
-    // -------------------------------------------------------------------------
-    // Isolation: foreign envelope returns 404
-    // -------------------------------------------------------------------------
-
-    @Test
-    void savePlanReturns404WhenEnvelopeIdBelongsToAnotherUser() {
-        AllocationEnvelope foreign = envelope(99L, OTHER_USER_ID, "Ajeno", "100", 0);
-
-        when(envelopeRepository.findByUserIdOrderByPosition(USER_ID)).thenReturn(List.of());
-
-        // byId map will be empty (no envelopes for USER_ID), but request references id=99
-        EnvelopePlanRequest request = new EnvelopePlanRequest(List.of(
-                line(99L, "Hack", "100")));
-
-        assertThatThrownBy(() -> service.savePlan(USER_ID, request))
-                .isInstanceOf(NotFoundException.class);
-    }
-
-    @Test
-    void savePlanRejectsForeignIdBeforeDeletingOwnEnvelopes() {
-        // The attacker DOES own an envelope (id=5) and sneaks a foreign id (id=99)
-        // into the plan. Authorization must fail BEFORE any envelope is deleted —
-        // we must not rely on the transaction rollback to undo destructive writes.
-        AllocationEnvelope own = envelope(5L, USER_ID, "Mío", "50", 0);
-        when(envelopeRepository.findByUserIdOrderByPosition(USER_ID)).thenReturn(List.of(own));
-
-        EnvelopePlanRequest request = new EnvelopePlanRequest(List.of(
-                line(5L, "Mío", "50"),
-                line(99L, "Ajeno", "50")));
-
-        assertThatThrownBy(() -> service.savePlan(USER_ID, request))
-                .isInstanceOf(NotFoundException.class);
-
-        // No envelope was deleted: the foreign id was rejected before any mutation
-        verify(envelopeRepository, never()).delete(any());
     }
 }

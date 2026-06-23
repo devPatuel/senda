@@ -4,9 +4,17 @@ import {
   createCategory,
   updateCategory,
   removeCategory,
+  getBudget,
+  assignToCategory,
 } from '../api/categories'
+import { formatCurrency } from '../lib/format'
 import { Field, FormError, SubmitButton } from '../components/form'
 import { ConfirmDialog, ErrorState, LoadingState, Modal, Notice } from '../components/ui'
+
+// Accepts comma or dot as the decimal separator and a leading minus.
+function parseDecimal(raw) {
+  return Number(String(raw).replace(',', '.'))
+}
 
 const PALETTE = [
   '#ef4444',
@@ -165,8 +173,75 @@ function CategoryForm({ category, onClose, onSaved }) {
   )
 }
 
+// Move money into (or out of, with a negative amount) a category envelope.
+function AssignForm({ category, currentBalance, onClose, onSaved }) {
+  const [value, setValue] = useState('')
+  const [fieldError, setFieldError] = useState(null)
+  const [error, setError] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError(null)
+    const amount = parseDecimal(value)
+    if (!value.trim() || Number.isNaN(amount) || amount === 0) {
+      setFieldError('Introduce un importe distinto de 0')
+      return
+    }
+    setFieldError(null)
+    setSaving(true)
+    try {
+      const budget = await assignToCategory(category.id, amount)
+      onSaved(budget)
+    } catch (err) {
+      setError(err.message || 'No se ha podido asignar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title={`Asignar a · ${category.name}`} onClose={onClose} dismissable={!saving}>
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <FormError message={error} />
+        <p className="text-sm text-slate-500">
+          Saldo actual: <span className="font-medium text-slate-700">{formatCurrency(currentBalance)}</span>.
+          Usa un importe negativo para sacar dinero de esta categoría.
+        </p>
+        <Field
+          label="Importe a asignar"
+          name="amount"
+          type="text"
+          inputMode="decimal"
+          placeholder="0,00"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          error={fieldError}
+        />
+        <div className="flex flex-wrap gap-2">
+          {['10', '50', '100', '-10'].map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => setValue(preset)}
+              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-emerald-300 hover:text-emerald-700"
+            >
+              {preset.startsWith('-') ? preset : `+${preset}`}
+            </button>
+          ))}
+        </div>
+        <SubmitButton loading={saving} loadingText="Asignando…">
+          Asignar
+        </SubmitButton>
+      </form>
+    </Modal>
+  )
+}
+
 export default function CategoriesPage() {
   const [categories, setCategories] = useState(null)
+  const [budget, setBudget] = useState(null)
+  const [assigning, setAssigning] = useState(null)
   const [showInactive, setShowInactive] = useState(false)
   const [error, setError] = useState(null)
   // Action (delete/reactivate) errors live apart from load errors so a failed
@@ -186,10 +261,14 @@ export default function CategoriesPage() {
   useEffect(() => {
     let cancelled = false
     const key = `${showInactive}-${reloadKey}`
-    listCategories(showInactive ? { includeInactive: true } : {})
-      .then((list) => {
+    Promise.all([
+      listCategories(showInactive ? { includeInactive: true } : {}),
+      getBudget(),
+    ])
+      .then(([list, budgetData]) => {
         if (!cancelled) {
           setCategories(list)
+          setBudget(budgetData)
           setError(null)
         }
       })
@@ -203,6 +282,9 @@ export default function CategoriesPage() {
       cancelled = true
     }
   }, [showInactive, reloadKey])
+
+  // Lookup of budget data per expense category id (balance, spend, target).
+  const budgetById = new Map((budget?.categories ?? []).map((c) => [c.id, c]))
 
   function handleSaved() {
     setFormOpen(false)
@@ -310,6 +392,34 @@ export default function CategoriesPage() {
         <ErrorState message={error} onRetry={() => setReloadKey((k) => k + 1)} />
       )}
 
+      {!error && budget && (
+        <section className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200">
+          <div className="bg-white px-4 py-3 text-center">
+            <p className="text-xs text-slate-500">Total en cuentas</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900">
+              {formatCurrency(budget.totalAccounts)}
+            </p>
+          </div>
+          <div className="bg-white px-4 py-3 text-center">
+            <p className="text-xs text-slate-500">Asignado</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900">
+              {formatCurrency(budget.totalAssigned)}
+            </p>
+          </div>
+          <div className="bg-white px-4 py-3 text-center">
+            <p className="text-xs text-slate-500">Por asignar</p>
+            <p
+              className={[
+                'mt-1 text-lg font-semibold tabular-nums',
+                Number(budget.toAssign) < 0 ? 'text-red-600' : 'text-emerald-600',
+              ].join(' ')}
+            >
+              {formatCurrency(budget.toAssign)}
+            </p>
+          </div>
+        </section>
+      )}
+
       {!error && categories && (
         <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
           {GROUPS.map((group) => {
@@ -325,7 +435,9 @@ export default function CategoriesPage() {
                   </p>
                 ) : (
                   <ul className="divide-y divide-slate-100">
-                    {items.map((c) => (
+                    {items.map((c) => {
+                      const b = group.type === 'EXPENSE' ? budgetById.get(c.id) : null
+                      return (
                       <li key={c.id} className="flex items-center gap-3 px-4 py-3">
                         <span
                           className={[
@@ -348,8 +460,32 @@ export default function CategoriesPage() {
                             Inactiva
                           </span>
                         )}
+                        {b && c.active && (
+                          <div className="shrink-0 text-right">
+                            <p
+                              className={[
+                                'text-sm font-semibold tabular-nums',
+                                Number(b.balance) < 0 ? 'text-red-600' : 'text-slate-900',
+                              ].join(' ')}
+                            >
+                              {formatCurrency(b.balance)}
+                            </p>
+                            <p className="text-xs text-slate-400 tabular-nums">
+                              gastado {formatCurrency(b.spentThisMonth)}
+                            </p>
+                          </div>
+                        )}
                         {c.active ? (
                           <div className="flex shrink-0 items-center gap-0.5">
+                            {b && (
+                              <button
+                                type="button"
+                                onClick={() => setAssigning(c)}
+                                className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-emerald-300 hover:text-emerald-700"
+                              >
+                                Asignar
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => {
@@ -387,7 +523,8 @@ export default function CategoriesPage() {
                           </button>
                         )}
                       </li>
-                    ))}
+                      )
+                    })}
                   </ul>
                 )}
               </section>
@@ -415,6 +552,20 @@ export default function CategoriesPage() {
           loading={deleting}
           onCancel={() => setToDelete(null)}
           onConfirm={handleDelete}
+        />
+      )}
+
+      {assigning && (
+        <AssignForm
+          category={assigning}
+          currentBalance={budgetById.get(assigning.id)?.balance ?? 0}
+          onClose={() => setAssigning(null)}
+          onSaved={(updatedBudget) => {
+            setBudget(updatedBudget)
+            setAssigning(null)
+            setNotice(`Saldo de «${assigning.name}» actualizado.`)
+            setActionError(null)
+          }}
         />
       )}
     </div>

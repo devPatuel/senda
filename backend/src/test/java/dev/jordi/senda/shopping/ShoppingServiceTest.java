@@ -1,10 +1,11 @@
 package dev.jordi.senda.shopping;
 
-import dev.jordi.senda.allocation.AllocationEnvelope;
-import dev.jordi.senda.allocation.AllocationEnvelopeRepository;
-import dev.jordi.senda.allocation.EnvelopeBalance;
-import dev.jordi.senda.allocation.EnvelopeBalanceRepository;
+import dev.jordi.senda.category.Category;
+import dev.jordi.senda.category.CategoryBalance;
+import dev.jordi.senda.category.CategoryBalanceRepository;
+import dev.jordi.senda.category.CategoryRepository;
 import dev.jordi.senda.common.NotFoundException;
+import dev.jordi.senda.common.TransactionType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,23 +27,23 @@ import static org.mockito.Mockito.when;
 class ShoppingServiceTest {
 
     private static final Long USER_ID = 1L;
-    private static final Long OTHER_USER_ID = 2L;
+    // A shopping item's "envelope" is an expense category; this is its id.
     private static final Long ENVELOPE_ID = 10L;
 
     @Mock
     private ShoppingItemRepository shoppingItemRepository;
 
     @Mock
-    private EnvelopeBalanceRepository envelopeBalanceRepository;
+    private CategoryBalanceRepository categoryBalanceRepository;
 
     @Mock
-    private AllocationEnvelopeRepository allocationEnvelopeRepository;
+    private CategoryRepository categoryRepository;
 
     private ShoppingService service;
 
     @BeforeEach
     void setUp() {
-        service = new ShoppingService(shoppingItemRepository, envelopeBalanceRepository, allocationEnvelopeRepository);
+        service = new ShoppingService(shoppingItemRepository, categoryBalanceRepository, categoryRepository);
     }
 
     // --- helpers ---
@@ -53,22 +54,22 @@ class ShoppingServiceTest {
         return item;
     }
 
-    private static ShoppingItem wishlistItem(Long id, String name, BigDecimal price, Long envelopeId) {
-        ShoppingItem item = new ShoppingItem(USER_ID, ShoppingListType.WISHLIST, name, price, envelopeId, 1, null);
-        ReflectionTestUtils.setField(item, "id", id);
-        return item;
+    private static Category expenseCategory(Long id, Long userId, String name) {
+        Category c = new Category(userId, name, TransactionType.EXPENSE, "#10b981");
+        ReflectionTestUtils.setField(c, "id", id);
+        return c;
     }
 
-    private static AllocationEnvelope envelope(Long id, Long userId, String name) {
-        AllocationEnvelope env = new AllocationEnvelope(userId, name, new BigDecimal("50.00"), 1);
-        ReflectionTestUtils.setField(env, "id", id);
-        return env;
+    private static Category incomeCategory(Long id, Long userId, String name) {
+        Category c = new Category(userId, name, TransactionType.INCOME, "#22c55e");
+        ReflectionTestUtils.setField(c, "id", id);
+        return c;
     }
 
-    private static EnvelopeBalance balance(Long envelopeId, Long userId, String amount) {
-        EnvelopeBalance eb = new EnvelopeBalance(envelopeId, userId);
-        eb.setBalance(new BigDecimal(amount));
-        return eb;
+    private static CategoryBalance balance(Long categoryId, Long userId, String amount) {
+        CategoryBalance cb = new CategoryBalance(categoryId, userId);
+        cb.setBalance(new BigDecimal(amount));
+        return cb;
     }
 
     // --- create GROCERY ---
@@ -106,19 +107,15 @@ class ShoppingServiceTest {
         ShoppingItemRequest req = new ShoppingItemRequest(
                 ShoppingListType.WISHLIST, "NAS", new BigDecimal("500.00"), ENVELOPE_ID, 1, null);
 
-        when(allocationEnvelopeRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
-                .thenReturn(Optional.of(envelope(ENVELOPE_ID, USER_ID, "Ahorro")));
-
+        when(categoryRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
+                .thenReturn(Optional.of(expenseCategory(ENVELOPE_ID, USER_ID, "Ahorro")));
+        when(categoryBalanceRepository.findByCategoryId(ENVELOPE_ID))
+                .thenReturn(Optional.of(balance(ENVELOPE_ID, USER_ID, "800.00")));
         when(shoppingItemRepository.save(any(ShoppingItem.class))).thenAnswer(inv -> {
             ShoppingItem saved = inv.getArgument(0);
             ReflectionTestUtils.setField(saved, "id", 2L);
             return saved;
         });
-
-        when(envelopeBalanceRepository.findByEnvelopeId(ENVELOPE_ID))
-                .thenReturn(Optional.of(balance(ENVELOPE_ID, USER_ID, "800.00")));
-        when(allocationEnvelopeRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
-                .thenReturn(Optional.of(envelope(ENVELOPE_ID, USER_ID, "Ahorro")));
 
         ShoppingItemResponse response = service.create(USER_ID, req);
 
@@ -134,19 +131,15 @@ class ShoppingServiceTest {
         ShoppingItemRequest req = new ShoppingItemRequest(
                 ShoppingListType.WISHLIST, "Coche", new BigDecimal("15000.00"), ENVELOPE_ID, 2, null);
 
-        when(allocationEnvelopeRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
-                .thenReturn(Optional.of(envelope(ENVELOPE_ID, USER_ID, "Ahorro")));
-
+        when(categoryRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
+                .thenReturn(Optional.of(expenseCategory(ENVELOPE_ID, USER_ID, "Ahorro")));
+        when(categoryBalanceRepository.findByCategoryId(ENVELOPE_ID))
+                .thenReturn(Optional.of(balance(ENVELOPE_ID, USER_ID, "500.00")));
         when(shoppingItemRepository.save(any(ShoppingItem.class))).thenAnswer(inv -> {
             ShoppingItem saved = inv.getArgument(0);
             ReflectionTestUtils.setField(saved, "id", 3L);
             return saved;
         });
-
-        when(envelopeBalanceRepository.findByEnvelopeId(ENVELOPE_ID))
-                .thenReturn(Optional.of(balance(ENVELOPE_ID, USER_ID, "500.00")));
-        when(allocationEnvelopeRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
-                .thenReturn(Optional.of(envelope(ENVELOPE_ID, USER_ID, "Ahorro")));
 
         ShoppingItemResponse response = service.create(USER_ID, req);
 
@@ -179,19 +172,15 @@ class ShoppingServiceTest {
         ShoppingItemRequest req = new ShoppingItemRequest(
                 ShoppingListType.WISHLIST, "Casa", null, ENVELOPE_ID, null, null);
 
-        when(allocationEnvelopeRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
-                .thenReturn(Optional.of(envelope(ENVELOPE_ID, USER_ID, "Ahorro")));
-
+        when(categoryRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
+                .thenReturn(Optional.of(expenseCategory(ENVELOPE_ID, USER_ID, "Ahorro")));
+        when(categoryBalanceRepository.findByCategoryId(ENVELOPE_ID))
+                .thenReturn(Optional.of(balance(ENVELOPE_ID, USER_ID, "200.00")));
         when(shoppingItemRepository.save(any(ShoppingItem.class))).thenAnswer(inv -> {
             ShoppingItem saved = inv.getArgument(0);
             ReflectionTestUtils.setField(saved, "id", 5L);
             return saved;
         });
-
-        when(envelopeBalanceRepository.findByEnvelopeId(ENVELOPE_ID))
-                .thenReturn(Optional.of(balance(ENVELOPE_ID, USER_ID, "200.00")));
-        when(allocationEnvelopeRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
-                .thenReturn(Optional.of(envelope(ENVELOPE_ID, USER_ID, "Ahorro")));
 
         ShoppingItemResponse response = service.create(USER_ID, req);
 
@@ -205,12 +194,26 @@ class ShoppingServiceTest {
         ShoppingItemRequest req = new ShoppingItemRequest(
                 ShoppingListType.WISHLIST, "NAS", new BigDecimal("400.00"), ENVELOPE_ID, null, null);
 
-        when(allocationEnvelopeRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
+        when(categoryRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.create(USER_ID, req))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessageContaining("Envelope not found");
+    }
+
+    // --- envelope that is an INCOME category is rejected ---
+
+    @Test
+    void envelopeThatIsIncomeCategoryThrows() {
+        ShoppingItemRequest req = new ShoppingItemRequest(
+                ShoppingListType.WISHLIST, "NAS", new BigDecimal("400.00"), ENVELOPE_ID, null, null);
+
+        when(categoryRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
+                .thenReturn(Optional.of(incomeCategory(ENVELOPE_ID, USER_ID, "Nómina")));
+
+        assertThatThrownBy(() -> service.create(USER_ID, req))
+                .isInstanceOf(InvalidShoppingException.class);
     }
 
     // --- toggle bought ---

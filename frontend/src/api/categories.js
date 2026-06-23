@@ -51,3 +51,40 @@ export function updateCategory(id, data) {
 export function removeCategory(id) {
   return http.delete(`/categories/${id}`)
 }
+
+/**
+ * @typedef {Object} CategoryBudgetLine
+ * @property {number}      id
+ * @property {string}      name
+ * @property {string}      color
+ * @property {number}      balance           - persisted envelope balance (may be negative)
+ * @property {number}      spentThisMonth    - expense total for the current calendar month
+ * @property {number|null} targetPercentage  - share in the allocation plan, null if not in it
+ */
+
+/**
+ * @typedef {Object} CategoryBudget
+ * @property {number} totalAccounts
+ * @property {number} totalAssigned
+ * @property {number} toAssign      - totalAccounts - totalAssigned (may be negative)
+ * @property {CategoryBudgetLine[]} categories
+ */
+
+/**
+ * Budget overview: per expense-category balances + the "to assign" summary.
+ * @returns {Promise<CategoryBudget>}
+ */
+export function getBudget() {
+  return http.get('/categories/budget')
+}
+
+/**
+ * Adjusts an expense category's envelope balance by a delta (may be negative).
+ * Returns the refreshed budget.
+ * @param {number} id
+ * @param {number} amount
+ * @returns {Promise<CategoryBudget>}
+ */
+export function assignToCategory(id, amount) {
+  return http.post(`/categories/${id}/assign`, { amount })
+}

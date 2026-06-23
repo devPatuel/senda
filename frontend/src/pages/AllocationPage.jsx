@@ -8,28 +8,27 @@ import { ErrorState, LoadingState, Notice } from '../components/ui'
 // Helpers
 // -------------------------------------------------------------------------
 
-function sum(envelopes) {
-  return envelopes.reduce((acc, e) => acc + Number(e.percentage || 0), 0)
+function parseDecimal(raw) {
+  return Number(String(raw).replace(',', '.'))
 }
 
-function newLine() {
-  return { _key: Math.random(), id: null, name: '', percentage: '' }
+function sum(lines) {
+  return lines.reduce((acc, l) => acc + (parseDecimal(l.percentage) || 0), 0)
 }
 
 // -------------------------------------------------------------------------
-// Envelope editor (plan)
+// Plan editor — assigns a percentage to each expense category
 // -------------------------------------------------------------------------
 
-function EnvelopeEditor({ initialEnvelopes, onSaved }) {
+function PlanEditor({ envelopes, onSaved }) {
+  // One row per expense category; percentage is the target share (blank = 0).
   const [lines, setLines] = useState(() =>
-    initialEnvelopes.length > 0
-      ? initialEnvelopes.map((e) => ({
-          _key: e.id,
-          id: e.id,
-          name: e.name,
-          percentage: String(e.percentage),
-        }))
-      : [newLine()],
+    envelopes.map((e) => ({
+      id: e.id,
+      name: e.name,
+      color: e.color,
+      percentage: Number(e.percentage) > 0 ? String(e.percentage) : '',
+    })),
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -37,16 +36,8 @@ function EnvelopeEditor({ initialEnvelopes, onSaved }) {
   const total = sum(lines)
   const sumValid = Math.abs(total - 100) < 0.001
 
-  function updateLine(index, field, value) {
-    setLines((prev) => prev.map((l, i) => (i === index ? { ...l, [field]: value } : l)))
-  }
-
-  function addLine() {
-    setLines((prev) => [...prev, newLine()])
-  }
-
-  function removeLine(index) {
-    setLines((prev) => prev.filter((_, i) => i !== index))
+  function updateLine(index, value) {
+    setLines((prev) => prev.map((l, i) => (i === index ? { ...l, percentage: value } : l)))
   }
 
   async function handleSave() {
@@ -54,12 +45,11 @@ function EnvelopeEditor({ initialEnvelopes, onSaved }) {
     if (!sumValid) return
     setSaving(true)
     try {
-      const envelopes = lines.map((l) => ({
-        ...(l.id !== null ? { id: l.id } : {}),
-        name: l.name.trim(),
-        percentage: Number(l.percentage),
-      }))
-      await savePlan(envelopes)
+      // Only categories with a positive share are part of the plan.
+      const plan = lines
+        .filter((l) => (parseDecimal(l.percentage) || 0) > 0)
+        .map((l) => ({ categoryId: l.id, percentage: parseDecimal(l.percentage) }))
+      await savePlan(plan)
       onSaved()
     } catch (err) {
       setError(err.message || 'No se ha podido guardar el plan')
@@ -68,27 +58,33 @@ function EnvelopeEditor({ initialEnvelopes, onSaved }) {
     }
   }
 
+  if (lines.length === 0) {
+    return (
+      <p className="text-sm text-slate-500">
+        Crea primero categorías de gasto en la pantalla de Categorías.
+      </p>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <FormError message={error} />
 
       <ul className="space-y-2">
         {lines.map((line, i) => (
-          <li key={line._key} className="flex items-end gap-2">
-            <div className="flex-1">
+          <li key={line.id} className="flex items-center gap-3">
+            <span
+              className="h-4 w-4 shrink-0 rounded-full border border-slate-200"
+              style={{ backgroundColor: line.color }}
+              aria-hidden="true"
+            />
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
+              {line.name}
+            </span>
+            <div className="w-24">
               <Field
-                label={i === 0 ? 'Nombre del sobre' : undefined}
-                name={`name-${i}`}
-                type="text"
-                placeholder="Ej.: Ahorro"
-                value={line.name}
-                onChange={(e) => updateLine(i, 'name', e.target.value)}
-              />
-            </div>
-            <div className="w-28">
-              <Field
-                label={i === 0 ? 'Porcentaje' : undefined}
-                name={`pct-${i}`}
+                label={undefined}
+                name={`pct-${line.id}`}
                 type="number"
                 inputMode="decimal"
                 min="0"
@@ -96,22 +92,10 @@ function EnvelopeEditor({ initialEnvelopes, onSaved }) {
                 step="0.01"
                 placeholder="0"
                 value={line.percentage}
-                onChange={(e) => updateLine(i, 'percentage', e.target.value)}
+                onChange={(e) => updateLine(i, e.target.value)}
               />
             </div>
-            <button
-              type="button"
-              onClick={() => removeLine(i)}
-              disabled={lines.length === 1}
-              aria-label={`Eliminar sobre ${line.name || i + 1}`}
-              className="mb-0.5 rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
-                <path d="M3 6h18" />
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-            </button>
+            <span className="w-4 text-sm text-slate-400">%</span>
           </li>
         ))}
       </ul>
@@ -130,33 +114,20 @@ function EnvelopeEditor({ initialEnvelopes, onSaved }) {
         <span>{total.toFixed(2)} %</span>
       </div>
 
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={addLine}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-emerald-300 hover:text-emerald-700"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" />
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={saving || !sumValid}
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {saving && (
+          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+            <path d="M4 12a8 8 0 0 1 8-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
           </svg>
-          Añadir sobre
-        </button>
-
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving || !sumValid}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {saving && (
-            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
-              <path d="M4 12a8 8 0 0 1 8-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
-            </svg>
-          )}
-          {saving ? 'Guardando…' : 'Guardar plan'}
-        </button>
-      </div>
+        )}
+        {saving ? 'Guardando…' : 'Guardar plan'}
+      </button>
     </div>
   )
 }
@@ -165,7 +136,7 @@ function EnvelopeEditor({ initialEnvelopes, onSaved }) {
 // Distribution simulator
 // -------------------------------------------------------------------------
 
-function DistributePanel({ envelopes, onPersisted }) {
+function DistributePanel({ hasPlan, onPersisted }) {
   const [amount, setAmount] = useState('')
   const [result, setResult] = useState(null)
   const [simulating, setSimulating] = useState(false)
@@ -203,9 +174,11 @@ function DistributePanel({ envelopes, onPersisted }) {
     }
   }
 
-  if (envelopes.length === 0) {
+  if (!hasPlan) {
     return (
-      <p className="text-sm text-slate-500">Define y guarda un plan de reparto primero.</p>
+      <p className="text-sm text-slate-500">
+        Asigna porcentajes a tus categorías y guarda el plan primero.
+      </p>
     )
   }
 
@@ -301,7 +274,7 @@ export default function AllocationPage() {
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message || 'No se han podido cargar los sobres')
+        if (!cancelled) setError(err.message || 'No se han podido cargar las categorías')
       })
       .finally(() => {
         if (!cancelled) setLoadedKey(key)
@@ -317,9 +290,11 @@ export default function AllocationPage() {
   }
 
   function handlePersisted() {
-    setNotice('Cobro registrado. Los saldos han sido actualizados.')
+    setNotice('Cobro registrado. Los saldos de las categorías han sido actualizados.')
     setReloadKey((k) => k + 1)
   }
+
+  const hasPlan = (envelopes ?? []).some((e) => Number(e.percentage) > 0)
 
   return (
     <div className="space-y-6">
@@ -334,7 +309,7 @@ export default function AllocationPage() {
         </Notice>
       )}
 
-      {loading && !envelopes && <LoadingState label="Cargando sobres…" />}
+      {loading && !envelopes && <LoadingState label="Cargando categorías…" />}
 
       {error && !loading && (
         <ErrorState message={error} onRetry={() => setReloadKey((k) => k + 1)} />
@@ -342,36 +317,15 @@ export default function AllocationPage() {
 
       {!error && envelopes && (
         <>
-          {/* Envelope balances summary */}
-          {envelopes.length > 0 && (
-            <section className="rounded-2xl border border-slate-200 bg-white p-5">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Saldos acumulados
-              </h2>
-              <ul className="divide-y divide-slate-100">
-                {envelopes.map((e) => (
-                  <li key={e.id} className="flex items-center justify-between py-2.5 text-sm">
-                    <span className="flex items-center gap-2 text-slate-700">
-                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-700">
-                        {e.percentage}%
-                      </span>
-                      {e.name}
-                    </span>
-                    <span className="font-semibold tabular-nums text-slate-900">
-                      {formatCurrency(e.balance)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
           {/* Plan editor */}
           <section className="rounded-2xl border border-slate-200 bg-white p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500">
               Plan de reparto
             </h2>
-            <EnvelopeEditor initialEnvelopes={envelopes} onSaved={handlePlanSaved} />
+            <p className="mb-4 text-sm text-slate-500">
+              Reparte tu sueldo entre tus categorías de gasto. Los porcentajes deben sumar 100.
+            </p>
+            <PlanEditor envelopes={envelopes} onSaved={handlePlanSaved} />
           </section>
 
           {/* Distribution simulator */}
@@ -379,7 +333,7 @@ export default function AllocationPage() {
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
               Simular cobro
             </h2>
-            <DistributePanel envelopes={envelopes} onPersisted={handlePersisted} />
+            <DistributePanel hasPlan={hasPlan} onPersisted={handlePersisted} />
           </section>
         </>
       )}

@@ -12,6 +12,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -54,34 +56,35 @@ class ShoppingIntegrationTest {
     }
 
     // -------------------------------------------------------------------------
-    // Allocation helpers: creates a plan and distributes salary so envelopes
-    // have real balances that ShoppingService can read via EnvelopeBalanceRepository.
+    // Envelope helpers: an "envelope" is now an expense category. Assign a
+    // balance to one of the seeded categories so ShoppingService can read it.
     // -------------------------------------------------------------------------
 
-    /**
-     * Creates a single-envelope plan (100%) and returns the envelope id.
-     */
-    private long setupEnvelopeWithBalance(String token, String envelopeName, String distributeAmount) throws Exception {
-        String planBody = mockMvc.perform(put("/api/allocation/envelopes")
+    /** Resolves a seeded expense category id by name. */
+    private long expenseCategoryId(String token, String name) throws Exception {
+        String body = mockMvc.perform(get("/api/categories")
                         .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"envelopes": [{"name": "%s", "percentage": 100}]}
-                                """.formatted(envelopeName)))
+                        .param("type", "EXPENSE"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
+        List<Integer> ids = JsonPath.read(body, "$[?(@.name=='" + name + "')].id");
+        return ids.get(0).longValue();
+    }
 
-        long envelopeId = ((Number) JsonPath.read(planBody, "$[0].id")).longValue();
-
-        mockMvc.perform(post("/api/allocation/distribute")
+    /**
+     * Gives a seeded expense category a balance via the budget assign endpoint
+     * and returns its id (the "envelope id" for shopping items).
+     */
+    private long setupEnvelopeWithBalance(String token, String categoryName, String amount) throws Exception {
+        long categoryId = expenseCategoryId(token, categoryName);
+        mockMvc.perform(post("/api/categories/" + categoryId + "/assign")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"amount": %s, "persist": true}
-                                """.formatted(distributeAmount)))
+                                {"amount": %s}
+                                """.formatted(amount)))
                 .andExpect(status().isOk());
-
-        return envelopeId;
+        return categoryId;
     }
 
     private long createItem(String token, String body) throws Exception {
@@ -134,8 +137,8 @@ class ShoppingIntegrationTest {
 
     @Test
     void wishlistFeasibleReflectsRealEnvelopeBalance() throws Exception {
-        // Distribute 1000 € into "Ahorro" (100%)
-        long envelopeId = setupEnvelopeWithBalance(tokenA, "Ahorro", "1000.00");
+        // Assign 1000 € to "Comida"
+        long envelopeId = setupEnvelopeWithBalance(tokenA, "Comida", "1000.00");
 
         // Create a wish that costs 800 € -> feasible=true (1000 >= 800)
         long itemId = createItem(tokenA, """
@@ -148,7 +151,7 @@ class ShoppingIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(itemId))
                 .andExpect(jsonPath("$[0].feasible").value(true))
-                .andExpect(jsonPath("$[0].envelopeName").value("Ahorro"))
+                .andExpect(jsonPath("$[0].envelopeName").value("Comida"))
                 .andExpect(jsonPath("$[0].envelopeBalance").value(1000.00));
 
         // Update price to 2000 € -> feasible=false (1000 < 2000)
@@ -168,7 +171,7 @@ class ShoppingIntegrationTest {
 
     @Test
     void userBCannotSeeOrTouchUserAItems() throws Exception {
-        long envelopeA = setupEnvelopeWithBalance(tokenA, "Ahorro A", "500.00");
+        long envelopeA = setupEnvelopeWithBalance(tokenA, "Comida", "500.00");
 
         long idA = createItem(tokenA, """
                 {"listType": "GROCERY", "name": "Pan de A"}

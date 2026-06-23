@@ -2,19 +2,19 @@
 import { http } from './http'
 
 /**
+ * An expense category as seen by the allocation view. `id` is the category id.
  * @typedef {Object} EnvelopeResponse
- * @property {number}  id
+ * @property {number}  id          - category id
  * @property {string}  name
- * @property {number}  percentage
- * @property {number}  position
+ * @property {string}  color
+ * @property {number}  percentage  - target share in the plan (0 when not assigned)
  * @property {number}  balance
  */
 
 /**
  * @typedef {Object} EnvelopeLineInput
- * @property {number|null} id          - Existing envelope id to preserve its balance; null for new.
- * @property {string}      name
- * @property {number}      percentage
+ * @property {number} categoryId
+ * @property {number} percentage
  */
 
 /**
@@ -33,8 +33,8 @@ import { http } from './http'
  */
 
 /**
- * Returns the user's envelope plan ordered by position, each with its
- * accumulated balance (0 when never distributed).
+ * Returns the user's active expense categories ordered by name, each with its
+ * target percentage (0 when not in the plan) and current envelope balance.
  * @returns {Promise<EnvelopeResponse[]>}
  */
 export function getEnvelopes() {
@@ -42,10 +42,9 @@ export function getEnvelopes() {
 }
 
 /**
- * Atomically replaces the user's allocation plan. Envelopes with a known
- * {@code id} are updated in-place, preserving their accumulated balance.
- * New envelopes (id null/omitted) start with balance 0.
- * The sum of all percentages must equal exactly 100.
+ * Sets the allocation plan: the given categories receive their percentage and
+ * every other expense category is cleared from the plan. Percentages must sum
+ * to exactly 100.
  * @param {EnvelopeLineInput[]} envelopes
  * @returns {Promise<EnvelopeResponse[]>}
  */

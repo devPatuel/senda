@@ -10,6 +10,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "categories")
 public class Category {
@@ -33,6 +35,11 @@ public class Category {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    // Target share of the salary split (0-100). Null when the category is not
+    // part of the allocation plan. Only meaningful for EXPENSE categories.
+    @Column(name = "target_percentage")
+    private BigDecimal targetPercentage;
 
     protected Category() {
         // JPA only
@@ -80,5 +87,13 @@ public class Category {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public BigDecimal getTargetPercentage() {
+        return targetPercentage;
+    }
+
+    public void setTargetPercentage(BigDecimal targetPercentage) {
+        this.targetPercentage = targetPercentage;
     }
 }

@@ -1,10 +1,11 @@
 package dev.jordi.senda.shopping;
 
-import dev.jordi.senda.allocation.AllocationEnvelope;
-import dev.jordi.senda.allocation.AllocationEnvelopeRepository;
-import dev.jordi.senda.allocation.EnvelopeBalance;
-import dev.jordi.senda.allocation.EnvelopeBalanceRepository;
+import dev.jordi.senda.category.Category;
+import dev.jordi.senda.category.CategoryBalance;
+import dev.jordi.senda.category.CategoryBalanceRepository;
+import dev.jordi.senda.category.CategoryRepository;
 import dev.jordi.senda.common.NotFoundException;
+import dev.jordi.senda.common.TransactionType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,16 +16,17 @@ import java.util.List;
 @Service
 public class ShoppingService {
 
+    // A shopping item's "envelope" is an expense category; envelopeId == categoryId.
     private final ShoppingItemRepository shoppingItemRepository;
-    private final EnvelopeBalanceRepository envelopeBalanceRepository;
-    private final AllocationEnvelopeRepository allocationEnvelopeRepository;
+    private final CategoryBalanceRepository categoryBalanceRepository;
+    private final CategoryRepository categoryRepository;
 
     public ShoppingService(ShoppingItemRepository shoppingItemRepository,
-                           EnvelopeBalanceRepository envelopeBalanceRepository,
-                           AllocationEnvelopeRepository allocationEnvelopeRepository) {
+                           CategoryBalanceRepository categoryBalanceRepository,
+                           CategoryRepository categoryRepository) {
         this.shoppingItemRepository = shoppingItemRepository;
-        this.envelopeBalanceRepository = envelopeBalanceRepository;
-        this.allocationEnvelopeRepository = allocationEnvelopeRepository;
+        this.categoryBalanceRepository = categoryBalanceRepository;
+        this.categoryRepository = categoryRepository;
     }
 
     @Transactional(readOnly = true)
@@ -102,9 +104,12 @@ public class ShoppingService {
                 .orElseThrow(() -> new NotFoundException("Shopping item not found"));
     }
 
-    private void validateEnvelopeOwnership(Long envelopeId, Long userId) {
-        allocationEnvelopeRepository.findByIdAndUserId(envelopeId, userId)
+    private void validateEnvelopeOwnership(Long categoryId, Long userId) {
+        Category category = categoryRepository.findByIdAndUserId(categoryId, userId)
                 .orElseThrow(() -> new NotFoundException("Envelope not found"));
+        if (category.getType() != TransactionType.EXPENSE) {
+            throw new InvalidShoppingException("Envelope must be an expense category");
+        }
     }
 
     private ShoppingItemResponse buildResponse(ShoppingItem item, Long userId) {
@@ -125,18 +130,17 @@ public class ShoppingService {
             );
         }
 
-        EnvelopeBalance balance = envelopeBalanceRepository
-                .findByEnvelopeId(item.getEnvelopeId())
-                .filter(eb -> eb.getUserId().equals(userId))
+        BigDecimal envelopeBalance = categoryBalanceRepository
+                .findByCategoryId(item.getEnvelopeId())
+                .filter(cb -> cb.getUserId().equals(userId))
+                .map(CategoryBalance::getBalance)
                 .orElse(null);
 
-        // Envelope may have been deleted after the item was created; use null gracefully
-        String envelopeName = allocationEnvelopeRepository
+        // Category may have been deleted after the item was created; use null gracefully
+        String envelopeName = categoryRepository
                 .findByIdAndUserId(item.getEnvelopeId(), userId)
-                .map(AllocationEnvelope::getName)
+                .map(Category::getName)
                 .orElse(null);
-
-        BigDecimal envelopeBalance = balance != null ? balance.getBalance() : null;
 
         Boolean feasible = null;
         if (item.getListType() == ShoppingListType.WISHLIST

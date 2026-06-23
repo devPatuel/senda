@@ -34,6 +34,17 @@ public class CategoryController {
         return categoryService.list(CurrentUser.id(), type, includeInactive);
     }
 
+    @GetMapping("/budget")
+    public CategoryBudgetResponse budget() {
+        return categoryService.budget(CurrentUser.id());
+    }
+
+    @PostMapping("/{id}/assign")
+    public CategoryBudgetResponse assign(@PathVariable Long id,
+                                         @Valid @RequestBody AssignRequest request) {
+        return categoryService.assign(CurrentUser.id(), id, request);
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CategoryResponse create(@Valid @RequestBody CategoryRequest request) {

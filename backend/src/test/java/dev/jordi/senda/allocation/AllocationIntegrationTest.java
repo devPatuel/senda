@@ -47,39 +47,70 @@ class AllocationIntegrationTest {
         return JsonPath.read(body, "$.token");
     }
 
-    private static String planBody(String... pairs) {
-        // pairs: name, percentage alternating
+    private static String planBody(long[] categoryIds, String[] percentages) {
         StringBuilder sb = new StringBuilder("{\"envelopes\": [");
-        for (int i = 0; i < pairs.length; i += 2) {
+        for (int i = 0; i < categoryIds.length; i++) {
             if (i > 0) sb.append(',');
-            sb.append("{\"name\": \"").append(pairs[i])
-              .append("\", \"percentage\": ").append(pairs[i + 1]).append('}');
+            sb.append("{\"categoryId\": ").append(categoryIds[i])
+              .append(", \"percentage\": ").append(percentages[i]).append('}');
         }
         sb.append("]}");
         return sb.toString();
     }
 
+    /**
+     * Returns the id of the seeded EXPENSE category with the given name, read
+     * from the live allocation envelope listing (envelope id == category id).
+     */
+    private long expenseCategoryId(String token, String name) throws Exception {
+        String body = mockMvc.perform(get("/api/allocation/envelopes")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        // A name filter returns a single-element list of ids.
+        java.util.List<Number> ids = JsonPath.read(body, "$[?(@.name == '" + name + "')].id");
+        return ids.get(0).longValue();
+    }
+
     // -------------------------------------------------------------------------
-    // Save a valid plan and verify the response
+    // Save a valid plan and verify the response (over seeded expense categories)
     // -------------------------------------------------------------------------
 
     @Test
     void saveValidPlanAndRetrieveEnvelopes() throws Exception {
+        long comida = expenseCategoryId(tokenA, "Comida");
+        long ocio = expenseCategoryId(tokenA, "Ocio");
+        long salud = expenseCategoryId(tokenA, "Salud");
+
+        // Sorted by name, the 7 seeded expense categories are returned; the plan
+        // sets a target on three of them. Comida is alphabetically first.
         mockMvc.perform(put("/api/allocation/envelopes")
                         .header("Authorization", "Bearer " + tokenA)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(planBody("Ahorro", "50", "Inversión", "20", "Ocio", "30")))
+                        .content(planBody(new long[]{comida, ocio, salud},
+                                new String[]{"50", "20", "30"})))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(3))
-                .andExpect(jsonPath("$[0].name").value("Ahorro"))
+                .andExpect(jsonPath("$.length()").value(7))
+                .andExpect(jsonPath("$[0].name").value("Comida"))
                 .andExpect(jsonPath("$[0].percentage").value(50))
-                .andExpect(jsonPath("$[0].balance").value(0))
-                .andExpect(jsonPath("$[2].name").value("Ocio"));
+                .andExpect(jsonPath("$[0].balance").value(0));
 
+        // Re-reading shows the same 7 categories (sorted by name) with their targets.
+        // Order: Comida(0), Compras(1), Ocio(2), Otros gastos(3), Salud(4),
+        // Transporte(5), Vivienda(6).
         mockMvc.perform(get("/api/allocation/envelopes")
                         .header("Authorization", "Bearer " + tokenA))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(3));
+                .andExpect(jsonPath("$.length()").value(7))
+                .andExpect(jsonPath("$[0].name").value("Comida"))
+                .andExpect(jsonPath("$[0].percentage").value(50))
+                .andExpect(jsonPath("$[2].name").value("Ocio"))
+                .andExpect(jsonPath("$[2].percentage").value(20))
+                .andExpect(jsonPath("$[4].name").value("Salud"))
+                .andExpect(jsonPath("$[4].percentage").value(30))
+                // Categories not in the plan report a 0 target
+                .andExpect(jsonPath("$[1].name").value("Compras"))
+                .andExpect(jsonPath("$[1].percentage").value(0));
     }
 
     // -------------------------------------------------------------------------
@@ -88,40 +119,49 @@ class AllocationIntegrationTest {
 
     @Test
     void planNotSummingTo100IsRejectedWith409() throws Exception {
+        long comida = expenseCategoryId(tokenA, "Comida");
+        long ocio = expenseCategoryId(tokenA, "Ocio");
+
         mockMvc.perform(put("/api/allocation/envelopes")
                         .header("Authorization", "Bearer " + tokenA)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(planBody("Ahorro", "50", "Ocio", "30")))  // sum = 80
+                        .content(planBody(new long[]{comida, ocio},
+                                new String[]{"50", "30"})))  // sum = 80
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
     }
 
     // -------------------------------------------------------------------------
-    // Distribute with persist accumulates balances
+    // Distribute with persist accumulates balances on the categories
     // -------------------------------------------------------------------------
 
     @Test
     void distributeWithPersistAccumulatesBalances() throws Exception {
-        // Save a plan first
+        long comida = expenseCategoryId(tokenA, "Comida");
+        long ocio = expenseCategoryId(tokenA, "Ocio");
+
+        // Plan: Comida 60% / Ocio 40% (both seeded expense categories)
         mockMvc.perform(put("/api/allocation/envelopes")
                         .header("Authorization", "Bearer " + tokenA)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(planBody("Ahorro", "60", "Ocio", "40")))
+                        .content(planBody(new long[]{comida, ocio}, new String[]{"60", "40"})))
                 .andExpect(status().isOk());
 
-        // Distribute 1000 € with persist=true
+        // Distribute 1000 € with persist=true. Lines come back in plan order
+        // (active expense categories with a target, sorted by name): Comida, Ocio.
         mockMvc.perform(post("/api/allocation/distribute")
                         .header("Authorization", "Bearer " + tokenA)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"amount\": 1000.00, \"persist\": true}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.lines[0].envelopeName").value("Ahorro"))
+                .andExpect(jsonPath("$.lines[0].envelopeName").value("Comida"))
                 .andExpect(jsonPath("$.lines[0].allocated").value(600.00))
                 .andExpect(jsonPath("$.lines[0].balance").value(600.00))
+                .andExpect(jsonPath("$.lines[1].envelopeName").value("Ocio"))
                 .andExpect(jsonPath("$.lines[1].allocated").value(400.00))
                 .andExpect(jsonPath("$.lines[1].balance").value(400.00));
 
-        // Balances should be accumulated after a second distribution
+        // A second distribution accumulates on top of the existing balances
         mockMvc.perform(post("/api/allocation/distribute")
                         .header("Authorization", "Bearer " + tokenA)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -130,61 +170,69 @@ class AllocationIntegrationTest {
                 .andExpect(jsonPath("$.lines[0].balance").value(900.00))
                 .andExpect(jsonPath("$.lines[1].balance").value(600.00));
 
-        // GET envelopes should reflect the new balances
+        // GET envelopes reflects the new balances on the categories (Comida=0, Ocio=2)
         mockMvc.perform(get("/api/allocation/envelopes")
                         .header("Authorization", "Bearer " + tokenA))
+                .andExpect(jsonPath("$[0].name").value("Comida"))
                 .andExpect(jsonPath("$[0].balance").value(900.00))
-                .andExpect(jsonPath("$[1].balance").value(600.00));
+                .andExpect(jsonPath("$[2].name").value("Ocio"))
+                .andExpect(jsonPath("$[2].balance").value(600.00));
+
+        // The budget view shows the same balances (single source of truth)
+        mockMvc.perform(get("/api/categories/budget")
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalAssigned").value(1500.00))
+                .andExpect(jsonPath("$.categories[0].name").value("Comida"))
+                .andExpect(jsonPath("$.categories[0].balance").value(900.00))
+                .andExpect(jsonPath("$.categories[2].name").value("Ocio"))
+                .andExpect(jsonPath("$.categories[2].balance").value(600.00));
     }
 
     // -------------------------------------------------------------------------
-    // Edit plan preserving balances by id
+    // Editing the plan preserves the balance that lives on the category
     // -------------------------------------------------------------------------
 
     @Test
-    void editPlanPreservesExistingBalancesByEnvelopeId() throws Exception {
-        // Create initial plan
-        String createBody = mockMvc.perform(put("/api/allocation/envelopes")
+    void editPlanPreservesExistingBalanceOnCategory() throws Exception {
+        long comida = expenseCategoryId(tokenA, "Comida");
+        long ocio = expenseCategoryId(tokenA, "Ocio");
+        long salud = expenseCategoryId(tokenA, "Salud");
+
+        // Initial plan: Comida 60 / Ocio 40, then distribute so balances are non-zero
+        mockMvc.perform(put("/api/allocation/envelopes")
                         .header("Authorization", "Bearer " + tokenA)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(planBody("Ahorro", "60", "Ocio", "40")))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
+                        .content(planBody(new long[]{comida, ocio}, new String[]{"60", "40"})))
+                .andExpect(status().isOk());
 
-        long ahorroId = ((Number) JsonPath.read(createBody, "$[0].id")).longValue();
-
-        // Distribute so that balances are non-zero
         mockMvc.perform(post("/api/allocation/distribute")
                         .header("Authorization", "Bearer " + tokenA)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"amount\": 1000.00, \"persist\": true}"))
                 .andExpect(status().isOk());
 
-        // Edit plan: keep "Ahorro" (by id), rename it, change percentage, add new envelope
-        String editBody = """
-                {
-                  "envelopes": [
-                    {"id": %d, "name": "Ahorro renovado", "percentage": 50},
-                    {"name": "Inversión", "percentage": 30},
-                    {"name": "Ocio", "percentage": 20}
-                  ]
-                }
-                """.formatted(ahorroId);
-
-        String editResult = mockMvc.perform(put("/api/allocation/envelopes")
+        // Edit plan: change Comida's percentage and swap Ocio for Salud.
+        // Comida keeps its 600 € balance because the balance lives on the category,
+        // independent of the target percentage.
+        mockMvc.perform(put("/api/allocation/envelopes")
                         .header("Authorization", "Bearer " + tokenA)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(editBody))
+                        .content(planBody(new long[]{comida, salud}, new String[]{"50", "50"})))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(3))
-                .andExpect(jsonPath("$[0].name").value("Ahorro renovado"))
-                // Balance must be preserved from before the rename
+                .andExpect(jsonPath("$.length()").value(7))
+                // Comida (index 0): new target 50, balance preserved at 600
+                .andExpect(jsonPath("$[0].name").value("Comida"))
+                .andExpect(jsonPath("$[0].percentage").value(50))
                 .andExpect(jsonPath("$[0].balance").value(600.00))
-                .andReturn().getResponse().getContentAsString();
-
-        // New envelopes start at 0
-        assertJsonPath(editResult, "$[1].balance", 0.0);
-        assertJsonPath(editResult, "$[2].balance", 0.0);
+                // Ocio (index 2) dropped from the plan: target back to 0, balance preserved
+                .andExpect(jsonPath("$[2].name").value("Ocio"))
+                .andExpect(jsonPath("$[2].percentage").value(0))
+                .andExpect(jsonPath("$[2].balance").value(400.00))
+                // Salud (index 4) newly added to the plan starts at a zero balance
+                .andExpect(jsonPath("$[4].name").value("Salud"))
+                .andExpect(jsonPath("$[4].percentage").value(50))
+                .andExpect(jsonPath("$[4].balance").value(0));
     }
 
     // -------------------------------------------------------------------------
@@ -192,56 +240,43 @@ class AllocationIntegrationTest {
     // -------------------------------------------------------------------------
 
     @Test
-    void userBCannotSeeOrEditUserAsPlan() throws Exception {
-        // A saves a plan
+    void userBCannotUseUserAsCategoriesOrDistributeWithoutPlan() throws Exception {
+        long comidaA = expenseCategoryId(tokenA, "Comida");
+
+        // A saves a 100% plan on Comida
         mockMvc.perform(put("/api/allocation/envelopes")
                         .header("Authorization", "Bearer " + tokenA)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(planBody("Ahorro", "100")))
+                        .content(planBody(new long[]{comidaA}, new String[]{"100"})))
                 .andExpect(status().isOk());
 
-        // B's envelope list is empty
+        // B also sees 7 (its own) expense categories, all with 0% target
         mockMvc.perform(get("/api/allocation/envelopes")
                         .header("Authorization", "Bearer " + tokenB))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(jsonPath("$.length()").value(7))
+                .andExpect(jsonPath("$[?(@.percentage > 0)]").doesNotExist());
 
-        // B cannot distribute (no plan defined)
+        // B cannot distribute: it has no plan (no category with a target)
         mockMvc.perform(post("/api/allocation/distribute")
                         .header("Authorization", "Bearer " + tokenB)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"amount\": 500.00, \"persist\": false}"))
                 .andExpect(status().isBadRequest());
 
-        // A's plan is untouched
-        mockMvc.perform(get("/api/allocation/envelopes")
-                        .header("Authorization", "Bearer " + tokenA))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1));
-
-        // B cannot steal A's envelope id by passing it in a plan save
-        String listA = mockMvc.perform(get("/api/allocation/envelopes")
-                        .header("Authorization", "Bearer " + tokenA))
-                .andReturn().getResponse().getContentAsString();
-        long aEnvelopeId = ((Number) JsonPath.read(listA, "$[0].id")).longValue();
-
+        // B cannot save a plan that references A's category id -> 404
         mockMvc.perform(put("/api/allocation/envelopes")
                         .header("Authorization", "Bearer " + tokenB)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"envelopes": [{"id": %d, "name": "Hack", "percentage": 100}]}
-                                """.formatted(aEnvelopeId)))
+                        .content(planBody(new long[]{comidaA}, new String[]{"100"})))
                 .andExpect(status().isNotFound());
+
+        // A's plan is untouched: Comida (index 0) still at 100%
+        mockMvc.perform(get("/api/allocation/envelopes")
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("Comida"))
+                .andExpect(jsonPath("$[0].percentage").value(100));
     }
 
-    // -------------------------------------------------------------------------
-    // Helper
-    // -------------------------------------------------------------------------
-
-    private static void assertJsonPath(String json, String path, double expected) {
-        double actual = ((Number) JsonPath.read(json, path)).doubleValue();
-        if (Math.abs(actual - expected) > 0.001) {
-            throw new AssertionError("Expected " + path + " to be " + expected + " but was " + actual);
-        }
-    }
 }

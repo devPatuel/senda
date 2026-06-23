@@ -32,4 +32,20 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     List<CategorySummary> summarizeByCategory(@Param("userId") Long userId,
                                               @Param("from") LocalDate from,
                                               @Param("to") LocalDate to);
+
+    /**
+     * Per-category expense totals for a user in a date range, aggregated in the
+     * database. Used by the budget view to show monthly spend per envelope.
+     */
+    @Query("""
+            select new dev.jordi.senda.transaction.CategorySpent(t.category.id, sum(t.amount))
+            from Transaction t
+            where t.userId = :userId
+              and t.type = dev.jordi.senda.common.TransactionType.EXPENSE
+              and t.date between :from and :to
+            group by t.category.id
+            """)
+    List<CategorySpent> sumExpenseByCategory(@Param("userId") Long userId,
+                                             @Param("from") LocalDate from,
+                                             @Param("to") LocalDate to);
 }

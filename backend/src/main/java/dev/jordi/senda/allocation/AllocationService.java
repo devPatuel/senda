@@ -1,30 +1,42 @@
 package dev.jordi.senda.allocation;
 
+import dev.jordi.senda.category.Category;
+import dev.jordi.senda.category.CategoryBalance;
+import dev.jordi.senda.category.CategoryBalanceRepository;
+import dev.jordi.senda.category.CategoryRepository;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.NotFoundException;
+import dev.jordi.senda.common.TransactionType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Salary split over expense categories. The "plan" is the set of expense
+ * categories that carry a {@code target_percentage}; distributing a paycheck
+ * adds money to those categories' {@link CategoryBalance} envelopes — the very
+ * same balances shown on the Categories screen.
+ */
 @Service
 public class AllocationService {
 
     private static final BigDecimal HUNDRED = new BigDecimal("100");
+    private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2);
 
-    private final AllocationEnvelopeRepository envelopeRepository;
-    private final EnvelopeBalanceRepository balanceRepository;
+    private final CategoryRepository categoryRepository;
+    private final CategoryBalanceRepository balanceRepository;
 
-    public AllocationService(AllocationEnvelopeRepository envelopeRepository,
-                             EnvelopeBalanceRepository balanceRepository) {
-        this.envelopeRepository = envelopeRepository;
+    public AllocationService(CategoryRepository categoryRepository,
+                             CategoryBalanceRepository balanceRepository) {
+        this.categoryRepository = categoryRepository;
         this.balanceRepository = balanceRepository;
     }
 
@@ -32,103 +44,67 @@ public class AllocationService {
     // Query
     // -------------------------------------------------------------------------
 
+    /**
+     * All active expense categories with their target percentage (0 when not in
+     * the plan) and current envelope balance, ordered by name.
+     */
     @Transactional(readOnly = true)
     public List<EnvelopeResponse> list(Long userId) {
-        List<AllocationEnvelope> envelopes = envelopeRepository.findByUserIdOrderByPosition(userId);
-
-        // Build a lookup map so we avoid N+1 queries
-        Map<Long, BigDecimal> balances = balanceRepository.findByUserId(userId).stream()
-                .collect(Collectors.toMap(EnvelopeBalance::getEnvelopeId, EnvelopeBalance::getBalance));
-
-        return envelopes.stream()
-                .map(e -> EnvelopeResponse.from(e, balances.getOrDefault(e.getId(), BigDecimal.ZERO.setScale(2))))
+        Map<Long, BigDecimal> balances = balanceByCategory(userId);
+        return activeExpenseCategories(userId).stream()
+                .map(c -> toResponse(c, balances))
                 .toList();
     }
 
     // -------------------------------------------------------------------------
-    // Save plan (atomic replace)
+    // Save plan
     // -------------------------------------------------------------------------
 
     /**
-     * Replaces the user's envelope plan atomically.
-     *
-     * <p>Strategy: keep existing envelopes (by id) to preserve their accumulated
-     * balances; delete envelopes that are no longer in the list; create new
-     * envelopes (id == null) with balance 0. This lets the user rename or
-     * reorder without losing history.
-     *
-     * <p>The sum of all percentages MUST equal exactly 100, checked via
-     * {@code BigDecimal.compareTo} to avoid scale mismatches (e.g. 100 vs 100.00).
+     * Sets the target percentage on the given expense categories and clears it on
+     * every other expense category, so the plan is exactly the supplied list. The
+     * supplied percentages MUST sum to exactly 100. Categories are authorized
+     * before any mutation.
      */
     @Transactional
     public List<EnvelopeResponse> savePlan(Long userId, EnvelopePlanRequest request) {
-        validateSum(request.envelopes());
+        validateSum(request.envelopes().stream()
+                .map(EnvelopeLineRequest::percentage)
+                .toList());
 
-        List<AllocationEnvelope> existing = envelopeRepository.findByUserIdOrderByPosition(userId);
-        Map<Long, AllocationEnvelope> byId = existing.stream()
-                .collect(Collectors.toMap(AllocationEnvelope::getId, e -> e));
+        List<Category> expense = categoryRepository.findByUserId(userId).stream()
+                .filter(c -> c.getType() == TransactionType.EXPENSE)
+                .toList();
+        Map<Long, Category> byId = expense.stream()
+                .collect(Collectors.toMap(Category::getId, c -> c));
 
-        // Ids that survive in the new plan
-        Set<Long> incomingIds = request.envelopes().stream()
-                .map(EnvelopeLineRequest::id)
-                .filter(id -> id != null)
+        // Authorize every supplied id BEFORE any mutation. A foreign or unknown id
+        // (or a non-expense category) fails here, before we change anything.
+        for (EnvelopeLineRequest line : request.envelopes()) {
+            if (!byId.containsKey(line.categoryId())) {
+                throw new NotFoundException("Category not found");
+            }
+        }
+
+        Set<Long> incoming = request.envelopes().stream()
+                .map(EnvelopeLineRequest::categoryId)
                 .collect(Collectors.toSet());
 
-        // Authorize EVERY supplied id BEFORE any mutation. byId only holds this
-        // user's envelopes, so a foreign or unknown id fails here, before we run
-        // any destructive DELETE. Never rely on the transaction rollback to undo
-        // writes made before an authorization check.
-        for (Long id : incomingIds) {
-            if (!byId.containsKey(id)) {
-                throw new NotFoundException("Envelope not found");
+        // Clear target on categories no longer in the plan
+        for (Category c : expense) {
+            if (!incoming.contains(c.getId())) {
+                c.setTargetPercentage(null);
             }
         }
-
-        // Delete envelopes removed from the plan (cascade deletes their balance rows)
-        existing.stream()
-                .filter(e -> !incomingIds.contains(e.getId()))
-                .forEach(envelopeRepository::delete);
-        envelopeRepository.flush();
-
-        List<AllocationEnvelope> result = new ArrayList<>();
-        List<EnvelopeLineRequest> lines = request.envelopes();
-
-        for (int i = 0; i < lines.size(); i++) {
-            EnvelopeLineRequest line = lines.get(i);
-
-            if (line.id() != null) {
-                // Update existing envelope — verify it belongs to this user
-                AllocationEnvelope envelope = Optional.ofNullable(byId.get(line.id()))
-                        .orElseThrow(() -> new NotFoundException("Envelope not found"));
-                if (!envelope.getUserId().equals(userId)) {
-                    throw new NotFoundException("Envelope not found");
-                }
-                envelope.setName(line.name());
-                envelope.setPercentage(line.percentage());
-                envelope.setPosition(i);
-                result.add(envelope);
-            } else {
-                // Create new envelope and its balance row (starting at 0)
-                AllocationEnvelope envelope = envelopeRepository.save(
-                        new AllocationEnvelope(userId, line.name(), line.percentage(), i));
-                balanceRepository.save(new EnvelopeBalance(envelope.getId(), userId));
-                result.add(envelope);
+        // Apply the plan and make sure each has a balance row (idempotent)
+        for (EnvelopeLineRequest line : request.envelopes()) {
+            byId.get(line.categoryId()).setTargetPercentage(line.percentage());
+            if (balanceRepository.findByCategoryId(line.categoryId()).isEmpty()) {
+                balanceRepository.save(new CategoryBalance(line.categoryId(), userId));
             }
         }
-
-        // Ensure balance rows exist for kept envelopes (idempotent)
-        for (AllocationEnvelope envelope : result) {
-            if (balanceRepository.findByEnvelopeId(envelope.getId()).isEmpty()) {
-                balanceRepository.save(new EnvelopeBalance(envelope.getId(), userId));
-            }
-        }
-
-        Map<Long, BigDecimal> balances = balanceRepository.findByUserId(userId).stream()
-                .collect(Collectors.toMap(EnvelopeBalance::getEnvelopeId, EnvelopeBalance::getBalance));
-
-        return result.stream()
-                .map(e -> EnvelopeResponse.from(e, balances.getOrDefault(e.getId(), BigDecimal.ZERO.setScale(2))))
-                .toList();
+        // Dirty checking flushes the target_percentage updates on commit
+        return list(userId);
     }
 
     // -------------------------------------------------------------------------
@@ -136,35 +112,28 @@ public class AllocationService {
     // -------------------------------------------------------------------------
 
     /**
-     * Distributes {@code amount} across envelopes proportionally to their percentages.
-     *
-     * <p>Rounding: each line is rounded HALF_UP to 2 decimals. The last envelope
-     * absorbs the rounding residual so that {@code sum(allocated) == amount} exactly.
-     * This avoids losing or creating cents.
-     *
-     * <p>When {@code persist} is {@code true} each allocated amount is added to
-     * the corresponding {@link EnvelopeBalance} row inside the same transaction.
+     * Distributes {@code amount} across the plan's categories proportionally to
+     * their target percentages. Each line is rounded HALF_UP to 2 decimals and
+     * the last category absorbs the rounding residual so the sum is exact. When
+     * {@code persist} is true the shares are added to each category's balance.
      */
     @Transactional
     public DistributionResponse distribute(Long userId, DistributeRequest request) {
-        List<AllocationEnvelope> envelopes = envelopeRepository.findByUserIdOrderByPosition(userId);
+        List<Category> plan = activeExpenseCategories(userId).stream()
+                .filter(c -> c.getTargetPercentage() != null)
+                .toList();
 
-        if (envelopes.isEmpty()) {
-            throw new InvalidAllocationException("No envelopes defined. Save a plan first.");
+        if (plan.isEmpty()) {
+            throw new InvalidAllocationException("No allocation plan defined. Save a plan first.");
         }
-
-        // Guard: the current plan must sum to 100 before distributing
-        validateSum(envelopes.stream()
-                .map(e -> new EnvelopeLineRequest(e.getId(), e.getName(), e.getPercentage()))
-                .toList());
+        validateSum(plan.stream().map(Category::getTargetPercentage).toList());
 
         BigDecimal amount = request.amount();
-        List<BigDecimal> rawAllocations = envelopes.stream()
-                .map(e -> amount.multiply(e.getPercentage())
+        List<BigDecimal> rawAllocations = plan.stream()
+                .map(c -> amount.multiply(c.getTargetPercentage())
                         .divide(HUNDRED, 2, RoundingMode.HALF_UP))
                 .toList();
 
-        // Rounding correction: adjust the last envelope so the sum is exact
         BigDecimal allocated = rawAllocations.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal residual = amount.subtract(allocated);
 
@@ -174,29 +143,33 @@ public class AllocationService {
             finalAllocations.set(last, finalAllocations.get(last).add(residual));
         }
 
-        // Load balances for response (and optional mutation)
-        Map<Long, EnvelopeBalance> balanceByEnvelopeId = balanceRepository.findByUserId(userId).stream()
-                .collect(Collectors.toMap(EnvelopeBalance::getEnvelopeId, b -> b));
+        Map<Long, CategoryBalance> balanceByCategory = balanceRepository.findByUserId(userId).stream()
+                .collect(Collectors.toMap(CategoryBalance::getCategoryId, b -> b));
 
         List<DistributionLine> lines = new ArrayList<>();
-        for (int i = 0; i < envelopes.size(); i++) {
-            AllocationEnvelope envelope = envelopes.get(i);
+        for (int i = 0; i < plan.size(); i++) {
+            Category category = plan.get(i);
             BigDecimal share = finalAllocations.get(i);
-            EnvelopeBalance balanceRow = balanceByEnvelopeId.get(envelope.getId());
 
-            BigDecimal newBalance = null;
-            if (request.persist() && balanceRow != null) {
-                BigDecimal updated = balanceRow.getBalance().add(share);
-                balanceRow.setBalance(updated);
-                newBalance = updated;
-            } else if (balanceRow != null) {
-                newBalance = balanceRow.getBalance();
+            CategoryBalance row = balanceByCategory.get(category.getId());
+            if (row == null) {
+                row = new CategoryBalance(category.getId(), userId);
+                balanceByCategory.put(category.getId(), row);
+            }
+
+            BigDecimal newBalance;
+            if (request.persist()) {
+                row.setBalance(row.getBalance().add(share));
+                balanceRepository.save(row);
+                newBalance = row.getBalance();
+            } else {
+                newBalance = row.getBalance();
             }
 
             lines.add(new DistributionLine(
-                    envelope.getId(),
-                    envelope.getName(),
-                    envelope.getPercentage(),
+                    category.getId(),
+                    category.getName(),
+                    category.getTargetPercentage(),
                     share,
                     newBalance));
         }
@@ -208,13 +181,33 @@ public class AllocationService {
     // Internal helpers
     // -------------------------------------------------------------------------
 
-    private static void validateSum(List<EnvelopeLineRequest> lines) {
-        BigDecimal sum = lines.stream()
-                .map(EnvelopeLineRequest::percentage)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    private List<Category> activeExpenseCategories(Long userId) {
+        return categoryRepository.findByUserIdAndActiveTrue(userId).stream()
+                .filter(c -> c.getType() == TransactionType.EXPENSE)
+                .sorted(Comparator.comparing(Category::getName, String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(Category::getId, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+    }
+
+    private Map<Long, BigDecimal> balanceByCategory(Long userId) {
+        return balanceRepository.findByUserId(userId).stream()
+                .collect(Collectors.toMap(CategoryBalance::getCategoryId, CategoryBalance::getBalance));
+    }
+
+    private static EnvelopeResponse toResponse(Category c, Map<Long, BigDecimal> balances) {
+        return new EnvelopeResponse(
+                c.getId(),
+                c.getName(),
+                c.getColor(),
+                c.getTargetPercentage() != null ? c.getTargetPercentage() : ZERO,
+                balances.getOrDefault(c.getId(), ZERO));
+    }
+
+    private static void validateSum(List<BigDecimal> percentages) {
+        BigDecimal sum = percentages.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
         if (sum.compareTo(HUNDRED) != 0) {
             throw new ConflictException(
-                    "Envelope percentages must sum to exactly 100 (current sum: " + sum.toPlainString() + ")");
+                    "Allocation percentages must sum to exactly 100 (current sum: " + sum.toPlainString() + ")");
         }
     }
 }

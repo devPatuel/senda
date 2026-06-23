@@ -49,14 +49,14 @@ class AllocationControllerTest {
     }
 
     private static final EnvelopeResponse SAMPLE_ENVELOPE =
-            new EnvelopeResponse(1L, "Ahorro", new BigDecimal("50.00"), 0, new BigDecimal("0.00"));
+            new EnvelopeResponse(1L, "Ahorro", "#10b981", new BigDecimal("50.00"), new BigDecimal("0.00"));
 
     private static final String VALID_PLAN_BODY = """
             {
               "envelopes": [
-                {"name": "Ahorro",   "percentage": 50},
-                {"name": "Inversión","percentage": 20},
-                {"name": "Ocio",     "percentage": 30}
+                {"categoryId": 1, "percentage": 50},
+                {"categoryId": 2, "percentage": 20},
+                {"categoryId": 3, "percentage": 30}
               ]
             }
             """;
@@ -108,7 +108,7 @@ class AllocationControllerTest {
                         .header("Authorization", bearer)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"envelopes": [{"name": "Ahorro"}]}
+                                {"envelopes": [{"categoryId": 1}]}
                                 """))
                 .andExpect(status().isBadRequest());
     }
@@ -116,13 +116,13 @@ class AllocationControllerTest {
     @Test
     void putPlanWherePercentagesDontSum100Returns409() throws Exception {
         when(allocationService.savePlan(eq(USER_ID), any(EnvelopePlanRequest.class)))
-                .thenThrow(new ConflictException("Envelope percentages must sum to exactly 100"));
+                .thenThrow(new ConflictException("Allocation percentages must sum to exactly 100"));
 
         mockMvc.perform(put("/api/allocation/envelopes")
                         .header("Authorization", bearer)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"envelopes": [{"name": "Ahorro", "percentage": 50}]}
+                                {"envelopes": [{"categoryId": 1, "percentage": 50}]}
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
