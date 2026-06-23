@@ -231,7 +231,7 @@ export default function DashboardPage() {
       <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Inicio</h1>
 
       {/* Net worth */}
-      {nowError && <ErrorState message={nowError} />}
+      {nowError && <ErrorState message={nowError} onRetry={() => setReloadKey((k) => k + 1)} />}
 
       {!nowError && !netWorth && <LoadingState label="Cargando patrimonio…" />}
 
@@ -346,7 +346,7 @@ export default function DashboardPage() {
         {summaryLoading && !summary && <LoadingState label="Cargando el resumen…" />}
 
         {!summaryLoading && summaryError && (
-          <ErrorState message={summaryError} onRetry={() => setSummaryLoadedKey(null)} />
+          <ErrorState message={summaryError} onRetry={() => setReloadKey((k) => k + 1)} />
         )}
 
         {!summaryError && isEmptyMonth && (
