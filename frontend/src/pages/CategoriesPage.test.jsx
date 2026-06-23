@@ -2,17 +2,38 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CategoriesPage from './CategoriesPage'
-import { listCategories, removeCategory } from '../api/categories'
+import { listCategories, removeCategory, getBudget } from '../api/categories'
 
 vi.mock('../api/categories', () => ({
   listCategories: vi.fn(),
   createCategory: vi.fn(),
   updateCategory: vi.fn(),
   removeCategory: vi.fn(),
+  getBudget: vi.fn(),
+  assignToCategory: vi.fn(),
+  setCategoryTarget: vi.fn(),
 }))
 
 const COMIDA = { id: 1, name: 'Comida', type: 'EXPENSE', color: '#ef4444', active: true }
 const NOMINA = { id: 2, name: 'Nómina', type: 'INCOME', color: '#10b981', active: true }
+
+// Comida has a 300 target with a 150 balance (50% funded).
+const BUDGET = {
+  totalAccounts: 1000,
+  totalAssigned: 200,
+  toAssign: 800,
+  categories: [
+    {
+      id: 1,
+      name: 'Comida',
+      color: '#ef4444',
+      balance: 150,
+      spentThisMonth: 40,
+      targetPercentage: null,
+      targetAmount: 300,
+    },
+  ],
+}
 
 async function deleteComida(user) {
   await screen.findByText('Comida')
@@ -24,6 +45,17 @@ describe('CategoriesPage', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     listCategories.mockResolvedValue([COMIDA, NOMINA])
+    getBudget.mockResolvedValue(BUDGET)
+  })
+
+  it('shows the funding-target progress bar for a category with a target', async () => {
+    render(<CategoriesPage />)
+
+    await screen.findByText('Comida')
+    expect(screen.getByText('objetivo 300,00 €')).toBeInTheDocument()
+    // 150 / 300 = 50%
+    expect(screen.getByText('50%')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Objetivo' })).toBeInTheDocument()
   })
 
   it('reports the deactivation when the category had transactions', async () => {
