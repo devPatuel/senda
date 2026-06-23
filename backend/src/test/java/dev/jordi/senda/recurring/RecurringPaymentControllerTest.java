@@ -53,8 +53,8 @@ class RecurringPaymentControllerTest {
 
     private static final RecurringPaymentResponse SAMPLE = new RecurringPaymentResponse(
             1L, "Netflix", new BigDecimal("12.99"), RecurringFrequency.MONTHLY,
-            7L, "Suscripciones", "#3b82f6", 1, null,
-            LocalDate.of(2026, 7, 1), new BigDecimal("12.99"));
+            7L, "Suscripciones", "#3b82f6", 1, null, null,
+            LocalDate.of(2026, 7, 1), new BigDecimal("12.99"), null);
 
     @Test
     void requestWithoutTokenReturns401() throws Exception {
@@ -104,6 +104,31 @@ class RecurringPaymentControllerTest {
                 .andExpect(jsonPath("$.name").value("Netflix"))
                 .andExpect(jsonPath("$.nextDueDate").value("2026-07-01"))
                 .andExpect(jsonPath("$.monthlyEquivalent").value(12.99));
+    }
+
+    @Test
+    void postWeeklyValidReturns201() throws Exception {
+        when(service.create(eq(USER_ID), any(RecurringPaymentRequest.class))).thenReturn(SAMPLE);
+
+        mockMvc.perform(post("/api/recurring")
+                        .header("Authorization", bearer)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "Limpieza", "amount": 10.00, "frequency": "WEEKLY", "categoryId": 7, "dayOfMonth": 1, "dayOfWeek": 3}
+                                """))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void postWithDayOfWeekOutOfRangeReturns400() throws Exception {
+        mockMvc.perform(post("/api/recurring")
+                        .header("Authorization", bearer)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "X", "amount": 10.00, "frequency": "WEEKLY", "categoryId": 7, "dayOfMonth": 1, "dayOfWeek": 9}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.dayOfWeek").exists());
     }
 
     @Test

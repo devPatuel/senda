@@ -5,7 +5,9 @@ import java.time.LocalDate;
 
 /**
  * A recurring payment with its derived next due date and monthly-equivalent cost
- * (annual amounts divided by 12), plus its category name/color for display.
+ * (weekly ≈ amount*52/12, quarterly = amount/3, annual = amount/12), plus its
+ * category name/color for display. {@code dayOfWeek} is set for WEEKLY only;
+ * {@code endDate} is the optional cancellation reminder.
  */
 public record RecurringPaymentResponse(
         Long id,
@@ -17,6 +19,8 @@ public record RecurringPaymentResponse(
         String categoryColor,
         int dayOfMonth,
         Integer month,
+        Integer dayOfWeek,
         LocalDate nextDueDate,
-        BigDecimal monthlyEquivalent) {
+        BigDecimal monthlyEquivalent,
+        LocalDate endDate) {
 }

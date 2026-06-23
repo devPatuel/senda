@@ -10,14 +10,32 @@ import { formatCurrency, formatDate } from '../lib/format'
 import { Field, FormError, SubmitButton } from '../components/form'
 import { ConfirmDialog, EmptyState, ErrorState, LoadingState, Modal, Notice, SelectField } from '../components/ui'
 
-const FREQUENCY_LABELS = { MONTHLY: 'Mensual', ANNUAL: 'Anual' }
+const FREQUENCY_LABELS = {
+  WEEKLY: 'Semanal',
+  MONTHLY: 'Mensual',
+  QUARTERLY: 'Trimestral',
+  ANNUAL: 'Anual',
+}
 const MONTHS = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
 ]
+// Index + 1 == ISO day of week (1=Monday .. 7=Sunday).
+const WEEKDAYS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
 
 function parseDecimal(raw) {
   return Number(String(raw).replace(',', '.'))
+}
+
+// True when an ISO end date falls within the next `days` days (today included).
+function endingSoon(isoDate, days = 14) {
+  if (!isoDate) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const horizon = new Date(today)
+  horizon.setDate(horizon.getDate() + days)
+  const end = new Date(`${isoDate}T00:00:00`)
+  return end >= today && end <= horizon
 }
 
 function RecurringForm({ payment, categories, onClose, onSaved }) {
@@ -31,6 +49,8 @@ function RecurringForm({ payment, categories, onClose, onSaved }) {
           categoryId: String(payment.categoryId),
           dayOfMonth: String(payment.dayOfMonth),
           month: payment.month ? String(payment.month) : '1',
+          dayOfWeek: payment.dayOfWeek ? String(payment.dayOfWeek) : '1',
+          endDate: payment.endDate || '',
         }
       : {
           name: '',
@@ -39,6 +59,8 @@ function RecurringForm({ payment, categories, onClose, onSaved }) {
           categoryId: String(categories[0]?.id ?? ''),
           dayOfMonth: '1',
           month: '1',
+          dayOfWeek: '1',
+          endDate: '',
         },
   )
   const [fieldErrors, setFieldErrors] = useState({})
@@ -58,8 +80,13 @@ function RecurringForm({ payment, categories, onClose, onSaved }) {
       errors.amount = 'Importe mayor que 0'
     }
     if (!form.categoryId) errors.categoryId = 'Elige una categoría'
-    const day = Number(form.dayOfMonth)
-    if (!Number.isInteger(day) || day < 1 || day > 31) errors.dayOfMonth = 'Día entre 1 y 31'
+    if (form.frequency === 'WEEKLY') {
+      const dow = Number(form.dayOfWeek)
+      if (!Number.isInteger(dow) || dow < 1 || dow > 7) errors.dayOfWeek = 'Elige un día de la semana'
+    } else {
+      const day = Number(form.dayOfMonth)
+      if (!Number.isInteger(day) || day < 1 || day > 31) errors.dayOfMonth = 'Día entre 1 y 31'
+    }
     return errors
   }
 
@@ -75,9 +102,13 @@ function RecurringForm({ payment, categories, onClose, onSaved }) {
       amount: parseDecimal(form.amount),
       frequency: form.frequency,
       categoryId: Number(form.categoryId),
-      dayOfMonth: Number(form.dayOfMonth),
-      // month only matters for annual payments
-      month: form.frequency === 'ANNUAL' ? Number(form.month) : null,
+      // weekly payments ignore the day of month; send a harmless placeholder
+      dayOfMonth: form.frequency === 'WEEKLY' ? 1 : Number(form.dayOfMonth),
+      // month is the anchor for annual and quarterly payments
+      month: form.frequency === 'ANNUAL' || form.frequency === 'QUARTERLY' ? Number(form.month) : null,
+      // day of week only matters for weekly payments
+      dayOfWeek: form.frequency === 'WEEKLY' ? Number(form.dayOfWeek) : null,
+      endDate: form.endDate || null,
     }
 
     setSaving(true)
@@ -124,7 +155,9 @@ function RecurringForm({ payment, categories, onClose, onSaved }) {
             error={fieldErrors.amount}
           />
           <SelectField label="Frecuencia" name="frequency" value={form.frequency} onChange={handleChange}>
+            <option value="WEEKLY">Semanal</option>
             <option value="MONTHLY">Mensual</option>
+            <option value="QUARTERLY">Trimestral</option>
             <option value="ANNUAL">Anual</option>
           </SelectField>
         </div>
@@ -144,7 +177,7 @@ function RecurringForm({ payment, categories, onClose, onSaved }) {
         </SelectField>
 
         <div className="grid grid-cols-2 gap-3">
-          {form.frequency === 'ANNUAL' && (
+          {(form.frequency === 'ANNUAL' || form.frequency === 'QUARTERLY') && (
             <SelectField label="Mes" name="month" value={form.month} onChange={handleChange}>
               {MONTHS.map((m, i) => (
                 <option key={m} value={i + 1}>
@@ -153,18 +186,43 @@ function RecurringForm({ payment, categories, onClose, onSaved }) {
               ))}
             </SelectField>
           )}
-          <Field
-            label="Día del mes"
-            name="dayOfMonth"
-            type="number"
-            inputMode="numeric"
-            min="1"
-            max="31"
-            value={form.dayOfMonth}
-            onChange={handleChange}
-            error={fieldErrors.dayOfMonth}
-          />
+          {form.frequency === 'WEEKLY' ? (
+            <SelectField
+              label="Día de la semana"
+              name="dayOfWeek"
+              value={form.dayOfWeek}
+              onChange={handleChange}
+              error={fieldErrors.dayOfWeek}
+            >
+              {WEEKDAYS.map((d, i) => (
+                <option key={d} value={i + 1}>
+                  {d.charAt(0).toUpperCase() + d.slice(1)}
+                </option>
+              ))}
+            </SelectField>
+          ) : (
+            <Field
+              label="Día del mes"
+              name="dayOfMonth"
+              type="number"
+              inputMode="numeric"
+              min="1"
+              max="31"
+              value={form.dayOfMonth}
+              onChange={handleChange}
+              error={fieldErrors.dayOfMonth}
+            />
+          )}
         </div>
+
+        <Field
+          label="Fecha límite de baja (opcional)"
+          name="endDate"
+          type="date"
+          value={form.endDate}
+          onChange={handleChange}
+          error={fieldErrors.endDate}
+        />
 
         <SubmitButton loading={saving} loadingText="Guardando…">
           {isEdit ? 'Guardar cambios' : 'Crear pago'}
@@ -299,16 +357,28 @@ export default function RecurringPage() {
                 aria-hidden="true"
               />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-slate-900">{p.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="truncate text-sm font-medium text-slate-900">{p.name}</p>
+                  {endingSoon(p.endDate) && (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                      Cancelar pronto
+                    </span>
+                  )}
+                </div>
                 <p className="truncate text-xs text-slate-500">
-                  {FREQUENCY_LABELS[p.frequency]} · {p.categoryName} · próximo {formatDate(p.nextDueDate)}
+                  {FREQUENCY_LABELS[p.frequency]}
+                  {p.frequency === 'WEEKLY' && p.dayOfWeek ? ` (${WEEKDAYS[p.dayOfWeek - 1]})` : ''}
+                  {' · '}{p.categoryName} · próximo {formatDate(p.nextDueDate)}
                 </p>
+                {p.endDate && (
+                  <p className="truncate text-xs text-amber-600">Baja: {formatDate(p.endDate)}</p>
+                )}
               </div>
               <div className="shrink-0 text-right">
                 <p className="text-sm font-semibold tabular-nums text-slate-900">
                   {formatCurrency(p.amount)}
                 </p>
-                {p.frequency === 'ANNUAL' && (
+                {p.frequency !== 'MONTHLY' && (
                   <p className="text-xs text-slate-400 tabular-nums">
                     {formatCurrency(p.monthlyEquivalent)}/mes
                   </p>
