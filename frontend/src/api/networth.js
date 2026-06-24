@@ -20,3 +20,22 @@ import { http } from './http'
 export function getNetWorth() {
   return http.get('/networth')
 }
+
+/**
+ * @typedef {Object} NetWorthHistoryPoint
+ * @property {string} date           ISO date (YYYY-MM-DD)
+ * @property {number} net
+ * @property {number} liquid
+ * @property {number} investments
+ * @property {number} debtsInFavor
+ * @property {number} debtsAgainst
+ */
+
+/**
+ * Net-worth history for the last `days` days (default 30), oldest first.
+ * @param {number} [days]
+ * @returns {Promise<NetWorthHistoryPoint[]>}
+ */
+export function getNetWorthHistory(days = 30) {
+  return http.get(`/networth/history?days=${days}`)
+}

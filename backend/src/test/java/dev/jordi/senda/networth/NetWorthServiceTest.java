@@ -38,6 +38,8 @@ class NetWorthServiceTest {
     private DebtRepository debtRepository;
     @Mock
     private DebtPaymentRepository debtPaymentRepository;
+    @Mock
+    private NetWorthSnapshotRepository snapshotRepository;
 
     private NetWorthService service;
 
@@ -45,7 +47,7 @@ class NetWorthServiceTest {
     void setUp() {
         service = new NetWorthService(
                 accountRepository, holdingRepository, nftRepository,
-                debtRepository, debtPaymentRepository);
+                debtRepository, debtPaymentRepository, snapshotRepository);
     }
 
     // --- helpers ---

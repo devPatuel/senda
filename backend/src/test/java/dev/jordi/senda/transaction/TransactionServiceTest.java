@@ -255,4 +255,51 @@ class TransactionServiceTest {
         assertThat(summary.balance()).isEqualByComparingTo("0.00");
         assertThat(summary.byCategory()).isEmpty();
     }
+
+    // --- trends ---
+
+    @Test
+    void trendsRejectsOutOfRange() {
+        assertThatThrownBy(() -> service.trends(USER_ID, 0))
+                .isInstanceOf(InvalidTransactionException.class);
+        assertThatThrownBy(() -> service.trends(USER_ID, 25))
+                .isInstanceOf(InvalidTransactionException.class);
+    }
+
+    @Test
+    void trendsReturnsDenseOrderedSeriesWithZeroFill() {
+        java.time.YearMonth cur = java.time.YearMonth.now();
+        java.time.YearMonth twoAgo = cur.minusMonths(2);
+        // Data only for two-months-ago (expense) and the current month (both types);
+        // the month in between must be zero-filled.
+        List<MonthlyTotal> rows = List.of(
+                new MonthlyTotal(twoAgo.getYear(), twoAgo.getMonthValue(),
+                        TransactionType.EXPENSE, new BigDecimal("50.00")),
+                new MonthlyTotal(cur.getYear(), cur.getMonthValue(),
+                        TransactionType.INCOME, new BigDecimal("1000.00")),
+                new MonthlyTotal(cur.getYear(), cur.getMonthValue(),
+                        TransactionType.EXPENSE, new BigDecimal("300.00")));
+        when(transactionRepository.monthlyTotals(org.mockito.ArgumentMatchers.eq(USER_ID),
+                org.mockito.ArgumentMatchers.any())).thenReturn(rows);
+
+        List<MonthlyTrend> series = service.trends(USER_ID, 3);
+
+        assertThat(series).hasSize(3);
+        // Oldest first
+        assertThat(series.get(0).year()).isEqualTo(twoAgo.getYear());
+        assertThat(series.get(0).month()).isEqualTo(twoAgo.getMonthValue());
+        assertThat(series.get(0).income()).isEqualByComparingTo("0.00");
+        assertThat(series.get(0).expense()).isEqualByComparingTo("50.00");
+        assertThat(series.get(0).balance()).isEqualByComparingTo("-50.00");
+        // Middle month has no data -> zeros
+        assertThat(series.get(1).income()).isEqualByComparingTo("0.00");
+        assertThat(series.get(1).expense()).isEqualByComparingTo("0.00");
+        assertThat(series.get(1).balance()).isEqualByComparingTo("0.00");
+        // Current month
+        assertThat(series.get(2).year()).isEqualTo(cur.getYear());
+        assertThat(series.get(2).month()).isEqualTo(cur.getMonthValue());
+        assertThat(series.get(2).income()).isEqualByComparingTo("1000.00");
+        assertThat(series.get(2).expense()).isEqualByComparingTo("300.00");
+        assertThat(series.get(2).balance()).isEqualByComparingTo("700.00");
+    }
 }

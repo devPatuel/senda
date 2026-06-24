@@ -332,4 +332,49 @@ class TransactionIntegrationTest {
                         .param("year", "2026").param("month", "13"))
                 .andExpect(status().isBadRequest());
     }
+
+    // --- trends ---
+
+    @Test
+    void trendsReturnsDenseSeriesWithCurrentMonthTotals() throws Exception {
+        String today = java.time.LocalDate.now().toString();
+        createTransaction(tokenA, incomeA.getId(), TransactionType.INCOME, "1000.00", today);
+        createTransaction(tokenA, expenseA.getId(), TransactionType.EXPENSE, "300.00", today);
+
+        // months=3 -> exactly 3 ordered rows, the last one is the current month
+        mockMvc.perform(get("/api/transactions/trends")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .param("months", "3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[2].income").value(1000.00))
+                .andExpect(jsonPath("$[2].expense").value(300.00))
+                .andExpect(jsonPath("$[2].balance").value(700.00));
+    }
+
+    @Test
+    void trendsDefaultsToSixMonthsAndRejectsOutOfRange() throws Exception {
+        mockMvc.perform(get("/api/transactions/trends").header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(6));
+
+        mockMvc.perform(get("/api/transactions/trends")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .param("months", "0"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void trendsIsolatesByUser() throws Exception {
+        String today = java.time.LocalDate.now().toString();
+        createTransaction(tokenA, incomeA.getId(), TransactionType.INCOME, "1000.00", today);
+
+        // B has no transactions: the current month shows zeros
+        mockMvc.perform(get("/api/transactions/trends")
+                        .header("Authorization", "Bearer " + tokenB)
+                        .param("months", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].income").value(0.00));
+    }
 }

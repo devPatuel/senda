@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/transactions")
@@ -45,6 +46,11 @@ public class TransactionController {
     @GetMapping("/summary")
     public MonthlySummaryResponse summary(@RequestParam int year, @RequestParam int month) {
         return transactionService.summary(CurrentUser.id(), year, month);
+    }
+
+    @GetMapping("/trends")
+    public List<MonthlyTrend> trends(@RequestParam(defaultValue = "6") int months) {
+        return transactionService.trends(CurrentUser.id(), months);
     }
 
     @GetMapping("/{id}")

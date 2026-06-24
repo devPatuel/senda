@@ -48,4 +48,17 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     List<CategorySpent> sumExpenseByCategory(@Param("userId") Long userId,
                                              @Param("from") LocalDate from,
                                              @Param("to") LocalDate to);
+
+    /**
+     * Per-(year, month, type) totals from {@code from} onward, aggregated in the
+     * database. The service reshapes these into a dense per-month trend series.
+     */
+    @Query("""
+            select new dev.jordi.senda.transaction.MonthlyTotal(
+                year(t.date), month(t.date), t.type, sum(t.amount))
+            from Transaction t
+            where t.userId = :userId and t.date >= :from
+            group by year(t.date), month(t.date), t.type
+            """)
+    List<MonthlyTotal> monthlyTotals(@Param("userId") Long userId, @Param("from") LocalDate from);
 }
