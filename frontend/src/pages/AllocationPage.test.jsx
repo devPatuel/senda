@@ -10,8 +10,8 @@ vi.mock('../api/allocation', () => ({
   distribute: vi.fn(),
 }))
 
-const AHORRO = { id: 1, name: 'Ahorro', percentage: 60, position: 0, balance: 600 }
-const OCIO = { id: 2, name: 'Ocio', percentage: 40, position: 1, balance: 400 }
+const AHORRO = { id: 1, name: 'Ahorro', color: '#10b981', percentage: 60 }
+const OCIO = { id: 2, name: 'Ocio', color: '#f59e0b', percentage: 40 }
 
 describe('AllocationPage', () => {
   beforeEach(() => {
@@ -19,16 +19,16 @@ describe('AllocationPage', () => {
     getEnvelopes.mockResolvedValue([AHORRO, OCIO])
   })
 
-  it('renders envelopes with their accumulated balances', async () => {
+  it('renders each expense category with its current plan percentage', async () => {
     render(<AllocationPage />)
 
-    // Both envelope names must appear
+    // Both category names must appear in the plan editor
     expect(await screen.findByText('Ahorro')).toBeInTheDocument()
     expect(screen.getByText('Ocio')).toBeInTheDocument()
 
-    // Balances rendered via formatCurrency (es-ES locale)
-    expect(screen.getByText('600,00 €')).toBeInTheDocument()
-    expect(screen.getByText('400,00 €')).toBeInTheDocument()
+    // The plan editor pre-fills each category's target percentage
+    expect(screen.getByDisplayValue('60')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('40')).toBeInTheDocument()
   })
 
   it('shows total-indicator in green when percentages sum to 100', async () => {
