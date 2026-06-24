@@ -44,7 +44,7 @@ public class RecurringPaymentService {
         List<Long> ids = payments.stream().map(RecurringPayment::getId).toList();
         Map<Long, List<RecurringAmountHistory>> historyByPayment = ids.isEmpty()
                 ? Map.of()
-                : historyRepository.findByRecurringIdInOrderByChangedAtAsc(ids).stream()
+                : historyRepository.findByRecurringIdInOrderByChangedAtAscIdAsc(ids).stream()
                         .collect(Collectors.groupingBy(RecurringAmountHistory::getRecurringId));
         LocalDate today = LocalDate.now();
         return payments.stream()
@@ -87,7 +87,7 @@ public class RecurringPaymentService {
         }
         Category category = categoryRepository.findByIdAndUserId(payment.getCategoryId(), userId).orElse(null);
         BigDecimal previousAmount = previousAmountOf(
-                historyRepository.findByRecurringIdOrderByChangedAtAsc(payment.getId()));
+                historyRepository.findByRecurringIdOrderByChangedAtAscIdAsc(payment.getId()));
         // Managed entity: dirty checking flushes on commit
         return toResponse(payment, category, LocalDate.now(), previousAmount);
     }
