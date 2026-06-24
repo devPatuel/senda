@@ -16,6 +16,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
 
     boolean existsByCategoryId(Long categoryId);
 
+    /** Dedupe key for CSV import: same day, amount and description for this user. */
+    boolean existsByUserIdAndDateAndAmountAndDescription(
+            Long userId, java.time.LocalDate date, java.math.BigDecimal amount, String description);
+
     /**
      * Per-category totals for a user in a date range, aggregated in the
      * database (never loads transactions into memory).

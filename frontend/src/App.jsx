@@ -13,6 +13,8 @@ import AllocationPage from './pages/AllocationPage'
 import NetWorthPage from './pages/NetWorthPage'
 import RecurringPage from './pages/RecurringPage'
 import ShoppingPage from './pages/ShoppingPage'
+import CategoryRulesPage from './pages/CategoryRulesPage'
+import ImportPage from './pages/ImportPage'
 
 export default function App() {
   return (
@@ -30,6 +32,8 @@ export default function App() {
           <Route path="/inversiones" element={<InvestmentsPage />} />
           <Route path="/reparto" element={<AllocationPage />} />
           <Route path="/recurrentes" element={<RecurringPage />} />
+          <Route path="/reglas" element={<CategoryRulesPage />} />
+          <Route path="/importar" element={<ImportPage />} />
           {/* Patrimonio no longer has a menu entry; reachable by direct URL */}
           <Route path="/patrimonio" element={<NetWorthPage />} />
           <Route path="/compra" element={<ShoppingPage />} />
