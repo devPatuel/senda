@@ -22,23 +22,34 @@ public class RecurringPaymentService {
     private static final BigDecimal TWELVE = new BigDecimal("12");
     private static final BigDecimal WEEKS_PER_YEAR = new BigDecimal("52");
     private static final BigDecimal THREE = new BigDecimal("3");
+    private static final BigDecimal HUNDRED = new BigDecimal("100");
 
     private final RecurringPaymentRepository repository;
     private final CategoryRepository categoryRepository;
+    private final RecurringAmountHistoryRepository historyRepository;
 
     public RecurringPaymentService(RecurringPaymentRepository repository,
-                                   CategoryRepository categoryRepository) {
+                                   CategoryRepository categoryRepository,
+                                   RecurringAmountHistoryRepository historyRepository) {
         this.repository = repository;
         this.categoryRepository = categoryRepository;
+        this.historyRepository = historyRepository;
     }
 
     @Transactional(readOnly = true)
     public List<RecurringPaymentResponse> list(Long userId) {
         Map<Long, Category> categories = categoryRepository.findByUserId(userId).stream()
                 .collect(Collectors.toMap(Category::getId, c -> c));
+        List<RecurringPayment> payments = repository.findByUserId(userId);
+        List<Long> ids = payments.stream().map(RecurringPayment::getId).toList();
+        Map<Long, List<RecurringAmountHistory>> historyByPayment = ids.isEmpty()
+                ? Map.of()
+                : historyRepository.findByRecurringIdInOrderByChangedAtAsc(ids).stream()
+                        .collect(Collectors.groupingBy(RecurringAmountHistory::getRecurringId));
         LocalDate today = LocalDate.now();
-        return repository.findByUserId(userId).stream()
-                .map(p -> toResponse(p, categories.get(p.getCategoryId()), today))
+        return payments.stream()
+                .map(p -> toResponse(p, categories.get(p.getCategoryId()), today,
+                        previousAmountOf(historyByPayment.getOrDefault(p.getId(), List.of()))))
                 .sorted(Comparator.comparing(RecurringPaymentResponse::nextDueDate))
                 .toList();
     }
@@ -50,8 +61,10 @@ public class RecurringPaymentService {
                 userId, request.name().trim(), request.amount(), request.frequency(),
                 request.categoryId(), request.dayOfMonth(), resolveMonth(request),
                 resolveDayOfWeek(request), request.endDate()));
+        // Baseline amount, so a later change can be compared against it
+        historyRepository.save(new RecurringAmountHistory(saved.getId(), saved.getAmount()));
         Category category = categoryRepository.findByIdAndUserId(saved.getCategoryId(), userId).orElse(null);
-        return toResponse(saved, category, LocalDate.now());
+        return toResponse(saved, category, LocalDate.now(), null);
     }
 
     @Transactional
@@ -59,6 +72,7 @@ public class RecurringPaymentService {
         RecurringPayment payment = repository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NotFoundException("Recurring payment not found"));
         validate(userId, request);
+        BigDecimal oldAmount = payment.getAmount();
         payment.setName(request.name().trim());
         payment.setAmount(request.amount());
         payment.setFrequency(request.frequency());
@@ -67,9 +81,15 @@ public class RecurringPaymentService {
         payment.setMonth(resolveMonth(request));
         payment.setDayOfWeek(resolveDayOfWeek(request));
         payment.setEndDate(request.endDate());
+        // Record a new history entry only when the amount actually changed
+        if (request.amount().compareTo(oldAmount) != 0) {
+            historyRepository.save(new RecurringAmountHistory(payment.getId(), request.amount()));
+        }
         Category category = categoryRepository.findByIdAndUserId(payment.getCategoryId(), userId).orElse(null);
+        BigDecimal previousAmount = previousAmountOf(
+                historyRepository.findByRecurringIdOrderByChangedAtAsc(payment.getId()));
         // Managed entity: dirty checking flushes on commit
-        return toResponse(payment, category, LocalDate.now());
+        return toResponse(payment, category, LocalDate.now(), previousAmount);
     }
 
     @Transactional
@@ -127,7 +147,8 @@ public class RecurringPaymentService {
         return request.frequency() == RecurringFrequency.WEEKLY ? request.dayOfWeek() : null;
     }
 
-    private static RecurringPaymentResponse toResponse(RecurringPayment p, Category category, LocalDate today) {
+    private static RecurringPaymentResponse toResponse(RecurringPayment p, Category category, LocalDate today,
+                                                       BigDecimal previousAmount) {
         BigDecimal monthlyEquivalent = switch (p.getFrequency()) {
             case WEEKLY -> p.getAmount().multiply(WEEKS_PER_YEAR).divide(TWELVE, 2, RoundingMode.HALF_UP);
             case QUARTERLY -> p.getAmount().divide(THREE, 2, RoundingMode.HALF_UP);
@@ -147,7 +168,25 @@ public class RecurringPaymentService {
                 p.getDayOfWeek(),
                 nextDueDate(p.getFrequency(), p.getDayOfMonth(), p.getMonth(), p.getDayOfWeek(), today),
                 monthlyEquivalent,
-                p.getEndDate());
+                p.getEndDate(),
+                previousAmount,
+                changePct(previousAmount, p.getAmount()));
+    }
+
+    /** The amount before the most recent change (second-to-last entry), or null. */
+    private static BigDecimal previousAmountOf(List<RecurringAmountHistory> historyAsc) {
+        return historyAsc.size() >= 2 ? historyAsc.get(historyAsc.size() - 2).getAmount() : null;
+    }
+
+    /** Percentage change from {@code previous} to {@code current}, one decimal, or null. */
+    private static BigDecimal changePct(BigDecimal previous, BigDecimal current) {
+        if (previous == null || previous.signum() == 0) {
+            return null;
+        }
+        return current.subtract(previous)
+                .divide(previous, 4, RoundingMode.HALF_UP)
+                .multiply(HUNDRED)
+                .setScale(1, RoundingMode.HALF_UP);
     }
 
     /**

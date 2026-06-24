@@ -33,11 +33,14 @@ class RecurringPaymentServiceTest {
     @Mock
     private CategoryRepository categoryRepository;
 
+    @Mock
+    private RecurringAmountHistoryRepository historyRepository;
+
     private RecurringPaymentService service;
 
     @BeforeEach
     void setUp() {
-        service = new RecurringPaymentService(repository, categoryRepository);
+        service = new RecurringPaymentService(repository, categoryRepository, historyRepository);
     }
 
     private static Category expenseCategory() {

@@ -378,6 +378,18 @@ export default function RecurringPage() {
                 <p className="text-sm font-semibold tabular-nums text-slate-900">
                   {formatCurrency(p.amount)}
                 </p>
+                {p.changePct != null && Number(p.changePct) !== 0 && (
+                  <p
+                    className={[
+                      'text-xs font-medium tabular-nums',
+                      Number(p.changePct) > 0 ? 'text-red-600' : 'text-emerald-600',
+                    ].join(' ')}
+                    title={p.previousAmount != null ? `Antes ${formatCurrency(p.previousAmount)}` : undefined}
+                  >
+                    {Number(p.changePct) > 0 ? '▲ +' : '▼ −'}
+                    {Math.abs(Number(p.changePct))}%
+                  </p>
+                )}
                 {p.frequency !== 'MONTHLY' && (
                   <p className="text-xs text-slate-400 tabular-nums">
                     {formatCurrency(p.monthlyEquivalent)}/mes

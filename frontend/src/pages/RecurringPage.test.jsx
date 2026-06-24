@@ -81,6 +81,16 @@ describe('RecurringPage', () => {
     expect(screen.getByText(/^Baja:/)).toBeInTheDocument()
   })
 
+  it('shows the price-change indicator when the amount went up', async () => {
+    getRecurring.mockResolvedValue([
+      { ...ENDING_PAYMENT, endDate: null, previousAmount: 10, changePct: 20 },
+    ])
+    render(<RecurringPage />)
+
+    expect(await screen.findByText('Netflix')).toBeInTheDocument()
+    expect(screen.getByText(/▲ \+20%/)).toBeInTheDocument()
+  })
+
   it('creates a weekly payment sending dayOfWeek and a placeholder dayOfMonth', async () => {
     getRecurring.mockResolvedValue([])
     createRecurring.mockResolvedValue({ ...WEEKLY_PAYMENT })

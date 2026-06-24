@@ -54,7 +54,7 @@ class RecurringPaymentControllerTest {
     private static final RecurringPaymentResponse SAMPLE = new RecurringPaymentResponse(
             1L, "Netflix", new BigDecimal("12.99"), RecurringFrequency.MONTHLY,
             7L, "Suscripciones", "#3b82f6", 1, null, null,
-            LocalDate.of(2026, 7, 1), new BigDecimal("12.99"), null);
+            LocalDate.of(2026, 7, 1), new BigDecimal("12.99"), null, null, null);
 
     @Test
     void requestWithoutTokenReturns401() throws Exception {
