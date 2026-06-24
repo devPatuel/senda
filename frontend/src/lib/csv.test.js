@@ -37,6 +37,10 @@ describe('parseDate', () => {
   it('returns null for unknown formats', () => {
     expect(parseDate('junio 2026')).toBeNull()
   })
+  it('rejects impossible calendar dates', () => {
+    expect(parseDate('31/02/2026')).toBeNull()
+    expect(parseDate('2026-13-01')).toBeNull()
+  })
 })
 
 describe('parseAmount', () => {

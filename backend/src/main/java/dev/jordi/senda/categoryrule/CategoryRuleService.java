@@ -67,8 +67,10 @@ public class CategoryRuleService {
     }
 
     /**
-     * First rule whose {@code matchText} is contained in {@code description}
-     * (case-insensitive). Used by the CSV import to pre-fill categories.
+     * Best rule whose {@code matchText} is contained in {@code description}
+     * (case-insensitive). When several rules match, the most specific (longest
+     * {@code matchText}) wins, with the text as a tie-breaker — so the result is
+     * deterministic regardless of the row order returned by the database.
      */
     public static Optional<CategoryRule> firstMatch(List<CategoryRule> rules, String description) {
         if (description == null || description.isBlank()) {
@@ -77,7 +79,8 @@ public class CategoryRuleService {
         String haystack = description.toLowerCase(Locale.ROOT);
         return rules.stream()
                 .filter(r -> haystack.contains(r.getMatchText().toLowerCase(Locale.ROOT)))
-                .findFirst();
+                .min(Comparator.comparingInt((CategoryRule r) -> r.getMatchText().length()).reversed()
+                        .thenComparing(CategoryRule::getMatchText, String.CASE_INSENSITIVE_ORDER));
     }
 
     private Category requireOwnedCategory(Long userId, Long categoryId) {

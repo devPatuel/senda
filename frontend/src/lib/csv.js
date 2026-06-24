@@ -60,13 +60,27 @@ export function parseCsv(text) {
  */
 export function parseDate(raw) {
   const s = String(raw).trim()
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
-  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (m) {
-    const [, d, mo, y] = m
-    return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`
+  let y
+  let mo
+  let d
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  const dmy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (iso) {
+    ;[, y, mo, d] = iso
+  } else if (dmy) {
+    ;[, d, mo, y] = dmy
+  } else {
+    return null
   }
-  return null
+  const year = Number(y)
+  const month = Number(mo)
+  const day = Number(d)
+  // Reject impossible dates (e.g. 31/02) instead of forwarding them to the API.
+  const probe = new Date(year, month - 1, day)
+  if (probe.getFullYear() !== year || probe.getMonth() !== month - 1 || probe.getDate() !== day) {
+    return null
+  }
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }
 
 /**
