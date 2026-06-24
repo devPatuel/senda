@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getSummary } from '../api/transactions'
-import { getNetWorth } from '../api/networth'
+import { getSummary, getTrends } from '../api/transactions'
+import { getNetWorth, getNetWorthHistory } from '../api/networth'
 import { getRecurring } from '../api/recurring'
 import { listCategories } from '../api/categories'
 import { formatCurrency, formatMonthLabel, formatDate } from '../lib/format'
 import { EmptyState, ErrorState, LoadingState } from '../components/ui'
 import TransactionForm from '../components/TransactionForm'
+import TrendsChart from '../components/TrendsChart'
+import NetWorthChart from '../components/NetWorthChart'
 
 function currentYearMonth() {
   const now = new Date()
@@ -140,10 +142,12 @@ export default function DashboardPage() {
   // Bumped after a quick-add to refresh both "now" data and the monthly summary.
   const [reloadKey, setReloadKey] = useState(0)
 
-  // "Now" data (net worth + recurring + categories) — independent of the month.
+  // "Now" data (net worth + recurring + categories + series) — independent of the month.
   const [netWorth, setNetWorth] = useState(null)
   const [recurring, setRecurring] = useState(null)
   const [categories, setCategories] = useState([])
+  const [trends, setTrends] = useState(null)
+  const [history, setHistory] = useState(null)
   const [nowError, setNowError] = useState(null)
 
   // Monthly summary — depends on the selected month. We also fetch the previous
@@ -159,6 +163,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false
+    // Core "now" data: a failure here surfaces as nowError.
     Promise.all([getNetWorth(), getRecurring(), listCategories({ includeInactive: true })])
       .then(([nw, rec, cats]) => {
         if (!cancelled) {
@@ -171,6 +176,13 @@ export default function DashboardPage() {
       .catch((err) => {
         if (!cancelled) setNowError(err.message || 'No se han podido cargar los datos')
       })
+    // Charts are secondary: a failure only hides them, never the core data.
+    getTrends(6)
+      .then((tr) => { if (!cancelled) setTrends(tr) })
+      .catch(() => { if (!cancelled) setTrends(null) })
+    getNetWorthHistory(30)
+      .then((hist) => { if (!cancelled) setHistory(hist) })
+      .catch(() => { if (!cancelled) setHistory(null) })
     return () => {
       cancelled = true
     }
@@ -257,6 +269,12 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
+
+      {/* Net worth evolution */}
+      {!nowError && history && history.length >= 2 && <NetWorthChart history={history} />}
+
+      {/* Income vs expense trends */}
+      {!nowError && trends && trends.length > 0 && <TrendsChart trends={trends} />}
 
       {/* Cancellation reminders */}
       {cancellations.length > 0 && (

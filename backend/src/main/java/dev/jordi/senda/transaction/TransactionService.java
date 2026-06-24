@@ -16,12 +16,21 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class TransactionService {
 
     static final int MAX_PAGE_SIZE = 100;
+    static final int MAX_TREND_MONTHS = 24;
+    private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2);
+    // The user's local zone, so "current month" matches their transaction dates.
+    private static final ZoneId ZONE = ZoneId.of("Europe/Madrid");
 
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
@@ -99,6 +108,38 @@ public class TransactionService {
         BigDecimal totalExpense = sumByType(byCategory, TransactionType.EXPENSE);
         return new MonthlySummaryResponse(year, month, totalIncome, totalExpense,
                 totalIncome.subtract(totalExpense), byCategory);
+    }
+
+    /**
+     * Dense income/expense/balance series for the last {@code months} months
+     * (current month included). Months with no transactions appear as zeros, so
+     * the caller always gets exactly {@code months} ordered rows.
+     */
+    @Transactional(readOnly = true)
+    public List<MonthlyTrend> trends(Long userId, int months) {
+        if (months < 1 || months > MAX_TREND_MONTHS) {
+            throw new InvalidTransactionException("months must be between 1 and " + MAX_TREND_MONTHS);
+        }
+        YearMonth current = YearMonth.now(ZONE);
+        YearMonth start = current.minusMonths(months - 1L);
+        LocalDate from = start.atDay(1);
+
+        // Index the DB aggregates by (yearMonth, type) for O(1) lookup per bucket.
+        Map<YearMonth, Map<TransactionType, BigDecimal>> byMonth = transactionRepository
+                .monthlyTotals(userId, from).stream()
+                .collect(Collectors.groupingBy(
+                        t -> YearMonth.of(t.year(), t.month()),
+                        Collectors.toMap(MonthlyTotal::type, MonthlyTotal::total)));
+
+        List<MonthlyTrend> series = new ArrayList<>(months);
+        for (int i = 0; i < months; i++) {
+            YearMonth ym = start.plusMonths(i);
+            Map<TransactionType, BigDecimal> totals = byMonth.getOrDefault(ym, Map.of());
+            BigDecimal income = totals.getOrDefault(TransactionType.INCOME, ZERO).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal expense = totals.getOrDefault(TransactionType.EXPENSE, ZERO).setScale(2, RoundingMode.HALF_UP);
+            series.add(new MonthlyTrend(ym.getYear(), ym.getMonthValue(), income, expense, income.subtract(expense)));
+        }
+        return series;
     }
 
     private Transaction findOwned(Long userId, Long id) {

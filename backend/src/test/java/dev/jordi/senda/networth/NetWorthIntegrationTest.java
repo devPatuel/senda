@@ -237,4 +237,49 @@ class NetWorthIntegrationTest {
                 .andExpect(jsonPath("$.debtsAgainst").value(0.00))
                 .andExpect(jsonPath("$.net").value(100.00));
     }
+
+    @Test
+    void loadingNetWorthRecordsOneSnapshotPerDay() throws Exception {
+        createAccount(tokenA, "Banco A", "BANK", "1000.00");
+
+        // Loading twice on the same day must not create two snapshots
+        mockMvc.perform(get("/api/networth").header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/networth").header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/networth/history")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .param("days", "30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].net").value(1000.00))
+                .andExpect(jsonPath("$[0].date").exists());
+    }
+
+    @Test
+    void historyIsolatesByUserAndDefaultsTo30Days() throws Exception {
+        createAccount(tokenA, "Banco A", "BANK", "1000.00");
+        mockMvc.perform(get("/api/networth").header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk());
+
+        // B never loaded its net worth: its history is empty (default days param)
+        mockMvc.perform(get("/api/networth/history").header("Authorization", "Bearer " + tokenB))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void historyClampsOutOfRangeDaysInsteadOfErroring() throws Exception {
+        createAccount(tokenA, "Banco A", "BANK", "1000.00");
+        mockMvc.perform(get("/api/networth").header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk());
+
+        // days=0 is clamped to 1 (today included), never a 400
+        mockMvc.perform(get("/api/networth/history")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .param("days", "0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
 }

@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -21,32 +23,42 @@ import java.util.stream.Collectors;
 @Service
 public class NetWorthService {
 
+    static final int MAX_HISTORY_DAYS = 3650;
+    // The user's local zone: "today" must match the LocalDate of their transactions,
+    // not the (possibly UTC) server clock.
+    private static final ZoneId ZONE = ZoneId.of("Europe/Madrid");
+
     private final AccountRepository accountRepository;
     private final HoldingRepository holdingRepository;
     private final NftRepository nftRepository;
     private final DebtRepository debtRepository;
     private final DebtPaymentRepository debtPaymentRepository;
+    private final NetWorthSnapshotRepository snapshotRepository;
 
     public NetWorthService(AccountRepository accountRepository,
                            HoldingRepository holdingRepository,
                            NftRepository nftRepository,
                            DebtRepository debtRepository,
-                           DebtPaymentRepository debtPaymentRepository) {
+                           DebtPaymentRepository debtPaymentRepository,
+                           NetWorthSnapshotRepository snapshotRepository) {
         this.accountRepository = accountRepository;
         this.holdingRepository = holdingRepository;
         this.nftRepository = nftRepository;
         this.debtRepository = debtRepository;
         this.debtPaymentRepository = debtPaymentRepository;
+        this.snapshotRepository = snapshotRepository;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public NetWorthResponse calculate(Long userId) {
         BigDecimal liquid = calculateLiquid(userId);
         BigDecimal investmentsHoldings = calculateHoldings(userId);
         BigDecimal investmentsNfts = calculateNfts(userId);
-        BigDecimal investments = investmentsHoldings.add(investmentsNfts);
-        BigDecimal debtsInFavor = calculateDebtsPending(userId, DebtDirection.THEY_OWE_ME);
-        BigDecimal debtsAgainst = calculateDebtsPending(userId, DebtDirection.I_OWE);
+        BigDecimal investments = investmentsHoldings.add(investmentsNfts).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal debtsInFavor = calculateDebtsPending(userId, DebtDirection.THEY_OWE_ME)
+                .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal debtsAgainst = calculateDebtsPending(userId, DebtDirection.I_OWE)
+                .setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal net = liquid
                 .add(investments)
@@ -54,14 +66,44 @@ public class NetWorthService {
                 .subtract(debtsAgainst)
                 .setScale(2, RoundingMode.HALF_UP);
 
+        recordDailySnapshot(userId, net, liquid, investments, debtsInFavor, debtsAgainst);
+
         return new NetWorthResponse(
                 liquid,
-                investments.setScale(2, RoundingMode.HALF_UP),
+                investments,
                 investmentsHoldings.setScale(2, RoundingMode.HALF_UP),
                 investmentsNfts.setScale(2, RoundingMode.HALF_UP),
-                debtsInFavor.setScale(2, RoundingMode.HALF_UP),
-                debtsAgainst.setScale(2, RoundingMode.HALF_UP),
+                debtsInFavor,
+                debtsAgainst,
                 net);
+    }
+
+    /**
+     * Net-worth history for the last {@code days} days (oldest first). Each day
+     * has at most one snapshot; days the user did not open the app are simply
+     * absent from the series.
+     */
+    @Transactional(readOnly = true)
+    public List<NetWorthHistoryPoint> history(Long userId, int days) {
+        int bounded = Math.min(Math.max(days, 1), MAX_HISTORY_DAYS);
+        LocalDate from = LocalDate.now(ZONE).minusDays(bounded - 1L);
+        return snapshotRepository
+                .findByUserIdAndSnapshotDateGreaterThanEqualOrderBySnapshotDateAsc(userId, from).stream()
+                .map(s -> new NetWorthHistoryPoint(
+                        s.getSnapshotDate(), s.getNet(), s.getLiquid(), s.getInvestments(),
+                        s.getDebtsInFavor(), s.getDebtsAgainst()))
+                .toList();
+    }
+
+    /**
+     * Persists today's snapshot once per day (lazy, scheduler-free). The insert is
+     * idempotent ({@code ON CONFLICT DO NOTHING}), so a concurrent request on the
+     * same day is a harmless no-op and never aborts this read transaction.
+     */
+    private void recordDailySnapshot(Long userId, BigDecimal net, BigDecimal liquid,
+                                     BigDecimal investments, BigDecimal debtsInFavor, BigDecimal debtsAgainst) {
+        snapshotRepository.insertIfAbsent(
+                userId, LocalDate.now(ZONE), net, liquid, investments, debtsInFavor, debtsAgainst);
     }
 
     private BigDecimal calculateLiquid(Long userId) {

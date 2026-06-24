@@ -3,8 +3,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import DashboardPage from './DashboardPage'
-import { getSummary, createTransaction } from '../api/transactions'
-import { getNetWorth } from '../api/networth'
+import { getSummary, createTransaction, getTrends } from '../api/transactions'
+import { getNetWorth, getNetWorthHistory } from '../api/networth'
 import { getRecurring } from '../api/recurring'
 import { listCategories } from '../api/categories'
 import { formatCurrency, formatMonthLabel } from '../lib/format'
@@ -12,10 +12,16 @@ import { formatCurrency, formatMonthLabel } from '../lib/format'
 vi.mock('../api/transactions', () => ({
   getSummary: vi.fn(),
   createTransaction: vi.fn(),
+  getTrends: vi.fn(),
 }))
-vi.mock('../api/networth', () => ({ getNetWorth: vi.fn() }))
+vi.mock('../api/networth', () => ({ getNetWorth: vi.fn(), getNetWorthHistory: vi.fn() }))
 vi.mock('../api/recurring', () => ({ getRecurring: vi.fn() }))
 vi.mock('../api/categories', () => ({ listCategories: vi.fn() }))
+
+const TRENDS = [
+  { year: 2026, month: 1, income: 1000, expense: 400, balance: 600 },
+  { year: 2026, month: 2, income: 1200, expense: 500, balance: 700 },
+]
 
 // Testing Library normalizes whitespace in the DOM, so the non-breaking
 // space Intl puts before "€" must be normalized in the expected string too.
@@ -83,6 +89,13 @@ describe('DashboardPage', () => {
     getNetWorth.mockResolvedValue(NET_WORTH)
     getRecurring.mockResolvedValue([])
     listCategories.mockResolvedValue(CATEGORIES)
+    getTrends.mockResolvedValue(TRENDS)
+    getNetWorthHistory.mockResolvedValue([])
+  })
+
+  it('renders the income/expense trends chart', async () => {
+    renderDashboard()
+    expect(await screen.findByText('Tendencias (2 meses)')).toBeInTheDocument()
   })
 
   it('renders the monthly summary for the current month', async () => {

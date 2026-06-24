@@ -102,3 +102,22 @@ export function removeTransaction(id) {
 export function getSummary(year, month) {
   return http.get(`/transactions/summary?year=${year}&month=${month}`)
 }
+
+/**
+ * @typedef {Object} MonthlyTrend
+ * @property {number} year
+ * @property {number} month   1-based month
+ * @property {number} income
+ * @property {number} expense
+ * @property {number} balance
+ */
+
+/**
+ * Income/expense/balance series for the last `months` months (default 6),
+ * oldest first, with zero-filled gaps.
+ * @param {number} [months]
+ * @returns {Promise<MonthlyTrend[]>}
+ */
+export function getTrends(months = 6) {
+  return http.get(`/transactions/trends?months=${months}`)
+}
