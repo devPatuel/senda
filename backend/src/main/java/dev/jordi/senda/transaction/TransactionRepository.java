@@ -61,4 +61,35 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             group by year(t.date), month(t.date), t.type
             """)
     List<MonthlyTotal> monthlyTotals(@Param("userId") Long userId, @Param("from") LocalDate from);
+
+    /**
+     * Per-category expense count and total in a date range. The "ant expenses"
+     * heuristic filters these in the service (count/avg/sum thresholds).
+     */
+    @Query("""
+            select new dev.jordi.senda.transaction.CategoryExpenseStat(
+                c.id, c.name, c.color, count(t), sum(t.amount))
+            from Transaction t
+            join t.category c
+            where t.userId = :userId
+              and t.type = dev.jordi.senda.common.TransactionType.EXPENSE
+              and t.date between :from and :to
+            group by c.id, c.name, c.color
+            """)
+    List<CategoryExpenseStat> expenseStatsByCategory(@Param("userId") Long userId,
+                                                     @Param("from") LocalDate from,
+                                                     @Param("to") LocalDate to);
+
+    /**
+     * Distinct category ids the user has spent on since {@code from}. Used to find
+     * recurring payments whose category has not been used recently.
+     */
+    @Query("""
+            select distinct t.category.id
+            from Transaction t
+            where t.userId = :userId
+              and t.type = dev.jordi.senda.common.TransactionType.EXPENSE
+              and t.date >= :from
+            """)
+    List<Long> categoryIdsWithExpenseSince(@Param("userId") Long userId, @Param("from") LocalDate from);
 }

@@ -18,6 +18,8 @@ import { http } from './http'
  * @property {string} nextDueDate           - ISO date (YYYY-MM-DD), derived
  * @property {number} monthlyEquivalent     - normalized monthly cost (weekly*52/12, quarterly/3, annual/12)
  * @property {string|null} endDate          - ISO date cancellation reminder, or null
+ * @property {number|null} previousAmount   - amount before the last change, or null
+ * @property {number|null} changePct        - % change from previousAmount, or null
  */
 
 /**

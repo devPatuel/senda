@@ -22,5 +22,7 @@ public record RecurringPaymentResponse(
         Integer dayOfWeek,
         LocalDate nextDueDate,
         BigDecimal monthlyEquivalent,
-        LocalDate endDate) {
+        LocalDate endDate,
+        BigDecimal previousAmount,
+        BigDecimal changePct) {
 }

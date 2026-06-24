@@ -7,6 +7,7 @@ import { getSummary, createTransaction, getTrends } from '../api/transactions'
 import { getNetWorth, getNetWorthHistory } from '../api/networth'
 import { getRecurring } from '../api/recurring'
 import { listCategories } from '../api/categories'
+import { getAlerts } from '../api/alerts'
 import { formatCurrency, formatMonthLabel } from '../lib/format'
 
 vi.mock('../api/transactions', () => ({
@@ -17,6 +18,9 @@ vi.mock('../api/transactions', () => ({
 vi.mock('../api/networth', () => ({ getNetWorth: vi.fn(), getNetWorthHistory: vi.fn() }))
 vi.mock('../api/recurring', () => ({ getRecurring: vi.fn() }))
 vi.mock('../api/categories', () => ({ listCategories: vi.fn() }))
+vi.mock('../api/alerts', () => ({ getAlerts: vi.fn() }))
+
+const NO_ALERTS = { antExpenses: [], forgottenSubscriptions: [] }
 
 const TRENDS = [
   { year: 2026, month: 1, income: 1000, expense: 400, balance: 600 },
@@ -91,6 +95,24 @@ describe('DashboardPage', () => {
     listCategories.mockResolvedValue(CATEGORIES)
     getTrends.mockResolvedValue(TRENDS)
     getNetWorthHistory.mockResolvedValue([])
+    getAlerts.mockResolvedValue(NO_ALERTS)
+  })
+
+  it('shows the spending alerts section when there are alerts', async () => {
+    getAlerts.mockResolvedValue({
+      antExpenses: [
+        { categoryId: 1, categoryName: 'Comida', categoryColor: '#ef4444', count: 8, total: 56 },
+      ],
+      forgottenSubscriptions: [
+        { recurringId: 5, name: 'Revista', categoryId: 3, categoryName: 'Ocio', categoryColor: '#f59e0b' },
+      ],
+    })
+    renderDashboard()
+
+    expect(await screen.findByText('Avisos')).toBeInTheDocument()
+    expect(screen.getByText(/Muchos gastos pequeños en/)).toBeInTheDocument()
+    expect(screen.getByText(/Pagas/)).toBeInTheDocument()
+    expect(screen.getByText('«Revista»')).toBeInTheDocument()
   })
 
   it('renders the income/expense trends chart', async () => {

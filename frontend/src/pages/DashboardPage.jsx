@@ -4,6 +4,7 @@ import { getSummary, getTrends } from '../api/transactions'
 import { getNetWorth, getNetWorthHistory } from '../api/networth'
 import { getRecurring } from '../api/recurring'
 import { listCategories } from '../api/categories'
+import { getAlerts } from '../api/alerts'
 import { formatCurrency, formatMonthLabel, formatDate } from '../lib/format'
 import { EmptyState, ErrorState, LoadingState } from '../components/ui'
 import TransactionForm from '../components/TransactionForm'
@@ -148,6 +149,7 @@ export default function DashboardPage() {
   const [categories, setCategories] = useState([])
   const [trends, setTrends] = useState(null)
   const [history, setHistory] = useState(null)
+  const [alerts, setAlerts] = useState(null)
   const [nowError, setNowError] = useState(null)
 
   // Monthly summary — depends on the selected month. We also fetch the previous
@@ -183,6 +185,9 @@ export default function DashboardPage() {
     getNetWorthHistory(30)
       .then((hist) => { if (!cancelled) setHistory(hist) })
       .catch(() => { if (!cancelled) setHistory(null) })
+    getAlerts()
+      .then((al) => { if (!cancelled) setAlerts(al) })
+      .catch(() => { if (!cancelled) setAlerts(null) })
     return () => {
       cancelled = true
     }
@@ -236,6 +241,9 @@ export default function DashboardPage() {
     : null
   const upcoming = upcomingWithin(recurring, 30)
   const cancellations = endingWithin(recurring, 14)
+  const antExpenses = alerts?.antExpenses ?? []
+  const forgotten = alerts?.forgottenSubscriptions ?? []
+  const hasAlerts = antExpenses.length + forgotten.length > 0
   const debtsNet = netWorth ? Number(netWorth.debtsInFavor) - Number(netWorth.debtsAgainst) : 0
 
   return (
@@ -294,6 +302,51 @@ export default function DashboardPage() {
                   Cancelar <span className="font-medium">«{p.name}»</span> antes del {formatDate(p.endDate)}
                 </p>
                 <Link to="/recurrentes" className="shrink-0 text-xs font-medium text-amber-700 hover:text-amber-900">
+                  Ver
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Spending alerts (ant expenses + forgotten subscriptions) */}
+      {hasAlerts && (
+        <section className="overflow-hidden rounded-2xl border border-amber-200 bg-white">
+          <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-amber-500" aria-hidden="true">
+              <path d="M12 9v4" />
+              <path d="M12 17h.01" />
+              <circle cx="12" cy="12" r="9" />
+            </svg>
+            <h2 className="text-sm font-semibold text-slate-700">Avisos</h2>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {antExpenses.map((a) => (
+              <li key={`ant-${a.categoryId}`} className="flex items-center gap-3 px-4 py-3">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: a.categoryColor }}
+                  aria-hidden="true"
+                />
+                <p className="min-w-0 flex-1 text-sm text-slate-700">
+                  Muchos gastos pequeños en <span className="font-medium">{a.categoryName}</span>:{' '}
+                  {a.count} por {formatCurrency(a.total)} este mes
+                </p>
+              </li>
+            ))}
+            {forgotten.map((f) => (
+              <li key={`forgotten-${f.recurringId}`} className="flex items-center gap-3 px-4 py-3">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: f.categoryColor }}
+                  aria-hidden="true"
+                />
+                <p className="min-w-0 flex-1 text-sm text-slate-700">
+                  Pagas <span className="font-medium">«{f.name}»</span> pero no usas {f.categoryName} (sin
+                  gastos en 2 meses)
+                </p>
+                <Link to="/recurrentes" className="shrink-0 text-xs font-medium text-emerald-600 hover:text-emerald-700">
                   Ver
                 </Link>
               </li>

@@ -163,6 +163,42 @@ class RecurringPaymentIntegrationTest {
     }
 
     @Test
+    void amountChangeIsRecordedAndExposedAsPreviousAndChangePct() throws Exception {
+        long categoryId = expenseCategoryId(tokenA, "Ocio");
+        long id = createPayment(tokenA, """
+                {"name": "Gym", "amount": 10.00, "frequency": "MONTHLY", "categoryId": %d, "dayOfMonth": 1}
+                """.formatted(categoryId));
+
+        // Brand new payment: no previous amount yet (field present but null)
+        mockMvc.perform(get("/api/recurring").header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].previousAmount").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$[0].changePct").value(org.hamcrest.Matchers.nullValue()));
+
+        // Raise the amount 10 -> 12 (+20%)
+        mockMvc.perform(put("/api/recurring/" + id)
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "Gym", "amount": 12.00, "frequency": "MONTHLY", "categoryId": %d, "dayOfMonth": 1}
+                                """.formatted(categoryId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.previousAmount").value(10.00))
+                .andExpect(jsonPath("$.changePct").value(20.0));
+
+        // Editing only the name keeps the last amount change visible
+        mockMvc.perform(put("/api/recurring/" + id)
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "Gimnasio", "amount": 12.00, "frequency": "MONTHLY", "categoryId": %d, "dayOfMonth": 1}
+                                """.formatted(categoryId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.previousAmount").value(10.00))
+                .andExpect(jsonPath("$.changePct").value(20.0));
+    }
+
+    @Test
     void annualWithoutMonthIsRejected() throws Exception {
         long categoryId = expenseCategoryId(tokenA, "Salud");
 
