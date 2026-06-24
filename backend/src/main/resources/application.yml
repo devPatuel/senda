@@ -15,8 +15,18 @@ spring:
 server:
   port: 8080
 
+# Only the health endpoint over HTTP (used by the Docker healthcheck); status only,
+# no details, and the rest of the actuator surface stays unexposed
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
 senda:
   jwt:
-    # Default value is for local development ONLY. Set SENDA_JWT_SECRET in any real environment.
-    secret: ${SENDA_JWT_SECRET:senda-dev-only-secret-8f3kQ2j9Xd7sH5h1Vm4n6Lp0qZc8rT3wYb5uE1aG9iK7oM2}
+    # No default ON PURPOSE: without SENDA_JWT_SECRET the app must fail to start.
+    # A known fallback secret would let anyone forge tokens for any user.
+    # Local development: run with the 'local' profile (application-local.yml).
+    secret: ${SENDA_JWT_SECRET}
     expiration: 24h

@@ -41,10 +41,15 @@ docker compose ps   # debe mostrar "healthy"
 ```bash
 cd backend
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
-./mvnw spring-boot:run
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
 API en `http://localhost:8080`. Flyway aplica las migraciones al arrancar.
+
+El perfil `local` aporta el secreto JWT de desarrollo (`application-local.yml`).
+Sin él (o sin la variable `SENDA_JWT_SECRET`) el backend **no arranca a propósito**:
+un secreto por defecto committeado permitiría a cualquiera forjar tokens en
+despliegues reales.
 
 ### 3. Frontend
 
@@ -95,6 +100,14 @@ Hay otro Postgres corriendo (otro proyecto o instalación local):
 lsof -i :5432            # ver quién lo usa
 brew services stop postgresql@16   # si es el de Homebrew
 docker ps                # si es otro contenedor: docker stop <nombre>
+```
+
+### `Could not resolve placeholder 'SENDA_JWT_SECRET'` al arrancar el backend
+
+Falta el perfil `local` (o la variable de entorno). Arranca con:
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
 ### Puerto 8080 ocupado

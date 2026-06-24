@@ -1,191 +1,19 @@
 import { useEffect, useState } from 'react'
 import { listCategories } from '../api/categories'
-import {
-  listTransactions,
-  createTransaction,
-  updateTransaction,
-  removeTransaction,
-} from '../api/transactions'
-import { formatCurrency, formatDate, todayISO } from '../lib/format'
-import { Field, FormError, SubmitButton } from '../components/form'
+import { listTransactions, removeTransaction } from '../api/transactions'
+import { formatCurrency, formatDate } from '../lib/format'
+import { Field } from '../components/form'
 import {
   ConfirmDialog,
   EmptyState,
   ErrorState,
   LoadingState,
-  Modal,
+  Notice,
   SelectField,
 } from '../components/ui'
+import TransactionForm from '../components/TransactionForm'
 
 const EMPTY_FILTERS = { from: '', to: '', categoryId: '', type: '' }
-
-function TransactionForm({ categories, transaction, onClose, onSaved }) {
-  const isEdit = Boolean(transaction)
-  const [form, setForm] = useState(() =>
-    transaction
-      ? {
-          type: transaction.type,
-          categoryId: String(transaction.categoryId),
-          amount: String(transaction.amount),
-          date: transaction.date,
-          description: transaction.description || '',
-        }
-      : { type: 'EXPENSE', categoryId: '', amount: '', date: todayISO(), description: '' },
-  )
-  const [fieldErrors, setFieldErrors] = useState({})
-  const [error, setError] = useState(null)
-  const [saving, setSaving] = useState(false)
-
-  const availableCategories = categories.filter((c) => c.active && c.type === form.type)
-
-  function handleChange(e) {
-    const { name, value } = e.target
-    setForm((prev) => ({ ...prev, [name]: value }))
-  }
-
-  function selectType(type) {
-    setForm((prev) => {
-      const current = categories.find((c) => String(c.id) === prev.categoryId)
-      return {
-        ...prev,
-        type,
-        // Reset the category when it does not belong to the new type
-        categoryId: current && current.type === type ? prev.categoryId : '',
-      }
-    })
-  }
-
-  function validate() {
-    const errors = {}
-    const amount = Number(form.amount.replace(',', '.'))
-    if (!form.categoryId) errors.categoryId = 'Elige una categoría'
-    if (!form.amount.trim() || Number.isNaN(amount) || amount <= 0) {
-      errors.amount = 'Introduce un importe mayor que cero'
-    }
-    if (!form.date) errors.date = 'Introduce la fecha'
-    return errors
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError(null)
-
-    const errors = validate()
-    setFieldErrors(errors)
-    if (Object.keys(errors).length > 0) return
-
-    const payload = {
-      categoryId: Number(form.categoryId),
-      type: form.type,
-      amount: Number(form.amount.replace(',', '.')),
-      date: form.date,
-      description: form.description.trim() || null,
-    }
-
-    setSaving(true)
-    try {
-      if (isEdit) {
-        await updateTransaction(transaction.id, payload)
-      } else {
-        await createTransaction(payload)
-      }
-      onSaved()
-    } catch (err) {
-      setError(err.message || 'No se ha podido guardar el movimiento')
-      if (err.fieldErrors) setFieldErrors(err.fieldErrors)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Modal title={isEdit ? 'Editar movimiento' : 'Nuevo movimiento'} onClose={onClose}>
-      <form onSubmit={handleSubmit} noValidate className="space-y-4">
-        <FormError message={error} />
-
-        <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1" role="group" aria-label="Tipo">
-          <button
-            type="button"
-            onClick={() => selectType('EXPENSE')}
-            aria-pressed={form.type === 'EXPENSE'}
-            className={[
-              'rounded-md px-3 py-2 text-sm font-medium transition-colors',
-              form.type === 'EXPENSE'
-                ? 'bg-white text-red-600 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700',
-            ].join(' ')}
-          >
-            Gasto
-          </button>
-          <button
-            type="button"
-            onClick={() => selectType('INCOME')}
-            aria-pressed={form.type === 'INCOME'}
-            className={[
-              'rounded-md px-3 py-2 text-sm font-medium transition-colors',
-              form.type === 'INCOME'
-                ? 'bg-white text-emerald-600 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700',
-            ].join(' ')}
-          >
-            Ingreso
-          </button>
-        </div>
-
-        <SelectField
-          label="Categoría"
-          name="categoryId"
-          value={form.categoryId}
-          onChange={handleChange}
-          error={fieldErrors.categoryId}
-        >
-          <option value="">Selecciona una categoría</option>
-          {availableCategories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </SelectField>
-
-        <Field
-          label="Importe (€)"
-          name="amount"
-          type="number"
-          inputMode="decimal"
-          step="0.01"
-          min="0"
-          placeholder="0,00"
-          value={form.amount}
-          onChange={handleChange}
-          error={fieldErrors.amount}
-        />
-
-        <Field
-          label="Fecha"
-          name="date"
-          type="date"
-          value={form.date}
-          onChange={handleChange}
-          error={fieldErrors.date}
-        />
-
-        <Field
-          label="Descripción (opcional)"
-          name="description"
-          type="text"
-          placeholder="Ej.: compra semanal"
-          value={form.description}
-          onChange={handleChange}
-          error={fieldErrors.description}
-        />
-
-        <SubmitButton loading={saving} loadingText="Guardando…">
-          {isEdit ? 'Guardar cambios' : 'Crear movimiento'}
-        </SubmitButton>
-      </form>
-    </Modal>
-  )
-}
 
 export default function TransactionsPage() {
   const [categories, setCategories] = useState([])
@@ -194,6 +22,9 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(0)
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
+  // Action (delete) errors live apart from load errors so a failed delete
+  // never unmounts the already-loaded list.
+  const [actionError, setActionError] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
   // "loading" is derived: the request in flight has not been marked as loaded
   const [loadedKey, setLoadedKey] = useState(null)
@@ -206,7 +37,9 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     let cancelled = false
-    listCategories()
+    // Include inactive ones: existing transactions may reference soft-deleted
+    // categories, which must still be displayed in filters and the edit form
+    listCategories({ includeInactive: true })
       .then((list) => {
         if (!cancelled) setCategories(list)
       })
@@ -223,10 +56,16 @@ export default function TransactionsPage() {
     const key = JSON.stringify([page, filters, reloadKey])
     listTransactions({ page, ...filters })
       .then((result) => {
-        if (!cancelled) {
-          setData(result)
-          setError(null)
+        if (cancelled) return
+        // The page can fall out of range when data changes elsewhere (another
+        // tab/device): clamp to the last available page instead of rendering
+        // an empty state without pagination controls.
+        if (result.content.length === 0 && page > 0 && result.totalElements > 0) {
+          setPage(Math.max(result.totalPages - 1, 0))
+          return
         }
+        setData(result)
+        setError(null)
       })
       .catch((err) => {
         if (!cancelled) setError(err.message || 'No se han podido cargar los movimientos')
@@ -263,14 +102,15 @@ export default function TransactionsPage() {
   function handleSaved() {
     setFormOpen(false)
     setEditingTransaction(null)
+    setActionError(null)
     setReloadKey((k) => k + 1)
   }
 
   async function handleDelete() {
     setDeleting(true)
+    setActionError(null)
     try {
       await removeTransaction(toDelete.id)
-      setToDelete(null)
       // If we removed the last row of a later page, step back one page
       if (data && data.content.length === 1 && page > 0) {
         setPage(page - 1)
@@ -278,9 +118,9 @@ export default function TransactionsPage() {
         setReloadKey((k) => k + 1)
       }
     } catch (err) {
-      setToDelete(null)
-      setError(err.message || 'No se ha podido eliminar el movimiento')
+      setActionError(err.message || 'No se ha podido eliminar el movimiento')
     } finally {
+      setToDelete(null)
       setDeleting(false)
     }
   }
@@ -360,7 +200,7 @@ export default function TransactionsPage() {
                 <option value="">Todas</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name}
+                    {c.active ? c.name : `${c.name} (inactiva)`}
                   </option>
                 ))}
               </SelectField>
@@ -382,6 +222,12 @@ export default function TransactionsPage() {
           </div>
         )}
       </div>
+
+      {actionError && (
+        <Notice tone="error" onClose={() => setActionError(null)}>
+          {actionError}
+        </Notice>
+      )}
 
       {loading && !data && <LoadingState label="Cargando movimientos…" />}
 

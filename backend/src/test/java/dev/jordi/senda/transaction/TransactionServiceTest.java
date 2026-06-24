@@ -137,6 +137,39 @@ class TransactionServiceTest {
     }
 
     @Test
+    void updateKeepingInactiveCategorySucceeds() {
+        // The category was soft-deleted after the transaction was created:
+        // editing amount/date while keeping the category must still work.
+        Category inactive = category(5L, "Comida", TransactionType.EXPENSE, false);
+        Transaction existing = new Transaction(USER_ID, inactive, TransactionType.EXPENSE,
+                new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch");
+        ReflectionTestUtils.setField(existing, "id", 10L);
+        when(transactionRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findByIdAndUserId(5L, USER_ID)).thenReturn(Optional.of(inactive));
+
+        TransactionRequest request = new TransactionRequest(5L, TransactionType.EXPENSE,
+                new BigDecimal("20.00"), LocalDate.of(2026, 6, 11), "Lunch");
+        TransactionResponse response = service.update(USER_ID, 10L, request);
+
+        assertThat(response.categoryId()).isEqualTo(5L);
+        assertThat(response.amount()).isEqualByComparingTo("20.00");
+        assertThat(response.date()).isEqualTo(LocalDate.of(2026, 6, 11));
+    }
+
+    @Test
+    void updateChangingToInactiveCategoryThrowsConflict() {
+        Transaction existing = new Transaction(USER_ID, expenseCategory, TransactionType.EXPENSE,
+                new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch");
+        ReflectionTestUtils.setField(existing, "id", 10L);
+        Category otherInactive = category(7L, "Caprichos", TransactionType.EXPENSE, false);
+        when(transactionRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(otherInactive));
+
+        assertThatThrownBy(() -> service.update(USER_ID, 10L, expenseRequest(7L)))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
     void updateForeignOrMissingTransactionThrowsNotFound() {
         when(transactionRepository.findByIdAndUserId(99L, USER_ID)).thenReturn(Optional.empty());
 
@@ -221,5 +254,53 @@ class TransactionServiceTest {
         assertThat(summary.totalExpense()).isEqualByComparingTo("0.00");
         assertThat(summary.balance()).isEqualByComparingTo("0.00");
         assertThat(summary.byCategory()).isEmpty();
+    }
+
+    // --- trends ---
+
+    @Test
+    void trendsRejectsOutOfRange() {
+        assertThatThrownBy(() -> service.trends(USER_ID, 0))
+                .isInstanceOf(InvalidTransactionException.class);
+        assertThatThrownBy(() -> service.trends(USER_ID, 25))
+                .isInstanceOf(InvalidTransactionException.class);
+    }
+
+    @Test
+    void trendsReturnsDenseOrderedSeriesWithZeroFill() {
+        // Same zone the service uses, so month boundaries never make this flaky.
+        java.time.YearMonth cur = java.time.YearMonth.now(java.time.ZoneId.of("Europe/Madrid"));
+        java.time.YearMonth twoAgo = cur.minusMonths(2);
+        // Data only for two-months-ago (expense) and the current month (both types);
+        // the month in between must be zero-filled.
+        List<MonthlyTotal> rows = List.of(
+                new MonthlyTotal(twoAgo.getYear(), twoAgo.getMonthValue(),
+                        TransactionType.EXPENSE, new BigDecimal("50.00")),
+                new MonthlyTotal(cur.getYear(), cur.getMonthValue(),
+                        TransactionType.INCOME, new BigDecimal("1000.00")),
+                new MonthlyTotal(cur.getYear(), cur.getMonthValue(),
+                        TransactionType.EXPENSE, new BigDecimal("300.00")));
+        when(transactionRepository.monthlyTotals(org.mockito.ArgumentMatchers.eq(USER_ID),
+                org.mockito.ArgumentMatchers.any())).thenReturn(rows);
+
+        List<MonthlyTrend> series = service.trends(USER_ID, 3);
+
+        assertThat(series).hasSize(3);
+        // Oldest first
+        assertThat(series.get(0).year()).isEqualTo(twoAgo.getYear());
+        assertThat(series.get(0).month()).isEqualTo(twoAgo.getMonthValue());
+        assertThat(series.get(0).income()).isEqualByComparingTo("0.00");
+        assertThat(series.get(0).expense()).isEqualByComparingTo("50.00");
+        assertThat(series.get(0).balance()).isEqualByComparingTo("-50.00");
+        // Middle month has no data -> zeros
+        assertThat(series.get(1).income()).isEqualByComparingTo("0.00");
+        assertThat(series.get(1).expense()).isEqualByComparingTo("0.00");
+        assertThat(series.get(1).balance()).isEqualByComparingTo("0.00");
+        // Current month
+        assertThat(series.get(2).year()).isEqualTo(cur.getYear());
+        assertThat(series.get(2).month()).isEqualTo(cur.getMonthValue());
+        assertThat(series.get(2).income()).isEqualByComparingTo("1000.00");
+        assertThat(series.get(2).expense()).isEqualByComparingTo("300.00");
+        assertThat(series.get(2).balance()).isEqualByComparingTo("700.00");
     }
 }

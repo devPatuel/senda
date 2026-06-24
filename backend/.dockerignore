@@ -1,0 +1,4 @@
+# Keep the build context minimal: local build output is rebuilt inside the image
+target
+Dockerfile
+.dockerignore

@@ -5,6 +5,9 @@ import dev.jordi.senda.category.CategoryRepository;
 import dev.jordi.senda.category.DefaultCategories;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.JwtService;
+import dev.jordi.senda.investment.AssetClass;
+import dev.jordi.senda.investment.AssetClassRepository;
+import dev.jordi.senda.investment.DefaultAssetClasses;
 import dev.jordi.senda.user.User;
 import dev.jordi.senda.user.UserRepository;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -19,13 +22,16 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
+    private final AssetClassRepository assetClassRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
     public AuthService(UserRepository userRepository, CategoryRepository categoryRepository,
+                       AssetClassRepository assetClassRepository,
                        PasswordEncoder passwordEncoder, JwtService jwtService) {
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
+        this.assetClassRepository = assetClassRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
     }
@@ -38,6 +44,7 @@ public class AuthService {
         User user = userRepository.save(
                 new User(request.email(), passwordEncoder.encode(request.password()), request.name()));
         copyDefaultCategories(user.getId());
+        copyDefaultAssetClasses(user.getId());
         return new AuthResponse(jwtService.generateToken(user.getId()), UserDto.from(user));
     }
 
@@ -57,5 +64,12 @@ public class AuthService {
                 .map(definition -> new Category(userId, definition.name(), definition.type(), definition.color()))
                 .toList();
         categoryRepository.saveAll(categories);
+    }
+
+    private void copyDefaultAssetClasses(Long userId) {
+        List<AssetClass> assetClasses = DefaultAssetClasses.ALL.stream()
+                .map(definition -> new AssetClass(userId, definition.name(), definition.pricingSource()))
+                .toList();
+        assetClassRepository.saveAll(assetClasses);
     }
 }
