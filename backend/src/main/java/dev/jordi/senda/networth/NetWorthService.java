@@ -9,13 +9,13 @@ import dev.jordi.senda.investment.Holding;
 import dev.jordi.senda.investment.HoldingRepository;
 import dev.jordi.senda.investment.Nft;
 import dev.jordi.senda.investment.NftRepository;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -24,6 +24,9 @@ import java.util.stream.Collectors;
 public class NetWorthService {
 
     static final int MAX_HISTORY_DAYS = 3650;
+    // The user's local zone: "today" must match the LocalDate of their transactions,
+    // not the (possibly UTC) server clock.
+    private static final ZoneId ZONE = ZoneId.of("Europe/Madrid");
 
     private final AccountRepository accountRepository;
     private final HoldingRepository holdingRepository;
@@ -83,7 +86,7 @@ public class NetWorthService {
     @Transactional(readOnly = true)
     public List<NetWorthHistoryPoint> history(Long userId, int days) {
         int bounded = Math.min(Math.max(days, 1), MAX_HISTORY_DAYS);
-        LocalDate from = LocalDate.now().minusDays(bounded - 1L);
+        LocalDate from = LocalDate.now(ZONE).minusDays(bounded - 1L);
         return snapshotRepository
                 .findByUserIdAndSnapshotDateGreaterThanEqualOrderBySnapshotDateAsc(userId, from).stream()
                 .map(s -> new NetWorthHistoryPoint(
@@ -93,23 +96,14 @@ public class NetWorthService {
     }
 
     /**
-     * Persists today's snapshot once per day (lazy, scheduler-free). The unique
-     * (user, day) constraint is the real guard: a concurrent insert that slips
-     * past the exists() check hits it and is swallowed, since the snapshot for
-     * today already exists either way.
+     * Persists today's snapshot once per day (lazy, scheduler-free). The insert is
+     * idempotent ({@code ON CONFLICT DO NOTHING}), so a concurrent request on the
+     * same day is a harmless no-op and never aborts this read transaction.
      */
     private void recordDailySnapshot(Long userId, BigDecimal net, BigDecimal liquid,
                                      BigDecimal investments, BigDecimal debtsInFavor, BigDecimal debtsAgainst) {
-        LocalDate today = LocalDate.now();
-        if (snapshotRepository.existsByUserIdAndSnapshotDate(userId, today)) {
-            return;
-        }
-        try {
-            snapshotRepository.save(new NetWorthSnapshot(
-                    userId, today, net, liquid, investments, debtsInFavor, debtsAgainst));
-        } catch (DataIntegrityViolationException ignored) {
-            // A concurrent request already created today's snapshot; nothing to do.
-        }
+        snapshotRepository.insertIfAbsent(
+                userId, LocalDate.now(ZONE), net, liquid, investments, debtsInFavor, debtsAgainst);
     }
 
     private BigDecimal calculateLiquid(Long userId) {

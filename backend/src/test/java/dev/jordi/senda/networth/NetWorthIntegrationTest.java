@@ -268,4 +268,18 @@ class NetWorthIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
     }
+
+    @Test
+    void historyClampsOutOfRangeDaysInsteadOfErroring() throws Exception {
+        createAccount(tokenA, "Banco A", "BANK", "1000.00");
+        mockMvc.perform(get("/api/networth").header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk());
+
+        // days=0 is clamped to 1 (today included), never a 400
+        mockMvc.perform(get("/api/networth/history")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .param("days", "0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
 }

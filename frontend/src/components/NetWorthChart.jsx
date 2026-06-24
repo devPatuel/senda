@@ -26,7 +26,7 @@ export default function NetWorthChart({ history }) {
     <section className="rounded-2xl border border-slate-200 bg-white p-5">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-slate-700">Evolución del patrimonio</h2>
-        <span className="text-xs text-slate-400">{history.length} días</span>
+        <span className="text-xs text-slate-400">{history.length} días con registro</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-28 w-full" role="img" aria-label="Evolución del patrimonio neto">
         <polygon points={areaPoints} fill="rgb(16 185 129 / 0.12)" />

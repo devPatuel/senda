@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,8 @@ public class TransactionService {
     static final int MAX_PAGE_SIZE = 100;
     static final int MAX_TREND_MONTHS = 24;
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2);
+    // The user's local zone, so "current month" matches their transaction dates.
+    private static final ZoneId ZONE = ZoneId.of("Europe/Madrid");
 
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
@@ -117,7 +120,7 @@ public class TransactionService {
         if (months < 1 || months > MAX_TREND_MONTHS) {
             throw new InvalidTransactionException("months must be between 1 and " + MAX_TREND_MONTHS);
         }
-        YearMonth current = YearMonth.now();
+        YearMonth current = YearMonth.now(ZONE);
         YearMonth start = current.minusMonths(months - 1L);
         LocalDate from = start.atDay(1);
 

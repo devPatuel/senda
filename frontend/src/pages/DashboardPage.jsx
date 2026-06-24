@@ -163,26 +163,26 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([
-      getNetWorth(),
-      getRecurring(),
-      listCategories({ includeInactive: true }),
-      getTrends(6),
-      getNetWorthHistory(30),
-    ])
-      .then(([nw, rec, cats, tr, hist]) => {
+    // Core "now" data: a failure here surfaces as nowError.
+    Promise.all([getNetWorth(), getRecurring(), listCategories({ includeInactive: true })])
+      .then(([nw, rec, cats]) => {
         if (!cancelled) {
           setNetWorth(nw)
           setRecurring(rec)
           setCategories(cats)
-          setTrends(tr)
-          setHistory(hist)
           setNowError(null)
         }
       })
       .catch((err) => {
         if (!cancelled) setNowError(err.message || 'No se han podido cargar los datos')
       })
+    // Charts are secondary: a failure only hides them, never the core data.
+    getTrends(6)
+      .then((tr) => { if (!cancelled) setTrends(tr) })
+      .catch(() => { if (!cancelled) setTrends(null) })
+    getNetWorthHistory(30)
+      .then((hist) => { if (!cancelled) setHistory(hist) })
+      .catch(() => { if (!cancelled) setHistory(null) })
     return () => {
       cancelled = true
     }

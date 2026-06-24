@@ -268,7 +268,8 @@ class TransactionServiceTest {
 
     @Test
     void trendsReturnsDenseOrderedSeriesWithZeroFill() {
-        java.time.YearMonth cur = java.time.YearMonth.now();
+        // Same zone the service uses, so month boundaries never make this flaky.
+        java.time.YearMonth cur = java.time.YearMonth.now(java.time.ZoneId.of("Europe/Madrid"));
         java.time.YearMonth twoAgo = cur.minusMonths(2);
         // Data only for two-months-ago (expense) and the current month (both types);
         // the month in between must be zero-filled.
