@@ -8,8 +8,15 @@
 set -uo pipefail
 
 # Trabaja siempre desde la raíz del repo (donde vive este script), aunque se
-# lance desde Finder (que arranca en $HOME).
-cd "$(dirname "$0")"
+# lance desde Finder (que arranca en $HOME) o a través de un alias del Escritorio
+# (resolvemos symlinks para que $0 no apunte al acceso directo).
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+cd "$(cd -P "$(dirname "$SOURCE")" && pwd)"
 ROOT="$(pwd)"
 
 API_PORT=8080
