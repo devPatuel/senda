@@ -1,5 +1,8 @@
 package dev.jordi.senda.space;
 
+import dev.jordi.senda.category.Category;
+import dev.jordi.senda.category.CategoryRepository;
+import dev.jordi.senda.category.DefaultCategories;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.NotFoundException;
 import dev.jordi.senda.user.User;
@@ -19,19 +22,32 @@ public class SpaceService {
     private final SpaceRepository spaceRepository;
     private final SpaceMemberRepository memberRepository;
     private final UserRepository userRepository;
+    private final CategoryRepository categoryRepository;
 
     public SpaceService(SpaceRepository spaceRepository,
                         SpaceMemberRepository memberRepository,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        CategoryRepository categoryRepository) {
         this.spaceRepository = spaceRepository;
         this.memberRepository = memberRepository;
         this.userRepository = userRepository;
+        this.categoryRepository = categoryRepository;
     }
 
     @Transactional
     public SpaceResponse create(Long userId, CreateSpaceRequest request) {
         Space space = spaceRepository.save(new Space(userId, request.name()));
         memberRepository.save(new SpaceMember(space.getId(), userId, MemberStatus.ACTIVE));
+        // Seed the default category set into the new space so both members can
+        // record shared transactions from day one. The creator is the author.
+        List<Category> seeded = DefaultCategories.ALL.stream()
+                .map(def -> {
+                    Category c = new Category(userId, def.name(), def.type(), def.color());
+                    c.setSpaceId(space.getId());
+                    return c;
+                })
+                .toList();
+        categoryRepository.saveAll(seeded);
         return SpaceResponse.from(space, MemberStatus.ACTIVE);
     }
 

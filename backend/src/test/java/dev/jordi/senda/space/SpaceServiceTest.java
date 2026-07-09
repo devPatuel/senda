@@ -1,5 +1,8 @@
 package dev.jordi.senda.space;
 
+import dev.jordi.senda.category.Category;
+import dev.jordi.senda.category.CategoryRepository;
+import dev.jordi.senda.category.DefaultCategories;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.NotFoundException;
 import dev.jordi.senda.user.User;
@@ -30,12 +33,13 @@ class SpaceServiceTest {
     @Mock private SpaceRepository spaceRepository;
     @Mock private SpaceMemberRepository memberRepository;
     @Mock private UserRepository userRepository;
+    @Mock private CategoryRepository categoryRepository;
 
     private SpaceService service;
 
     @BeforeEach
     void setUp() {
-        service = new SpaceService(spaceRepository, memberRepository, userRepository);
+        service = new SpaceService(spaceRepository, memberRepository, userRepository, categoryRepository);
     }
 
     @Test
@@ -57,6 +61,24 @@ class SpaceServiceTest {
         assertThat(captor.getValue().getUserId()).isEqualTo(USER_ID);
         assertThat(captor.getValue().getSpaceId()).isEqualTo(10L);
         assertThat(captor.getValue().getStatus()).isEqualTo(MemberStatus.ACTIVE);
+    }
+
+    @Test
+    void createSeedsDefaultCategoriesIntoTheNewSpace() {
+        when(spaceRepository.save(any(Space.class))).thenAnswer(inv -> {
+            Space s = inv.getArgument(0);
+            ReflectionTestUtils.setField(s, "id", 10L);
+            return s;
+        });
+
+        service.create(USER_ID, new CreateSpaceRequest("Pareja"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Category>> captor = ArgumentCaptor.forClass(List.class);
+        verify(categoryRepository).saveAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(DefaultCategories.ALL.size());
+        assertThat(captor.getValue()).allMatch(c -> c.getSpaceId().equals(10L));
+        assertThat(captor.getValue()).allMatch(c -> c.getUserId().equals(USER_ID));
     }
 
     @Test

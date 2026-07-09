@@ -54,7 +54,7 @@ class CategoryControllerTest {
 
     @Test
     void listReturns200WithCategories() throws Exception {
-        when(categoryService.list(USER_ID, null, false)).thenReturn(List.of(
+        when(categoryService.list(USER_ID, null, null, false)).thenReturn(List.of(
                 new CategoryResponse(1L, "Comida", TransactionType.EXPENSE, "#EF4444", true)));
 
         mockMvc.perform(get("/api/categories").header("Authorization", bearer))
@@ -68,7 +68,7 @@ class CategoryControllerTest {
 
     @Test
     void listPassesTypeAndIncludeInactiveToService() throws Exception {
-        when(categoryService.list(USER_ID, TransactionType.INCOME, true)).thenReturn(List.of());
+        when(categoryService.list(USER_ID, null, TransactionType.INCOME, true)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/categories")
                         .param("type", "INCOME")
@@ -76,7 +76,7 @@ class CategoryControllerTest {
                         .header("Authorization", bearer))
                 .andExpect(status().isOk());
 
-        verify(categoryService).list(USER_ID, TransactionType.INCOME, true);
+        verify(categoryService).list(USER_ID, null, TransactionType.INCOME, true);
     }
 
     @Test

@@ -29,9 +29,10 @@ public class CategoryController {
 
     @GetMapping
     public List<CategoryResponse> list(
+            @RequestParam(required = false) Long spaceId,
             @RequestParam(required = false) TransactionType type,
             @RequestParam(defaultValue = "false") boolean includeInactive) {
-        return categoryService.list(CurrentUser.id(), type, includeInactive);
+        return categoryService.list(CurrentUser.id(), spaceId, type, includeInactive);
     }
 
     @GetMapping("/budget")

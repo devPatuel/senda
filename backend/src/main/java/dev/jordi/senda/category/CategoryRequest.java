@@ -13,5 +13,6 @@ public record CategoryRequest(
         @NotBlank @Size(max = 100) String name,
         @NotNull TransactionType type,
         @NotNull @Pattern(regexp = "^#[0-9A-Fa-f]{6}$",
-                message = "must be a hex color in #RRGGBB format") String color) {
+                message = "must be a hex color in #RRGGBB format") String color,
+        Long spaceId) {
 }

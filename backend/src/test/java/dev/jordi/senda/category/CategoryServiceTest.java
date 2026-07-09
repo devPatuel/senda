@@ -3,9 +3,11 @@ package dev.jordi.senda.category;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.NotFoundException;
 import dev.jordi.senda.common.TransactionType;
+import dev.jordi.senda.space.SpaceAccess;
 import dev.jordi.senda.transaction.TransactionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -32,6 +34,9 @@ class CategoryServiceTest {
     @Mock
     private TransactionRepository transactionRepository;
 
+    @Mock
+    private SpaceAccess spaceAccess;
+
     @InjectMocks
     private CategoryService categoryService;
 
@@ -49,7 +54,7 @@ class CategoryServiceTest {
                 category(2L, "Transporte", TransactionType.EXPENSE, "#3B82F6"),
                 category(1L, "Comida", TransactionType.EXPENSE, "#EF4444")));
 
-        List<CategoryResponse> result = categoryService.list(USER_ID, null, false);
+        List<CategoryResponse> result = categoryService.list(USER_ID, null, null, false);
 
         assertThat(result).extracting(CategoryResponse::name)
                 .containsExactly("Comida", "Transporte");
@@ -64,7 +69,7 @@ class CategoryServiceTest {
         when(categoryRepository.findByUserIdAndSpaceIdIsNull(USER_ID)).thenReturn(List.of(
                 category(1L, "Comida", TransactionType.EXPENSE, "#EF4444"), inactive));
 
-        List<CategoryResponse> result = categoryService.list(USER_ID, null, true);
+        List<CategoryResponse> result = categoryService.list(USER_ID, null, null, true);
 
         assertThat(result).extracting(CategoryResponse::name)
                 .containsExactly("Antigua", "Comida");
@@ -77,7 +82,7 @@ class CategoryServiceTest {
                 category(1L, "Comida", TransactionType.EXPENSE, "#EF4444"),
                 category(2L, "Nómina", TransactionType.INCOME, "#22C55E")));
 
-        List<CategoryResponse> result = categoryService.list(USER_ID, TransactionType.INCOME, false);
+        List<CategoryResponse> result = categoryService.list(USER_ID, null, TransactionType.INCOME, false);
 
         assertThat(result).extracting(CategoryResponse::name).containsExactly("Nómina");
         assertThat(result.getFirst().type()).isEqualTo(TransactionType.INCOME);
@@ -87,7 +92,7 @@ class CategoryServiceTest {
 
     @Test
     void createSavesCategoryAndReturnsResponse() {
-        var request = new CategoryRequest("Gimnasio", TransactionType.EXPENSE, "#FF8800");
+        var request = new CategoryRequest("Gimnasio", TransactionType.EXPENSE, "#FF8800", null);
         when(categoryRepository.existsByUserIdAndNameAndTypeAndSpaceIdIsNull(USER_ID, "Gimnasio", TransactionType.EXPENSE))
                 .thenReturn(false);
         when(categoryRepository.save(any(Category.class)))
@@ -104,11 +109,36 @@ class CategoryServiceTest {
 
     @Test
     void createWithDuplicateNameAndTypeThrowsConflict() {
-        var request = new CategoryRequest("Comida", TransactionType.EXPENSE, "#FF8800");
+        var request = new CategoryRequest("Comida", TransactionType.EXPENSE, "#FF8800", null);
         when(categoryRepository.existsByUserIdAndNameAndTypeAndSpaceIdIsNull(USER_ID, "Comida", TransactionType.EXPENSE))
                 .thenReturn(true);
 
         assertThatThrownBy(() -> categoryService.create(USER_ID, request))
+                .isInstanceOf(ConflictException.class);
+        verify(categoryRepository, never()).save(any());
+    }
+
+    @Test
+    void createInSpaceChecksSpaceUniquenessAndMembership() {
+        when(categoryRepository.existsBySpaceIdAndNameAndType(7L, "Cena fuera", TransactionType.EXPENSE))
+                .thenReturn(false);
+        when(categoryRepository.save(any(Category.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        categoryService.create(USER_ID, new CategoryRequest("Cena fuera", TransactionType.EXPENSE, "#EF4444", 7L));
+
+        verify(spaceAccess).assertActiveMember(USER_ID, 7L);
+        ArgumentCaptor<Category> captor = ArgumentCaptor.forClass(Category.class);
+        verify(categoryRepository).save(captor.capture());
+        assertThat(captor.getValue().getSpaceId()).isEqualTo(7L);
+    }
+
+    @Test
+    void createInSpaceConflictsOnDuplicateNameWithinSpace() {
+        when(categoryRepository.existsBySpaceIdAndNameAndType(7L, "Comida", TransactionType.EXPENSE))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> categoryService.create(USER_ID,
+                new CategoryRequest("Comida", TransactionType.EXPENSE, "#EF4444", 7L)))
                 .isInstanceOf(ConflictException.class);
         verify(categoryRepository, never()).save(any());
     }
@@ -118,7 +148,7 @@ class CategoryServiceTest {
     @Test
     void updateRenamesChangesColorAndDeactivates() {
         Category existing = category(5L, "Comida", TransactionType.EXPENSE, "#EF4444");
-        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findById(5L)).thenReturn(Optional.of(existing));
         when(categoryRepository.existsByUserIdAndNameAndTypeAndSpaceIdIsNull(USER_ID, "Alimentación", TransactionType.EXPENSE))
                 .thenReturn(false);
         when(categoryRepository.save(existing)).thenReturn(existing);
@@ -135,7 +165,7 @@ class CategoryServiceTest {
     @Test
     void updateWithNullActiveKeepsCurrentValue() {
         Category existing = category(5L, "Comida", TransactionType.EXPENSE, "#EF4444");
-        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findById(5L)).thenReturn(Optional.of(existing));
         when(categoryRepository.save(existing)).thenReturn(existing);
 
         CategoryResponse response = categoryService.update(USER_ID, 5L,
@@ -147,7 +177,7 @@ class CategoryServiceTest {
     @Test
     void updateKeepingSameNameDoesNotConflict() {
         Category existing = category(5L, "Comida", TransactionType.EXPENSE, "#EF4444");
-        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findById(5L)).thenReturn(Optional.of(existing));
         when(categoryRepository.save(existing)).thenReturn(existing);
 
         CategoryResponse response = categoryService.update(USER_ID, 5L,
@@ -160,7 +190,7 @@ class CategoryServiceTest {
     @Test
     void updateToDuplicateNameThrowsConflict() {
         Category existing = category(5L, "Comida", TransactionType.EXPENSE, "#EF4444");
-        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findById(5L)).thenReturn(Optional.of(existing));
         when(categoryRepository.existsByUserIdAndNameAndTypeAndSpaceIdIsNull(USER_ID, "Transporte", TransactionType.EXPENSE))
                 .thenReturn(true);
 
@@ -172,7 +202,9 @@ class CategoryServiceTest {
 
     @Test
     void updateCategoryOfAnotherUserThrowsNotFound() {
-        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(99L, USER_ID)).thenReturn(Optional.empty());
+        Category others = new Category(2L, "Comida", TransactionType.EXPENSE, "#EF4444");
+        ReflectionTestUtils.setField(others, "id", 99L);
+        when(categoryRepository.findById(99L)).thenReturn(Optional.of(others));
 
         assertThatThrownBy(() -> categoryService.update(USER_ID, 99L,
                 new CategoryUpdateRequest("Comida", "#EF4444", null)))
@@ -184,7 +216,7 @@ class CategoryServiceTest {
     @Test
     void deleteWithoutTransactionsRemovesCategory() {
         Category existing = category(5L, "Comida", TransactionType.EXPENSE, "#EF4444");
-        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findById(5L)).thenReturn(Optional.of(existing));
         when(transactionRepository.existsByCategoryId(5L)).thenReturn(false);
 
         categoryService.delete(USER_ID, 5L);
@@ -195,7 +227,7 @@ class CategoryServiceTest {
     @Test
     void deleteWithTransactionsDeactivatesInsteadOfRemoving() {
         Category existing = category(5L, "Comida", TransactionType.EXPENSE, "#EF4444");
-        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findById(5L)).thenReturn(Optional.of(existing));
         when(transactionRepository.existsByCategoryId(5L)).thenReturn(true);
 
         categoryService.delete(USER_ID, 5L);
@@ -207,7 +239,9 @@ class CategoryServiceTest {
 
     @Test
     void deleteCategoryOfAnotherUserThrowsNotFound() {
-        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(99L, USER_ID)).thenReturn(Optional.empty());
+        Category others = new Category(2L, "Comida", TransactionType.EXPENSE, "#EF4444");
+        ReflectionTestUtils.setField(others, "id", 99L);
+        when(categoryRepository.findById(99L)).thenReturn(Optional.of(others));
 
         assertThatThrownBy(() -> categoryService.delete(USER_ID, 99L))
                 .isInstanceOf(NotFoundException.class);
