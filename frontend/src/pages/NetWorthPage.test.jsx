@@ -24,6 +24,7 @@ const FULL_DATA = {
   investmentsNfts: 1200,
   debtsInFavor: 120,
   debtsAgainst: 350,
+  coupleShare: 0,
   net: 63470,
 }
 
@@ -34,6 +35,7 @@ const NEGATIVE_DATA = {
   investmentsNfts: 0,
   debtsInFavor: 0,
   debtsAgainst: 500,
+  coupleShare: 0,
   net: -500,
 }
 
@@ -66,6 +68,24 @@ describe('NetWorthPage', () => {
     const netEl = await screen.findByText(visibleCurrency(-500))
     // The hero paragraph carries the red class when net < 0
     expect(netEl.className).toMatch(/text-red/)
+  })
+
+  it('shows the "Pareja (50%)" tile when coupleShare is greater than 0', async () => {
+    getNetWorth.mockResolvedValue({ ...FULL_DATA, coupleShare: 200, net: 63670 })
+    render(<NetWorthPage />)
+
+    // The label appears both in the block card and the breakdown legend
+    expect((await screen.findAllByText('Pareja (50%)')).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(visibleCurrency(200)).length).toBeGreaterThan(0)
+  })
+
+  it('hides the "Pareja (50%)" tile when coupleShare is 0', async () => {
+    getNetWorth.mockResolvedValue(FULL_DATA)
+    render(<NetWorthPage />)
+
+    // Wait for the page to render, then assert the couple tile is absent
+    expect(await screen.findByText(visibleCurrency(63470))).toBeInTheDocument()
+    expect(screen.queryByText('Pareja (50%)')).not.toBeInTheDocument()
   })
 
   it('shows an error state and a retry button when the request fails', async () => {
