@@ -45,6 +45,9 @@ public class NetWorthSnapshot {
     @Column(name = "debts_against", nullable = false)
     private BigDecimal debtsAgainst;
 
+    @Column(name = "couple_share", nullable = false)
+    private BigDecimal coupleShare;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -58,7 +61,8 @@ public class NetWorthSnapshot {
     }
 
     public NetWorthSnapshot(Long userId, LocalDate snapshotDate, BigDecimal net, BigDecimal liquid,
-                            BigDecimal investments, BigDecimal debtsInFavor, BigDecimal debtsAgainst) {
+                            BigDecimal investments, BigDecimal debtsInFavor, BigDecimal debtsAgainst,
+                            BigDecimal coupleShare) {
         this.userId = userId;
         this.snapshotDate = snapshotDate;
         this.net = net;
@@ -66,6 +70,7 @@ public class NetWorthSnapshot {
         this.investments = investments;
         this.debtsInFavor = debtsInFavor;
         this.debtsAgainst = debtsAgainst;
+        this.coupleShare = coupleShare;
     }
 
     public Long getId() {
@@ -94,5 +99,9 @@ public class NetWorthSnapshot {
 
     public BigDecimal getDebtsAgainst() {
         return debtsAgainst;
+    }
+
+    public BigDecimal getCoupleShare() {
+        return coupleShare;
     }
 }

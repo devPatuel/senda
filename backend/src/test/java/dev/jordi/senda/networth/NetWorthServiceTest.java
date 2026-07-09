@@ -9,6 +9,7 @@ import dev.jordi.senda.investment.Holding;
 import dev.jordi.senda.investment.HoldingRepository;
 import dev.jordi.senda.investment.Nft;
 import dev.jordi.senda.investment.NftRepository;
+import dev.jordi.senda.space.SpaceAccess;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +22,10 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,6 +45,8 @@ class NetWorthServiceTest {
     private DebtPaymentRepository debtPaymentRepository;
     @Mock
     private NetWorthSnapshotRepository snapshotRepository;
+    @Mock
+    private SpaceAccess spaceAccess;
 
     private NetWorthService service;
 
@@ -47,7 +54,10 @@ class NetWorthServiceTest {
     void setUp() {
         service = new NetWorthService(
                 accountRepository, holdingRepository, nftRepository,
-                debtRepository, debtPaymentRepository, snapshotRepository);
+                debtRepository, debtPaymentRepository, snapshotRepository, spaceAccess);
+        // Default: no couple spaces, so coupleShare is 0 and existing net values stand.
+        // Tests that exercise spaces override this stub.
+        lenient().when(spaceAccess.activeSpaceIds(USER_ID)).thenReturn(List.of());
     }
 
     // --- helpers ---
@@ -202,5 +212,39 @@ class NetWorthServiceTest {
         assertThat(result.debtsInFavor()).isEqualByComparingTo("0.00");
         assertThat(result.debtsAgainst()).isEqualByComparingTo("0.00");
         assertThat(result.net()).isEqualByComparingTo("0.00");
+    }
+
+    // --- couple share ---
+
+    @Test
+    void coupleShareIsHalfOfActiveSpaceAccountBalances() {
+        // No personal assets, one space with 1000 active balance -> coupleShare 500
+        when(accountRepository.sumActiveBalance(USER_ID)).thenReturn(null);
+        when(holdingRepository.findByUserId(USER_ID)).thenReturn(List.of());
+        when(nftRepository.findByUserId(USER_ID)).thenReturn(List.of());
+        when(debtRepository.findByUserIdAndDirection(any(), any())).thenReturn(List.of());
+        when(spaceAccess.activeSpaceIds(USER_ID)).thenReturn(List.of(7L));
+        when(accountRepository.sumActiveBalanceBySpaceIds(List.of(7L))).thenReturn(new BigDecimal("1000.00"));
+
+        NetWorthResponse response = service.calculate(USER_ID);
+
+        assertThat(response.coupleShare()).isEqualByComparingTo("500.00");
+        assertThat(response.net()).isEqualByComparingTo("500.00");
+    }
+
+    @Test
+    void coupleShareIsZeroWhenUserHasNoSpaces() {
+        when(accountRepository.sumActiveBalance(USER_ID)).thenReturn(new BigDecimal("200.00"));
+        when(holdingRepository.findByUserId(USER_ID)).thenReturn(List.of());
+        when(nftRepository.findByUserId(USER_ID)).thenReturn(List.of());
+        when(debtRepository.findByUserIdAndDirection(any(), any())).thenReturn(List.of());
+        when(spaceAccess.activeSpaceIds(USER_ID)).thenReturn(List.of());
+
+        NetWorthResponse response = service.calculate(USER_ID);
+
+        assertThat(response.coupleShare()).isEqualByComparingTo("0.00");
+        assertThat(response.net()).isEqualByComparingTo("200.00");
+        // No aggregate query when there are no spaces
+        verify(accountRepository, never()).sumActiveBalanceBySpaceIds(any());
     }
 }

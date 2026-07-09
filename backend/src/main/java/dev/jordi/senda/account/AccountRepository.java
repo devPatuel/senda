@@ -21,6 +21,13 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     @Query("select sum(a.balance) from Account a where a.userId = :userId and a.spaceId is null and a.archived = false")
     BigDecimal sumActiveBalance(@Param("userId") Long userId);
 
+    /**
+     * Total balance of non-archived accounts across the given spaces. Returns
+     * {@code null} when there are none. Callers must pass a non-empty list.
+     */
+    @Query("select sum(a.balance) from Account a where a.spaceId in :spaceIds and a.archived = false")
+    BigDecimal sumActiveBalanceBySpaceIds(@Param("spaceIds") List<Long> spaceIds);
+
     // --- Space-scoped ---
     List<Account> findBySpaceId(Long spaceId);
 

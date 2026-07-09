@@ -13,5 +13,6 @@ public record NetWorthResponse(
         BigDecimal investmentsNfts,
         BigDecimal debtsInFavor,
         BigDecimal debtsAgainst,
-        BigDecimal net) {
+        BigDecimal net,
+        BigDecimal coupleShare) {
 }

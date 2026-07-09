@@ -9,6 +9,7 @@ import dev.jordi.senda.investment.Holding;
 import dev.jordi.senda.investment.HoldingRepository;
 import dev.jordi.senda.investment.Nft;
 import dev.jordi.senda.investment.NftRepository;
+import dev.jordi.senda.space.SpaceAccess;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,8 @@ public class NetWorthService {
     // The user's local zone: "today" must match the LocalDate of their transactions,
     // not the (possibly UTC) server clock.
     private static final ZoneId ZONE = ZoneId.of("Europe/Madrid");
+    // Each member's net worth includes half of their couple spaces' account balances.
+    private static final BigDecimal HALF = new BigDecimal("0.50");
 
     private final AccountRepository accountRepository;
     private final HoldingRepository holdingRepository;
@@ -34,19 +37,22 @@ public class NetWorthService {
     private final DebtRepository debtRepository;
     private final DebtPaymentRepository debtPaymentRepository;
     private final NetWorthSnapshotRepository snapshotRepository;
+    private final SpaceAccess spaceAccess;
 
     public NetWorthService(AccountRepository accountRepository,
                            HoldingRepository holdingRepository,
                            NftRepository nftRepository,
                            DebtRepository debtRepository,
                            DebtPaymentRepository debtPaymentRepository,
-                           NetWorthSnapshotRepository snapshotRepository) {
+                           NetWorthSnapshotRepository snapshotRepository,
+                           SpaceAccess spaceAccess) {
         this.accountRepository = accountRepository;
         this.holdingRepository = holdingRepository;
         this.nftRepository = nftRepository;
         this.debtRepository = debtRepository;
         this.debtPaymentRepository = debtPaymentRepository;
         this.snapshotRepository = snapshotRepository;
+        this.spaceAccess = spaceAccess;
     }
 
     @Transactional
@@ -59,14 +65,16 @@ public class NetWorthService {
                 .setScale(2, RoundingMode.HALF_UP);
         BigDecimal debtsAgainst = calculateDebtsPending(userId, DebtDirection.I_OWE)
                 .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal coupleShare = calculateCoupleShare(userId);
 
         BigDecimal net = liquid
                 .add(investments)
+                .add(coupleShare)
                 .add(debtsInFavor)
                 .subtract(debtsAgainst)
                 .setScale(2, RoundingMode.HALF_UP);
 
-        recordDailySnapshot(userId, net, liquid, investments, debtsInFavor, debtsAgainst);
+        recordDailySnapshot(userId, net, liquid, investments, debtsInFavor, debtsAgainst, coupleShare);
 
         return new NetWorthResponse(
                 liquid,
@@ -75,7 +83,8 @@ public class NetWorthService {
                 investmentsNfts.setScale(2, RoundingMode.HALF_UP),
                 debtsInFavor,
                 debtsAgainst,
-                net);
+                net,
+                coupleShare);
     }
 
     /**
@@ -91,7 +100,7 @@ public class NetWorthService {
                 .findByUserIdAndSnapshotDateGreaterThanEqualOrderBySnapshotDateAsc(userId, from).stream()
                 .map(s -> new NetWorthHistoryPoint(
                         s.getSnapshotDate(), s.getNet(), s.getLiquid(), s.getInvestments(),
-                        s.getDebtsInFavor(), s.getDebtsAgainst()))
+                        s.getDebtsInFavor(), s.getDebtsAgainst(), s.getCoupleShare()))
                 .toList();
     }
 
@@ -101,9 +110,27 @@ public class NetWorthService {
      * same day is a harmless no-op and never aborts this read transaction.
      */
     private void recordDailySnapshot(Long userId, BigDecimal net, BigDecimal liquid,
-                                     BigDecimal investments, BigDecimal debtsInFavor, BigDecimal debtsAgainst) {
+                                     BigDecimal investments, BigDecimal debtsInFavor, BigDecimal debtsAgainst,
+                                     BigDecimal coupleShare) {
         snapshotRepository.insertIfAbsent(
-                userId, LocalDate.now(ZONE), net, liquid, investments, debtsInFavor, debtsAgainst);
+                userId, LocalDate.now(ZONE), net, liquid, investments, debtsInFavor, debtsAgainst, coupleShare);
+    }
+
+    /**
+     * Half of the balance of the accounts belonging to the user's ACTIVE couple
+     * spaces. The other member independently adds their own 50%, so the total is
+     * never double-counted; personal liquid already excludes couple accounts.
+     */
+    private BigDecimal calculateCoupleShare(Long userId) {
+        List<Long> spaceIds = spaceAccess.activeSpaceIds(userId);
+        if (spaceIds.isEmpty()) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal balance = accountRepository.sumActiveBalanceBySpaceIds(spaceIds);
+        if (balance == null) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        return balance.multiply(HALF).setScale(2, RoundingMode.HALF_UP);
     }
 
     private BigDecimal calculateLiquid(Long userId) {

@@ -22,8 +22,8 @@ public interface NetWorthSnapshotRepository extends JpaRepository<NetWorthSnapsh
     @Modifying
     @Query(value = """
             INSERT INTO net_worth_snapshots
-                (user_id, snapshot_date, net, liquid, investments, debts_in_favor, debts_against)
-            VALUES (:userId, :date, :net, :liquid, :investments, :debtsInFavor, :debtsAgainst)
+                (user_id, snapshot_date, net, liquid, investments, debts_in_favor, debts_against, couple_share)
+            VALUES (:userId, :date, :net, :liquid, :investments, :debtsInFavor, :debtsAgainst, :coupleShare)
             ON CONFLICT (user_id, snapshot_date) DO NOTHING
             """, nativeQuery = true)
     void insertIfAbsent(@Param("userId") Long userId,
@@ -32,5 +32,6 @@ public interface NetWorthSnapshotRepository extends JpaRepository<NetWorthSnapsh
                         @Param("liquid") BigDecimal liquid,
                         @Param("investments") BigDecimal investments,
                         @Param("debtsInFavor") BigDecimal debtsInFavor,
-                        @Param("debtsAgainst") BigDecimal debtsAgainst);
+                        @Param("debtsAgainst") BigDecimal debtsAgainst,
+                        @Param("coupleShare") BigDecimal coupleShare);
 }

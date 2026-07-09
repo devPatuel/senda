@@ -12,5 +12,6 @@ public record NetWorthHistoryPoint(
         BigDecimal liquid,
         BigDecimal investments,
         BigDecimal debtsInFavor,
-        BigDecimal debtsAgainst) {
+        BigDecimal debtsAgainst,
+        BigDecimal coupleShare) {
 }

@@ -48,7 +48,8 @@ class NetWorthControllerTest {
             new BigDecimal("500.00"),
             new BigDecimal("150.00"),
             new BigDecimal("700.00"),
-            new BigDecimal("42950.00"));
+            new BigDecimal("42950.00"),
+            new BigDecimal("0.00"));
 
     @Test
     void requestWithoutTokenReturns401() throws Exception {
