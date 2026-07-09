@@ -176,6 +176,31 @@ class TransactionServiceTest {
     }
 
     @Test
+    void updateCannotRescopeTransactionOutOfItsSpace() {
+        // A shared transaction (space 7) must stay shared even if the update body
+        // tries to personalize it (spaceId=null). The category is resolved in the
+        // transaction's own scope, never the request's.
+        Category spaceCat = spaceCategory(3L, 7L, TransactionType.EXPENSE);
+        Transaction existing = new Transaction(USER_ID, spaceCat, TransactionType.EXPENSE,
+                new BigDecimal("20.00"), LocalDate.of(2026, 6, 10), "Cena");
+        ReflectionTestUtils.setField(existing, "id", 10L);
+        ReflectionTestUtils.setField(existing, "spaceId", 7L);
+        when(transactionRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findByIdAndSpaceId(3L, 7L)).thenReturn(Optional.of(spaceCat));
+
+        // Request tries to move it to personal scope (spaceId=null)
+        TransactionRequest request = new TransactionRequest(3L, TransactionType.EXPENSE,
+                new BigDecimal("25.00"), LocalDate.of(2026, 6, 11), "Cena", null);
+        service.update(USER_ID, 10L, request);
+
+        // Scope is immutable: still in space 7, resolved via the space query
+        assertThat(existing.getSpaceId()).isEqualTo(7L);
+        verify(categoryRepository).findByIdAndSpaceId(3L, 7L);
+        verify(categoryRepository, never()).findByIdAndUserIdAndSpaceIdIsNull(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void updateKeepingInactiveCategorySucceeds() {
         // The category was soft-deleted after the transaction was created:
         // editing amount/date while keeping the category must still work.

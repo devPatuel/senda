@@ -71,7 +71,8 @@ public class TransactionService {
 
     @Transactional
     public TransactionResponse create(Long userId, TransactionRequest request) {
-        Category category = resolveCategory(userId, request, null);
+        // On create the caller chooses the scope (personal or a space they belong to).
+        Category category = resolveCategory(userId, request, request.spaceId(), null);
         Transaction transaction = new Transaction(userId, category, request.type(),
                 request.amount(), request.date(), request.description());
         transaction.setSpaceId(request.spaceId());
@@ -86,13 +87,17 @@ public class TransactionService {
     @Transactional
     public TransactionResponse update(Long userId, Long id, TransactionRequest request) {
         Transaction transaction = findAccessible(userId, id);
-        Category category = resolveCategory(userId, request, transaction.getCategory().getId());
+        // The scope of an existing transaction is immutable: an edit resolves the
+        // category within the transaction's own scope, never the request's. This
+        // prevents re-scoping a shared movement into someone's personal ledger
+        // (or vice versa) via the update body.
+        Category category = resolveCategory(userId, request, transaction.getSpaceId(),
+                transaction.getCategory().getId());
         transaction.setCategory(category);
         transaction.setType(request.type());
         transaction.setAmount(request.amount());
         transaction.setDate(request.date());
         transaction.setDescription(request.description());
-        transaction.setSpaceId(request.spaceId());
         // Managed entity: JPA dirty checking flushes the update on commit
         return TransactionResponse.from(transaction);
     }
@@ -176,11 +181,12 @@ public class TransactionService {
         return transaction;
     }
 
-    private Category resolveCategory(Long userId, TransactionRequest request, Long currentCategoryId) {
+    private Category resolveCategory(Long userId, TransactionRequest request, Long spaceId,
+                                     Long currentCategoryId) {
         // A personal transaction must use a personal category; a space transaction a
-        // category of that same space. Resolving in the request's scope enforces the
-        // rule: a cross-scope categoryId simply is not found -> 404.
-        Long spaceId = request.spaceId();
+        // category of that same space. Resolving in the given scope enforces the
+        // rule: a cross-scope categoryId simply is not found -> 404. The scope comes
+        // from the request on create and from the existing transaction on update.
         Category category;
         if (spaceId == null) {
             category = categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(request.categoryId(), userId)
