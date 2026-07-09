@@ -1,6 +1,7 @@
 package dev.jordi.senda.account;
 
 import dev.jordi.senda.common.NotFoundException;
+import dev.jordi.senda.space.SpaceAccess;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,16 +15,26 @@ public class AccountService {
     private static final String DEFAULT_CURRENCY = "EUR";
 
     private final AccountRepository accountRepository;
+    private final SpaceAccess spaceAccess;
 
-    public AccountService(AccountRepository accountRepository) {
+    public AccountService(AccountRepository accountRepository, SpaceAccess spaceAccess) {
         this.accountRepository = accountRepository;
+        this.spaceAccess = spaceAccess;
     }
 
     @Transactional(readOnly = true)
-    public List<AccountResponse> list(Long userId, boolean includeArchived) {
-        List<Account> accounts = includeArchived
-                ? accountRepository.findByUserIdAndSpaceIdIsNull(userId)
-                : accountRepository.findByUserIdAndSpaceIdIsNullAndArchivedFalse(userId);
+    public List<AccountResponse> list(Long userId, Long spaceId, boolean includeArchived) {
+        List<Account> accounts;
+        if (spaceId == null) {
+            accounts = includeArchived
+                    ? accountRepository.findByUserIdAndSpaceIdIsNull(userId)
+                    : accountRepository.findByUserIdAndSpaceIdIsNullAndArchivedFalse(userId);
+        } else {
+            spaceAccess.assertActiveMember(userId, spaceId);
+            accounts = includeArchived
+                    ? accountRepository.findBySpaceId(spaceId)
+                    : accountRepository.findBySpaceIdAndArchivedFalse(spaceId);
+        }
         return accounts.stream()
                 .sorted(Comparator.comparing(Account::getName, String.CASE_INSENSITIVE_ORDER)
                         .thenComparing(Account::getId, Comparator.nullsLast(Comparator.naturalOrder())))
@@ -40,14 +51,18 @@ public class AccountService {
 
     @Transactional
     public AccountResponse create(Long userId, AccountRequest request) {
-        Account saved = accountRepository.save(new Account(
-                userId, request.name(), request.type(), request.balance(), currencyOrDefault(request.currency())));
-        return AccountResponse.from(saved);
+        Account account = new Account(
+                userId, request.name(), request.type(), request.balance(), currencyOrDefault(request.currency()));
+        if (request.spaceId() != null) {
+            spaceAccess.assertActiveMember(userId, request.spaceId());
+            account.setSpaceId(request.spaceId());
+        }
+        return AccountResponse.from(accountRepository.save(account));
     }
 
     @Transactional
     public AccountResponse update(Long userId, Long id, AccountUpdateRequest request) {
-        Account account = findOwned(userId, id);
+        Account account = findAccessible(userId, id);
         account.setName(request.name());
         account.setType(request.type());
         account.setBalance(request.balance());
@@ -61,13 +76,25 @@ public class AccountService {
 
     @Transactional
     public void delete(Long userId, Long id) {
-        accountRepository.delete(findOwned(userId, id));
+        accountRepository.delete(findAccessible(userId, id));
     }
 
-    private Account findOwned(Long userId, Long id) {
-        // 404 (not 403) for another user's account: do not reveal its existence
-        return accountRepository.findByIdAndUserIdAndSpaceIdIsNull(id, userId)
+    /**
+     * Loads an account the caller may act on: a personal account they own, or a
+     * shared account of a space they are an ACTIVE member of. 404 otherwise
+     * (never 403: do not reveal the resource exists).
+     */
+    private Account findAccessible(Long userId, Long id) {
+        Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Account not found"));
+        if (account.getSpaceId() == null) {
+            if (!account.getUserId().equals(userId)) {
+                throw new NotFoundException("Account not found");
+            }
+        } else {
+            spaceAccess.assertActiveMember(userId, account.getSpaceId());
+        }
+        return account;
     }
 
     private static String currencyOrDefault(String currency) {

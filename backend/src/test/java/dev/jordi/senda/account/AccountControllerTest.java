@@ -120,25 +120,25 @@ class AccountControllerTest {
 
     @Test
     void listReturnsAccounts() throws Exception {
-        when(accountService.list(USER_ID, false)).thenReturn(List.of(SAMPLE));
+        when(accountService.list(USER_ID, null, false)).thenReturn(List.of(SAMPLE));
 
         mockMvc.perform(get("/api/accounts").header("Authorization", bearer))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(10));
 
-        verify(accountService).list(USER_ID, false);
+        verify(accountService).list(USER_ID, null, false);
     }
 
     @Test
     void listPassesIncludeArchived() throws Exception {
-        when(accountService.list(USER_ID, true)).thenReturn(List.of());
+        when(accountService.list(USER_ID, null, true)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/accounts")
                         .header("Authorization", bearer)
                         .param("includeArchived", "true"))
                 .andExpect(status().isOk());
 
-        verify(accountService).list(USER_ID, true);
+        verify(accountService).list(USER_ID, null, true);
     }
 
     @Test

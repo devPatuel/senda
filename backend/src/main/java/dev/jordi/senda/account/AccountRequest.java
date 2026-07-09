@@ -17,5 +17,6 @@ public record AccountRequest(
         @NotBlank @Size(max = 100) String name,
         @NotNull AccountType type,
         @NotNull @Digits(integer = 12, fraction = 2) BigDecimal balance,
-        @Pattern(regexp = "^[A-Z]{3}$", message = "must be a 3-letter ISO currency code") String currency) {
+        @Pattern(regexp = "^[A-Z]{3}$", message = "must be a 3-letter ISO currency code") String currency,
+        Long spaceId) {
 }

@@ -27,8 +27,9 @@ public class AccountController {
     }
 
     @GetMapping
-    public List<AccountResponse> list(@RequestParam(defaultValue = "false") boolean includeArchived) {
-        return accountService.list(CurrentUser.id(), includeArchived);
+    public List<AccountResponse> list(@RequestParam(required = false) Long spaceId,
+                                      @RequestParam(defaultValue = "false") boolean includeArchived) {
+        return accountService.list(CurrentUser.id(), spaceId, includeArchived);
     }
 
     @GetMapping("/balance")

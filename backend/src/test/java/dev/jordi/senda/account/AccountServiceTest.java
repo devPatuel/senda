@@ -1,6 +1,7 @@
 package dev.jordi.senda.account;
 
 import dev.jordi.senda.common.NotFoundException;
+import dev.jordi.senda.space.SpaceAccess;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,11 +29,14 @@ class AccountServiceTest {
     @Mock
     private AccountRepository accountRepository;
 
+    @Mock
+    private SpaceAccess spaceAccess;
+
     private AccountService service;
 
     @BeforeEach
     void setUp() {
-        service = new AccountService(accountRepository);
+        service = new AccountService(accountRepository, spaceAccess);
     }
 
     private static Account account(Long id, String name, AccountType type, String balance, boolean archived) {
@@ -53,7 +57,7 @@ class AccountServiceTest {
         });
 
         AccountResponse response = service.create(USER_ID,
-                new AccountRequest("Cuenta nómina", AccountType.BANK, new BigDecimal("1500.00"), null));
+                new AccountRequest("Cuenta nómina", AccountType.BANK, new BigDecimal("1500.00"), null, null));
 
         assertThat(response.id()).isEqualTo(10L);
         assertThat(response.name()).isEqualTo("Cuenta nómina");
@@ -72,7 +76,7 @@ class AccountServiceTest {
         when(accountRepository.save(any(Account.class))).thenAnswer(i -> i.getArgument(0));
 
         AccountResponse response = service.create(USER_ID,
-                new AccountRequest("Efectivo", AccountType.CASH, new BigDecimal("50.00"), "USD"));
+                new AccountRequest("Efectivo", AccountType.CASH, new BigDecimal("50.00"), "USD", null));
 
         assertThat(response.currency()).isEqualTo("USD");
     }
@@ -82,7 +86,7 @@ class AccountServiceTest {
     @Test
     void updateChangesFieldsAndArchives() {
         Account existing = account(10L, "Banco", AccountType.BANK, "100.00", false);
-        when(accountRepository.findByIdAndUserIdAndSpaceIdIsNull(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(accountRepository.findById(10L)).thenReturn(Optional.of(existing));
 
         AccountResponse response = service.update(USER_ID, 10L,
                 new AccountUpdateRequest("Banco principal", AccountType.BANK,
@@ -96,7 +100,7 @@ class AccountServiceTest {
     @Test
     void updateKeepsArchivedWhenNull() {
         Account existing = account(10L, "Banco", AccountType.BANK, "100.00", true);
-        when(accountRepository.findByIdAndUserIdAndSpaceIdIsNull(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(accountRepository.findById(10L)).thenReturn(Optional.of(existing));
 
         AccountResponse response = service.update(USER_ID, 10L,
                 new AccountUpdateRequest("Banco", AccountType.BANK, new BigDecimal("100.00"), "EUR", null));
@@ -107,7 +111,7 @@ class AccountServiceTest {
 
     @Test
     void updateForeignOrMissingAccountThrowsNotFound() {
-        when(accountRepository.findByIdAndUserIdAndSpaceIdIsNull(99L, USER_ID)).thenReturn(Optional.empty());
+        when(accountRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.update(USER_ID, 99L,
                 new AccountUpdateRequest("X", AccountType.BANK, BigDecimal.ONE, null, null)))
@@ -119,7 +123,7 @@ class AccountServiceTest {
     @Test
     void deleteRemovesOwnedAccount() {
         Account existing = account(10L, "Banco", AccountType.BANK, "100.00", false);
-        when(accountRepository.findByIdAndUserIdAndSpaceIdIsNull(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(accountRepository.findById(10L)).thenReturn(Optional.of(existing));
 
         service.delete(USER_ID, 10L);
 
@@ -128,7 +132,7 @@ class AccountServiceTest {
 
     @Test
     void deleteForeignOrMissingAccountThrowsNotFound() {
-        when(accountRepository.findByIdAndUserIdAndSpaceIdIsNull(99L, USER_ID)).thenReturn(Optional.empty());
+        when(accountRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.delete(USER_ID, 99L)).isInstanceOf(NotFoundException.class);
         verify(accountRepository, never()).delete(any());
@@ -158,7 +162,7 @@ class AccountServiceTest {
                 account(1L, "Zelle", AccountType.BANK, "1.00", false),
                 account(2L, "ahorro", AccountType.BANK, "2.00", false)));
 
-        List<AccountResponse> result = service.list(USER_ID, false);
+        List<AccountResponse> result = service.list(USER_ID, null, false);
 
         assertThat(result).extracting(AccountResponse::name).containsExactly("ahorro", "Zelle");
     }
@@ -168,9 +172,44 @@ class AccountServiceTest {
         when(accountRepository.findByUserIdAndSpaceIdIsNull(USER_ID)).thenReturn(List.of(
                 account(1L, "Banco", AccountType.BANK, "1.00", true)));
 
-        List<AccountResponse> result = service.list(USER_ID, true);
+        List<AccountResponse> result = service.list(USER_ID, null, true);
 
         assertThat(result).hasSize(1);
         verify(accountRepository).findByUserIdAndSpaceIdIsNull(USER_ID);
+    }
+
+    // --- space-aware ---
+
+    @Test
+    void createInSpaceValidatesMembershipAndSetsSpaceId() {
+        when(accountRepository.save(any(Account.class))).thenAnswer(inv -> {
+            Account a = inv.getArgument(0);
+            ReflectionTestUtils.setField(a, "id", 5L);
+            return a;
+        });
+
+        service.create(USER_ID, new AccountRequest("Común", AccountType.BANK,
+                new BigDecimal("100.00"), "EUR", 7L));
+
+        verify(spaceAccess).assertActiveMember(USER_ID, 7L);
+        ArgumentCaptor<Account> captor = ArgumentCaptor.forClass(Account.class);
+        verify(accountRepository).save(captor.capture());
+        assertThat(captor.getValue().getSpaceId()).isEqualTo(7L);
+    }
+
+    @Test
+    void listPersonalUsesSpaceIdIsNullQuery() {
+        when(accountRepository.findByUserIdAndSpaceIdIsNullAndArchivedFalse(USER_ID))
+                .thenReturn(List.of());
+        service.list(USER_ID, null, false);
+        verify(accountRepository).findByUserIdAndSpaceIdIsNullAndArchivedFalse(USER_ID);
+    }
+
+    @Test
+    void listSpaceValidatesMembershipAndUsesSpaceQuery() {
+        when(accountRepository.findBySpaceIdAndArchivedFalse(7L)).thenReturn(List.of());
+        service.list(USER_ID, 7L, false);
+        verify(spaceAccess).assertActiveMember(USER_ID, 7L);
+        verify(accountRepository).findBySpaceIdAndArchivedFalse(7L);
     }
 }
