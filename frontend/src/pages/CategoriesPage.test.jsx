@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CategoriesPage from './CategoriesPage'
-import { listCategories, removeCategory, getBudget } from '../api/categories'
+import { listCategories, createCategory, removeCategory, getBudget } from '../api/categories'
 
 vi.mock('../api/categories', () => ({
   listCategories: vi.fn(),
@@ -102,6 +102,26 @@ describe('CategoriesPage', () => {
     expect(screen.queryByText(/No se ha podido eliminar/)).not.toBeInTheDocument()
     // The keyed reload (not a manual set) refreshes the list
     await waitFor(() => expect(screen.queryByText('Comida')).not.toBeInTheDocument())
+  })
+
+  it('scopes the list to a couple space and hides the budget when spaceId is set', async () => {
+    createCategory.mockResolvedValue({ id: 9, name: 'Ocio', type: 'EXPENSE', color: '#10b981', active: true })
+    const user = userEvent.setup()
+    render(<CategoriesPage spaceId={7} />)
+
+    await screen.findByText('Comida')
+    expect(listCategories).toHaveBeenCalledWith(expect.objectContaining({ spaceId: 7 }))
+    // The budget/envelope section is personal-only: it must not appear in space mode
+    expect(getBudget).not.toHaveBeenCalled()
+    expect(screen.queryByText('Por asignar')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Nueva categoría/ }))
+    await user.type(screen.getByLabelText('Nombre'), 'Ocio')
+    await user.click(screen.getByRole('button', { name: 'Crear categoría' }))
+
+    await waitFor(() =>
+      expect(createCategory).toHaveBeenCalledWith(expect.objectContaining({ name: 'Ocio', spaceId: 7 })),
+    )
   })
 
   it('keeps the loaded list visible and shows a banner when the delete fails', async () => {

@@ -6,7 +6,7 @@ import { todayISO } from '../lib/format'
 import { Field, FormError, SubmitButton } from './form'
 import { Modal, SelectField } from './ui'
 
-export default function TransactionForm({ categories, transaction, onClose, onSaved }) {
+export default function TransactionForm({ categories, transaction, spaceId, onClose, onSaved }) {
   const isEdit = Boolean(transaction)
   const [form, setForm] = useState(() =>
     transaction
@@ -74,6 +74,7 @@ export default function TransactionForm({ categories, transaction, onClose, onSa
       amount: Number(form.amount.replace(',', '.')),
       date: form.date,
       description: form.description.trim() || null,
+      ...(spaceId != null && { spaceId }),
     }
 
     setSaving(true)

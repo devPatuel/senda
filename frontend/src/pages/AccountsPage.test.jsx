@@ -55,6 +55,25 @@ describe('AccountsPage', () => {
     expect(screen.getByText('Cuenta corriente')).toBeInTheDocument()
   })
 
+  it('lists and creates accounts scoped to a couple space when spaceId is set', async () => {
+    createAccount.mockResolvedValue({ id: 3, name: 'Ahorro', type: 'BANK', balance: 200, currency: 'EUR', archived: false })
+    const user = userEvent.setup()
+    render(<AccountsPage spaceId={7} />)
+
+    await screen.findByText('Cuenta corriente')
+    expect(listAccounts).toHaveBeenCalledWith(expect.objectContaining({ spaceId: 7 }))
+
+    await user.click(screen.getByRole('button', { name: /Nueva cuenta/ }))
+    await user.type(screen.getByLabelText('Nombre'), 'Ahorro')
+    await user.clear(screen.getByLabelText('Saldo'))
+    await user.type(screen.getByLabelText('Saldo'), '200')
+    await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
+
+    await waitFor(() =>
+      expect(createAccount).toHaveBeenCalledWith(expect.objectContaining({ name: 'Ahorro', spaceId: 7 })),
+    )
+  })
+
   it('creates a new account', async () => {
     createAccount.mockResolvedValue({ id: 3, name: 'Ahorro', type: 'BANK', balance: 200, currency: 'EUR', archived: false })
     const user = userEvent.setup()

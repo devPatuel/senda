@@ -11,7 +11,7 @@ import { ConfirmDialog, ErrorState, LoadingState, Modal, Notice, SelectField } f
 
 const TYPE_LABELS = { BANK: 'Banco', CASH: 'Efectivo' }
 
-function AccountForm({ account, onClose, onSaved }) {
+function AccountForm({ account, spaceId, onClose, onSaved }) {
   const isEdit = Boolean(account)
   const [form, setForm] = useState(() =>
     account
@@ -62,7 +62,7 @@ function AccountForm({ account, onClose, onSaved }) {
       if (isEdit) {
         await updateAccount(account.id, { ...payload, archived: account.archived })
       } else {
-        await createAccount(payload)
+        await createAccount({ ...payload, ...(spaceId != null && { spaceId }) })
       }
       onSaved()
     } catch (err) {
@@ -127,7 +127,7 @@ function AccountForm({ account, onClose, onSaved }) {
   )
 }
 
-export default function AccountsPage() {
+export default function AccountsPage({ spaceId }) {
   const [accounts, setAccounts] = useState(null)
   const [showArchived, setShowArchived] = useState(false)
   const [error, setError] = useState(null)
@@ -144,7 +144,7 @@ export default function AccountsPage() {
   useEffect(() => {
     let cancelled = false
     const key = `${showArchived}-${reloadKey}`
-    listAccounts(showArchived ? { includeArchived: true } : {})
+    listAccounts({ ...(showArchived && { includeArchived: true }), ...(spaceId != null && { spaceId }) })
       .then((list) => {
         if (!cancelled) {
           setAccounts(list)
@@ -160,7 +160,7 @@ export default function AccountsPage() {
     return () => {
       cancelled = true
     }
-  }, [showArchived, reloadKey])
+  }, [showArchived, reloadKey, spaceId])
 
   function handleSaved() {
     setFormOpen(false)
@@ -373,6 +373,7 @@ export default function AccountsPage() {
       {formOpen && (
         <AccountForm
           account={editing}
+          spaceId={spaceId}
           onClose={() => {
             setFormOpen(false)
             setEditing(null)

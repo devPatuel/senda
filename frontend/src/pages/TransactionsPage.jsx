@@ -15,7 +15,7 @@ import TransactionForm from '../components/TransactionForm'
 
 const EMPTY_FILTERS = { from: '', to: '', categoryId: '', type: '' }
 
-export default function TransactionsPage() {
+export default function TransactionsPage({ spaceId }) {
   const [categories, setCategories] = useState([])
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [showFilters, setShowFilters] = useState(false)
@@ -39,7 +39,7 @@ export default function TransactionsPage() {
     let cancelled = false
     // Include inactive ones: existing transactions may reference soft-deleted
     // categories, which must still be displayed in filters and the edit form
-    listCategories({ includeInactive: true })
+    listCategories({ includeInactive: true, ...(spaceId != null && { spaceId }) })
       .then((list) => {
         if (!cancelled) setCategories(list)
       })
@@ -49,12 +49,12 @@ export default function TransactionsPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [spaceId])
 
   useEffect(() => {
     let cancelled = false
     const key = JSON.stringify([page, filters, reloadKey])
-    listTransactions({ page, ...filters })
+    listTransactions({ page, ...filters, ...(spaceId != null && { spaceId }) })
       .then((result) => {
         if (cancelled) return
         // The page can fall out of range when data changes elsewhere (another
@@ -76,7 +76,7 @@ export default function TransactionsPage() {
     return () => {
       cancelled = true
     }
-  }, [page, filters, reloadKey])
+  }, [page, filters, reloadKey, spaceId])
 
   function handleFilterChange(e) {
     const { name, value } = e.target
@@ -357,6 +357,7 @@ export default function TransactionsPage() {
         <TransactionForm
           categories={categories}
           transaction={editingTransaction}
+          spaceId={spaceId}
           onClose={() => {
             setFormOpen(false)
             setEditingTransaction(null)

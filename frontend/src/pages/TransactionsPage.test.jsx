@@ -242,6 +242,30 @@ describe('TransactionsPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
+  it('scopes listing, category loading and creation to a couple space when spaceId is set', async () => {
+    createTransaction.mockResolvedValue({ id: 99 })
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <TransactionsPage spaceId={7} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() =>
+      expect(listTransactions).toHaveBeenCalledWith(expect.objectContaining({ spaceId: 7 })),
+    )
+    expect(listCategories).toHaveBeenCalledWith(expect.objectContaining({ spaceId: 7 }))
+
+    await user.click(await screen.findByRole('button', { name: 'Nuevo movimiento' }))
+    await user.selectOptions(screen.getByLabelText('Categoría'), '1')
+    await user.type(screen.getByLabelText('Importe (€)'), '12.5')
+    await user.click(screen.getByRole('button', { name: 'Crear movimiento' }))
+
+    await waitFor(() =>
+      expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ spaceId: 7 })),
+    )
+  })
+
   it('clamps to the last available page when the current page falls out of range', async () => {
     listTransactions.mockImplementation(({ page = 0 }) =>
       page === 0

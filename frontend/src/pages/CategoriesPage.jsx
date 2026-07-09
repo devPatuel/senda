@@ -68,7 +68,7 @@ function ColorPicker({ value, onChange }) {
   )
 }
 
-function CategoryForm({ category, onClose, onSaved }) {
+function CategoryForm({ category, spaceId, onClose, onSaved }) {
   const isEdit = Boolean(category)
   const [form, setForm] = useState(() =>
     category
@@ -100,7 +100,7 @@ function CategoryForm({ category, onClose, onSaved }) {
           active: category.active,
         })
       } else {
-        await createCategory({ name, type: form.type, color: form.color })
+        await createCategory({ name, type: form.type, color: form.color, ...(spaceId != null && { spaceId }) })
       }
       onSaved()
     } catch (err) {
@@ -297,7 +297,7 @@ function TargetForm({ category, currentTarget, onClose, onSaved }) {
   )
 }
 
-export default function CategoriesPage() {
+export default function CategoriesPage({ spaceId }) {
   const [categories, setCategories] = useState(null)
   const [budget, setBudget] = useState(null)
   const [assigning, setAssigning] = useState(null)
@@ -321,9 +321,11 @@ export default function CategoriesPage() {
   useEffect(() => {
     let cancelled = false
     const key = `${showInactive}-${reloadKey}`
+    const listOptions = { ...(showInactive && { includeInactive: true }), ...(spaceId != null && { spaceId }) }
+    // The budget/envelope view is personal-only (backend): skip it in space mode.
     Promise.all([
-      listCategories(showInactive ? { includeInactive: true } : {}),
-      getBudget(),
+      listCategories(listOptions),
+      spaceId != null ? Promise.resolve(null) : getBudget(),
     ])
       .then(([list, budgetData]) => {
         if (!cancelled) {
@@ -341,7 +343,7 @@ export default function CategoriesPage() {
     return () => {
       cancelled = true
     }
-  }, [showInactive, reloadKey])
+  }, [showInactive, reloadKey, spaceId])
 
   // Lookup of budget data per expense category id (balance, spend, target).
   const budgetById = new Map((budget?.categories ?? []).map((c) => [c.id, c]))
@@ -374,7 +376,7 @@ export default function CategoriesPage() {
     // Best-effort check to tell apart "deleted" from "deactivated" (the backend
     // deactivates instead of deleting when the category has transactions)
     try {
-      const all = await listCategories({ includeInactive: true })
+      const all = await listCategories({ includeInactive: true, ...(spaceId != null && { spaceId }) })
       const remaining = all.some((c) => c.id === category.id)
       setNotice(
         remaining
@@ -629,6 +631,7 @@ export default function CategoriesPage() {
       {formOpen && (
         <CategoryForm
           category={editingCategory}
+          spaceId={spaceId}
           onClose={() => {
             setFormOpen(false)
             setEditingCategory(null)
