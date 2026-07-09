@@ -1,5 +1,8 @@
 package dev.jordi.senda.space;
 
+import dev.jordi.senda.common.ConflictException;
+import dev.jordi.senda.common.NotFoundException;
+import dev.jordi.senda.user.User;
 import dev.jordi.senda.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,9 +13,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -66,5 +72,105 @@ class SpaceServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).id()).isEqualTo(10L);
         assertThat(result.get(0).myStatus()).isEqualTo(MemberStatus.PENDING);
+    }
+
+    @Test
+    void addMemberCreatesPendingMembershipForInvitedUser() {
+        when(memberRepository.existsBySpaceIdAndUserIdAndStatus(10L, USER_ID, MemberStatus.ACTIVE))
+                .thenReturn(true);
+        User invited = new User("her@example.com", "hash", "Ella");
+        ReflectionTestUtils.setField(invited, "id", 2L);
+        when(userRepository.findByEmail("her@example.com")).thenReturn(Optional.of(invited));
+        when(memberRepository.findBySpaceIdAndUserId(10L, 2L)).thenReturn(Optional.empty());
+
+        SpaceMemberResponse response = service.addMember(USER_ID, 10L,
+                new AddMemberRequest("her@example.com"));
+
+        assertThat(response.userId()).isEqualTo(2L);
+        assertThat(response.status()).isEqualTo(MemberStatus.PENDING);
+        ArgumentCaptor<SpaceMember> captor = ArgumentCaptor.forClass(SpaceMember.class);
+        verify(memberRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(MemberStatus.PENDING);
+    }
+
+    @Test
+    void addMemberThrows404WhenInviterNotActiveMember() {
+        when(memberRepository.existsBySpaceIdAndUserIdAndStatus(10L, USER_ID, MemberStatus.ACTIVE))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> service.addMember(USER_ID, 10L, new AddMemberRequest("her@example.com")))
+                .isInstanceOf(NotFoundException.class);
+        verify(memberRepository, never()).save(any());
+    }
+
+    @Test
+    void addMemberThrows404WhenEmailUnknown() {
+        when(memberRepository.existsBySpaceIdAndUserIdAndStatus(10L, USER_ID, MemberStatus.ACTIVE))
+                .thenReturn(true);
+        when(userRepository.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.addMember(USER_ID, 10L, new AddMemberRequest("ghost@example.com")))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void addMemberThrows409WhenAlreadyMember() {
+        when(memberRepository.existsBySpaceIdAndUserIdAndStatus(10L, USER_ID, MemberStatus.ACTIVE))
+                .thenReturn(true);
+        User invited = new User("her@example.com", "hash", "Ella");
+        ReflectionTestUtils.setField(invited, "id", 2L);
+        when(userRepository.findByEmail("her@example.com")).thenReturn(Optional.of(invited));
+        when(memberRepository.findBySpaceIdAndUserId(10L, 2L))
+                .thenReturn(Optional.of(new SpaceMember(10L, 2L, MemberStatus.PENDING)));
+
+        assertThatThrownBy(() -> service.addMember(USER_ID, 10L, new AddMemberRequest("her@example.com")))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void acceptTurnsPendingIntoActive() {
+        SpaceMember pending = new SpaceMember(10L, 2L, MemberStatus.PENDING);
+        when(memberRepository.findBySpaceIdAndUserId(10L, 2L)).thenReturn(Optional.of(pending));
+
+        service.accept(2L, 10L);
+
+        assertThat(pending.getStatus()).isEqualTo(MemberStatus.ACTIVE);
+        assertThat(pending.getJoinedAt()).isNotNull();
+        verify(memberRepository).save(pending);
+    }
+
+    @Test
+    void acceptThrows404WhenNoMembership() {
+        when(memberRepository.findBySpaceIdAndUserId(10L, 2L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.accept(2L, 10L)).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void declineDeletesPendingMembership() {
+        SpaceMember pending = new SpaceMember(10L, 2L, MemberStatus.PENDING);
+        when(memberRepository.findBySpaceIdAndUserId(10L, 2L)).thenReturn(Optional.of(pending));
+
+        service.decline(2L, 10L);
+
+        verify(memberRepository).delete(pending);
+    }
+
+    @Test
+    void leaveDeletesActiveMembership() {
+        SpaceMember active = new SpaceMember(10L, 2L, MemberStatus.ACTIVE);
+        when(memberRepository.findBySpaceIdAndUserId(10L, 2L)).thenReturn(Optional.of(active));
+
+        service.leave(2L, 10L);
+
+        verify(memberRepository).delete(active);
+    }
+
+    @Test
+    void listMembersThrows404ForNonMember() {
+        when(memberRepository.existsBySpaceIdAndUserIdAndStatus(10L, 9L, MemberStatus.ACTIVE))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> service.listMembers(9L, 10L)).isInstanceOf(NotFoundException.class);
     }
 }
