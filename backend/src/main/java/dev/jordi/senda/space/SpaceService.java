@@ -32,7 +32,7 @@ public class SpaceService {
     public SpaceResponse create(Long userId, CreateSpaceRequest request) {
         Space space = spaceRepository.save(new Space(userId, request.name()));
         memberRepository.save(new SpaceMember(space.getId(), userId, MemberStatus.ACTIVE));
-        return SpaceResponse.of(space, MemberStatus.ACTIVE);
+        return SpaceResponse.from(space, MemberStatus.ACTIVE);
     }
 
     @Transactional(readOnly = true)
@@ -42,7 +42,7 @@ public class SpaceService {
         Map<Long, MemberStatus> statusBySpace = memberships.stream()
                 .collect(Collectors.toMap(SpaceMember::getSpaceId, SpaceMember::getStatus));
         return spaceRepository.findAllById(spaceIds).stream()
-                .map(space -> SpaceResponse.of(space, statusBySpace.get(space.getId())))
+                .map(space -> SpaceResponse.from(space, statusBySpace.get(space.getId())))
                 .sorted(Comparator.comparing(SpaceResponse::name, String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
@@ -56,7 +56,7 @@ public class SpaceService {
         User invited = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new NotFoundException("User not found"));
         if (memberRepository.findBySpaceIdAndUserId(spaceId, invited.getId()).isPresent()) {
-            throw new ConflictException("User is already a member of this space");
+            throw new ConflictException("User already has a membership or pending invitation for this space");
         }
         memberRepository.save(new SpaceMember(spaceId, invited.getId(), MemberStatus.PENDING));
         return new SpaceMemberResponse(invited.getId(), invited.getEmail(), invited.getName(),

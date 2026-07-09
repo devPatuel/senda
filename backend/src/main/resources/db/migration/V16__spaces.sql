@@ -19,5 +19,6 @@ CREATE TABLE space_members (
     CONSTRAINT uq_space_members_space_user UNIQUE (space_id, user_id)
 );
 
+-- Lookups by user_id (a user's memberships) need their own index; lookups by
+-- space_id are already served by the leading column of the UNIQUE (space_id, user_id).
 CREATE INDEX idx_space_members_user ON space_members (user_id);
-CREATE INDEX idx_space_members_space ON space_members (space_id);

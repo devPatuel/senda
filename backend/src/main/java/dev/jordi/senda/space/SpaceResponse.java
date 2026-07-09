@@ -9,7 +9,7 @@ public record SpaceResponse(
         Long createdBy,
         Instant createdAt) {
 
-    public static SpaceResponse of(Space space, MemberStatus myStatus) {
+    public static SpaceResponse from(Space space, MemberStatus myStatus) {
         return new SpaceResponse(space.getId(), space.getName(), myStatus,
                 space.getCreatedBy(), space.getCreatedAt());
     }
