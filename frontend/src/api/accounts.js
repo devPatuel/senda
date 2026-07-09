@@ -16,12 +16,16 @@ import { http } from './http'
 
 /**
  * Lists the user's accounts. Non-archived only by default.
- * @param {{includeArchived?: boolean}} [options]
+ * When `spaceId` is set, lists the couple space's accounts instead.
+ * @param {{includeArchived?: boolean, spaceId?: number}} [options]
  * @returns {Promise<Account[]>}
  */
-export function listAccounts({ includeArchived } = {}) {
-  const query = includeArchived ? '?includeArchived=true' : ''
-  return http.get(`/accounts${query}`)
+export function listAccounts({ includeArchived, spaceId } = {}) {
+  const params = new URLSearchParams()
+  if (includeArchived) params.set('includeArchived', 'true')
+  if (spaceId != null) params.set('spaceId', String(spaceId))
+  const query = params.toString()
+  return http.get(`/accounts${query ? `?${query}` : ''}`)
 }
 
 /**
@@ -33,7 +37,8 @@ export function getTotalBalance() {
 }
 
 /**
- * @param {{name: string, type: AccountType, balance: number, currency?: string}} data
+ * Creates an account. Include `spaceId` in `data` to create it in a couple space.
+ * @param {{name: string, type: AccountType, balance: number, currency?: string, spaceId?: number}} data
  * @returns {Promise<Account>}
  */
 export function createAccount(data) {

@@ -14,19 +14,22 @@ import { http } from './http'
 
 /**
  * Lists the user's categories. Active only by default.
- * @param {{type?: TransactionType, includeInactive?: boolean}} [options]
+ * When `spaceId` is set, lists the couple space's categories instead.
+ * @param {{type?: TransactionType, includeInactive?: boolean, spaceId?: number}} [options]
  * @returns {Promise<Category[]>}
  */
-export function listCategories({ type, includeInactive } = {}) {
+export function listCategories({ type, includeInactive, spaceId } = {}) {
   const params = new URLSearchParams()
   if (type) params.set('type', type)
   if (includeInactive) params.set('includeInactive', 'true')
+  if (spaceId != null) params.set('spaceId', String(spaceId))
   const query = params.toString()
   return http.get(`/categories${query ? `?${query}` : ''}`)
 }
 
 /**
- * @param {{name: string, type: TransactionType, color: string}} data
+ * Creates a category. Include `spaceId` in `data` to create it in a couple space.
+ * @param {{name: string, type: TransactionType, color: string, spaceId?: number}} data
  * @returns {Promise<Category>}
  */
 export function createCategory(data) {

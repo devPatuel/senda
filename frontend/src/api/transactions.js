@@ -46,10 +46,11 @@ import { http } from './http'
 
 /**
  * Lists the user's transactions, paginated and ordered by date desc.
- * @param {{page?: number, size?: number, from?: string, to?: string, categoryId?: number|string, type?: TransactionType}} [options]
+ * When `spaceId` is set, lists the couple space's transactions instead.
+ * @param {{page?: number, size?: number, from?: string, to?: string, categoryId?: number|string, type?: TransactionType, spaceId?: number}} [options]
  * @returns {Promise<TransactionPage>}
  */
-export function listTransactions({ page = 0, size = 20, from, to, categoryId, type } = {}) {
+export function listTransactions({ page = 0, size = 20, from, to, categoryId, type, spaceId } = {}) {
   const params = new URLSearchParams()
   params.set('page', String(page))
   params.set('size', String(size))
@@ -57,6 +58,7 @@ export function listTransactions({ page = 0, size = 20, from, to, categoryId, ty
   if (to) params.set('to', to)
   if (categoryId) params.set('categoryId', String(categoryId))
   if (type) params.set('type', type)
+  if (spaceId != null) params.set('spaceId', String(spaceId))
   return http.get(`/transactions?${params.toString()}`)
 }
 
@@ -69,7 +71,8 @@ export function getTransaction(id) {
 }
 
 /**
- * @param {{categoryId: number, type: TransactionType, amount: number, date: string, description: string|null}} data
+ * Creates a transaction. Include `spaceId` in `data` to record it in a couple space.
+ * @param {{categoryId: number, type: TransactionType, amount: number, date: string, description: string|null, spaceId?: number}} data
  * @returns {Promise<Transaction>}
  */
 export function createTransaction(data) {
@@ -78,7 +81,7 @@ export function createTransaction(data) {
 
 /**
  * @param {number} id
- * @param {{categoryId: number, type: TransactionType, amount: number, date: string, description: string|null}} data
+ * @param {{categoryId: number, type: TransactionType, amount: number, date: string, description: string|null, spaceId?: number}} data
  * @returns {Promise<Transaction>}
  */
 export function updateTransaction(id, data) {
@@ -95,12 +98,16 @@ export function removeTransaction(id) {
 
 /**
  * Monthly summary: totals, balance and per-category breakdown.
+ * When `spaceId` is set, summarizes the couple space's transactions instead.
  * @param {number} year
  * @param {number} month 1-based month
+ * @param {number} [spaceId]
  * @returns {Promise<MonthlySummary>}
  */
-export function getSummary(year, month) {
-  return http.get(`/transactions/summary?year=${year}&month=${month}`)
+export function getSummary(year, month, spaceId) {
+  const params = new URLSearchParams({ year: String(year), month: String(month) })
+  if (spaceId != null) params.set('spaceId', String(spaceId))
+  return http.get(`/transactions/summary?${params.toString()}`)
 }
 
 /**

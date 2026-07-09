@@ -9,7 +9,8 @@ import { http } from './http'
  * @property {number} investmentsNfts      Sum of ourCurrentValue for all NFTs.
  * @property {number} debtsInFavor      Pending amounts owed to the user (THEY_OWE_ME).
  * @property {number} debtsAgainst      Pending amounts the user owes others (I_OWE).
- * @property {number} net               Net worth: liquid + investments + debtsInFavor - debtsAgainst.
+ * @property {number} coupleShare       Half of the balance of the user's couple-space accounts.
+ * @property {number} net               Net worth: liquid + investments + debtsInFavor - debtsAgainst + coupleShare.
  */
 
 /**
