@@ -41,6 +41,9 @@ public class Category {
     @Column(name = "target_percentage")
     private BigDecimal targetPercentage;
 
+    @Column(name = "space_id")
+    private Long spaceId;
+
     protected Category() {
         // JPA only
     }
@@ -95,5 +98,13 @@ public class Category {
 
     public void setTargetPercentage(BigDecimal targetPercentage) {
         this.targetPercentage = targetPercentage;
+    }
+
+    public Long getSpaceId() {
+        return spaceId;
+    }
+
+    public void setSpaceId(Long spaceId) {
+        this.spaceId = spaceId;
     }
 }

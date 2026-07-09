@@ -47,6 +47,9 @@ public class Transaction {
     @Column(length = 500)
     private String description;
 
+    @Column(name = "space_id")
+    private Long spaceId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -117,6 +120,14 @@ public class Transaction {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public Long getSpaceId() {
+        return spaceId;
+    }
+
+    public void setSpaceId(Long spaceId) {
+        this.spaceId = spaceId;
     }
 
     public Instant getCreatedAt() {

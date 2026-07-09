@@ -40,6 +40,9 @@ public class Account {
     @Column(nullable = false)
     private boolean archived = false;
 
+    @Column(name = "space_id")
+    private Long spaceId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -109,6 +112,14 @@ public class Account {
 
     public void setArchived(boolean archived) {
         this.archived = archived;
+    }
+
+    public Long getSpaceId() {
+        return spaceId;
+    }
+
+    public void setSpaceId(Long spaceId) {
+        this.spaceId = spaceId;
     }
 
     public Instant getCreatedAt() {
