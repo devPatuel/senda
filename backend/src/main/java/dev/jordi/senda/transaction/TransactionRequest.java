@@ -14,5 +14,6 @@ public record TransactionRequest(
         @NotNull TransactionType type,
         @NotNull @Positive @Digits(integer = 10, fraction = 2) BigDecimal amount,
         @NotNull LocalDate date,
-        @Size(max = 500) String description) {
+        @Size(max = 500) String description,
+        Long spaceId) {
 }

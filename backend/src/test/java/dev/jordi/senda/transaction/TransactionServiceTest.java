@@ -5,6 +5,7 @@ import dev.jordi.senda.category.CategoryRepository;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.NotFoundException;
 import dev.jordi.senda.common.TransactionType;
+import dev.jordi.senda.space.SpaceAccess;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +34,8 @@ class TransactionServiceTest {
     private TransactionRepository transactionRepository;
     @Mock
     private CategoryRepository categoryRepository;
+    @Mock
+    private SpaceAccess spaceAccess;
 
     private TransactionService service;
 
@@ -41,7 +44,7 @@ class TransactionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new TransactionService(transactionRepository, categoryRepository);
+        service = new TransactionService(transactionRepository, categoryRepository, spaceAccess);
         expenseCategory = category(5L, "Comida", TransactionType.EXPENSE, true);
         incomeCategory = category(6L, "Nómina", TransactionType.INCOME, true);
     }
@@ -53,9 +56,17 @@ class TransactionServiceTest {
         return category;
     }
 
+    private static Category spaceCategory(Long id, Long spaceId, TransactionType type) {
+        Category category = new Category(USER_ID, "Cena fuera", type, "#EF4444");
+        ReflectionTestUtils.setField(category, "id", id);
+        category.setActive(true);
+        category.setSpaceId(spaceId);
+        return category;
+    }
+
     private static TransactionRequest expenseRequest(Long categoryId) {
         return new TransactionRequest(categoryId, TransactionType.EXPENSE,
-                new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch");
+                new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch", null);
     }
 
     // --- create ---
@@ -114,6 +125,34 @@ class TransactionServiceTest {
                 .isInstanceOf(ConflictException.class);
     }
 
+    @Test
+    void createInSpaceResolvesSpaceCategoryAndSetsSpaceId() {
+        Category spaceCat = spaceCategory(3L, 7L, TransactionType.EXPENSE);
+        when(categoryRepository.findByIdAndSpaceId(3L, 7L)).thenReturn(Optional.of(spaceCat));
+        when(transactionRepository.save(org.mockito.ArgumentMatchers.any(Transaction.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.create(USER_ID, new TransactionRequest(3L, TransactionType.EXPENSE,
+                new BigDecimal("20.00"), LocalDate.now(), "Cena", 7L));
+
+        verify(spaceAccess).assertActiveMember(USER_ID, 7L);
+        ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
+        verify(transactionRepository).save(captor.capture());
+        assertThat(captor.getValue().getSpaceId()).isEqualTo(7L);
+    }
+
+    @Test
+    void createPersonalRejectsSpaceCategory() {
+        // A personal request (spaceId=null) can only see personal categories;
+        // a space category is not found as personal -> 404.
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(3L, USER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.create(USER_ID, new TransactionRequest(3L, TransactionType.EXPENSE,
+                new BigDecimal("20.00"), LocalDate.now(), "x", null)))
+                .isInstanceOf(NotFoundException.class);
+        verify(transactionRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
     // --- update ---
 
     @Test
@@ -121,11 +160,11 @@ class TransactionServiceTest {
         Transaction existing = new Transaction(USER_ID, expenseCategory, TransactionType.EXPENSE,
                 new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch");
         ReflectionTestUtils.setField(existing, "id", 10L);
-        when(transactionRepository.findByIdAndUserIdAndSpaceIdIsNull(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(transactionRepository.findById(10L)).thenReturn(Optional.of(existing));
         when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(6L, USER_ID)).thenReturn(Optional.of(incomeCategory));
 
         TransactionRequest request = new TransactionRequest(6L, TransactionType.INCOME,
-                new BigDecimal("1500.00"), LocalDate.of(2026, 6, 1), null);
+                new BigDecimal("1500.00"), LocalDate.of(2026, 6, 1), null, null);
         TransactionResponse response = service.update(USER_ID, 10L, request);
 
         assertThat(response.categoryId()).isEqualTo(6L);
@@ -144,11 +183,11 @@ class TransactionServiceTest {
         Transaction existing = new Transaction(USER_ID, inactive, TransactionType.EXPENSE,
                 new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch");
         ReflectionTestUtils.setField(existing, "id", 10L);
-        when(transactionRepository.findByIdAndUserIdAndSpaceIdIsNull(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(transactionRepository.findById(10L)).thenReturn(Optional.of(existing));
         when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.of(inactive));
 
         TransactionRequest request = new TransactionRequest(5L, TransactionType.EXPENSE,
-                new BigDecimal("20.00"), LocalDate.of(2026, 6, 11), "Lunch");
+                new BigDecimal("20.00"), LocalDate.of(2026, 6, 11), "Lunch", null);
         TransactionResponse response = service.update(USER_ID, 10L, request);
 
         assertThat(response.categoryId()).isEqualTo(5L);
@@ -162,7 +201,7 @@ class TransactionServiceTest {
                 new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch");
         ReflectionTestUtils.setField(existing, "id", 10L);
         Category otherInactive = category(7L, "Caprichos", TransactionType.EXPENSE, false);
-        when(transactionRepository.findByIdAndUserIdAndSpaceIdIsNull(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(transactionRepository.findById(10L)).thenReturn(Optional.of(existing));
         when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(7L, USER_ID)).thenReturn(Optional.of(otherInactive));
 
         assertThatThrownBy(() -> service.update(USER_ID, 10L, expenseRequest(7L)))
@@ -171,7 +210,7 @@ class TransactionServiceTest {
 
     @Test
     void updateForeignOrMissingTransactionThrowsNotFound() {
-        when(transactionRepository.findByIdAndUserIdAndSpaceIdIsNull(99L, USER_ID)).thenReturn(Optional.empty());
+        when(transactionRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.update(USER_ID, 99L, expenseRequest(5L)))
                 .isInstanceOf(NotFoundException.class);
@@ -183,7 +222,7 @@ class TransactionServiceTest {
     void deleteRemovesOwnedTransaction() {
         Transaction existing = new Transaction(USER_ID, expenseCategory, TransactionType.EXPENSE,
                 new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), null);
-        when(transactionRepository.findByIdAndUserIdAndSpaceIdIsNull(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(transactionRepository.findById(10L)).thenReturn(Optional.of(existing));
 
         service.delete(USER_ID, 10L);
 
@@ -192,7 +231,7 @@ class TransactionServiceTest {
 
     @Test
     void deleteForeignOrMissingTransactionThrowsNotFound() {
-        when(transactionRepository.findByIdAndUserIdAndSpaceIdIsNull(99L, USER_ID)).thenReturn(Optional.empty());
+        when(transactionRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.delete(USER_ID, 99L))
                 .isInstanceOf(NotFoundException.class);
@@ -202,15 +241,15 @@ class TransactionServiceTest {
 
     @Test
     void listRejectsNegativePage() {
-        assertThatThrownBy(() -> service.list(USER_ID, -1, 20, null, null, null, null))
+        assertThatThrownBy(() -> service.list(USER_ID, null, -1, 20, null, null, null, null))
                 .isInstanceOf(InvalidTransactionException.class);
     }
 
     @Test
     void listRejectsSizeOutOfRange() {
-        assertThatThrownBy(() -> service.list(USER_ID, 0, 101, null, null, null, null))
+        assertThatThrownBy(() -> service.list(USER_ID, null, 0, 101, null, null, null, null))
                 .isInstanceOf(InvalidTransactionException.class);
-        assertThatThrownBy(() -> service.list(USER_ID, 0, 0, null, null, null, null))
+        assertThatThrownBy(() -> service.list(USER_ID, null, 0, 0, null, null, null, null))
                 .isInstanceOf(InvalidTransactionException.class);
     }
 
@@ -218,9 +257,9 @@ class TransactionServiceTest {
 
     @Test
     void summaryRejectsInvalidMonth() {
-        assertThatThrownBy(() -> service.summary(USER_ID, 2026, 0))
+        assertThatThrownBy(() -> service.summary(USER_ID, null, 2026, 0))
                 .isInstanceOf(InvalidTransactionException.class);
-        assertThatThrownBy(() -> service.summary(USER_ID, 2026, 13))
+        assertThatThrownBy(() -> service.summary(USER_ID, null, 2026, 13))
                 .isInstanceOf(InvalidTransactionException.class);
     }
 
@@ -233,7 +272,7 @@ class TransactionServiceTest {
         when(transactionRepository.summarizeByCategory(USER_ID,
                 LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30))).thenReturn(rows);
 
-        MonthlySummaryResponse summary = service.summary(USER_ID, 2026, 6);
+        MonthlySummaryResponse summary = service.summary(USER_ID, null, 2026, 6);
 
         assertThat(summary.year()).isEqualTo(2026);
         assertThat(summary.month()).isEqualTo(6);
@@ -248,7 +287,7 @@ class TransactionServiceTest {
         when(transactionRepository.summarizeByCategory(USER_ID,
                 LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31))).thenReturn(List.of());
 
-        MonthlySummaryResponse summary = service.summary(USER_ID, 2026, 1);
+        MonthlySummaryResponse summary = service.summary(USER_ID, null, 2026, 1);
 
         assertThat(summary.totalIncome()).isEqualByComparingTo("0.00");
         assertThat(summary.totalExpense()).isEqualByComparingTo("0.00");

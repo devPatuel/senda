@@ -165,7 +165,7 @@ class TransactionControllerTest {
 
     @Test
     void listUsesDefaultPagination() throws Exception {
-        when(transactionService.list(eq(USER_ID), eq(0), eq(20), isNull(), isNull(), isNull(), isNull()))
+        when(transactionService.list(eq(USER_ID), isNull(), eq(0), eq(20), isNull(), isNull(), isNull(), isNull()))
                 .thenReturn(new PageResponse<>(List.of(SAMPLE), 0, 20, 1, 1));
 
         mockMvc.perform(get("/api/transactions").header("Authorization", bearer))
@@ -176,12 +176,12 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.totalPages").value(1));
 
-        verify(transactionService).list(USER_ID, 0, 20, null, null, null, null);
+        verify(transactionService).list(USER_ID, null, 0, 20, null, null, null, null);
     }
 
     @Test
     void listPassesFiltersToService() throws Exception {
-        when(transactionService.list(eq(USER_ID), eq(1), eq(50),
+        when(transactionService.list(eq(USER_ID), isNull(), eq(1), eq(50),
                 eq(LocalDate.of(2026, 6, 1)), eq(LocalDate.of(2026, 6, 30)),
                 eq(5L), eq(TransactionType.EXPENSE)))
                 .thenReturn(new PageResponse<>(List.of(), 1, 50, 0, 0));
@@ -193,13 +193,13 @@ class TransactionControllerTest {
                         .param("categoryId", "5").param("type", "EXPENSE"))
                 .andExpect(status().isOk());
 
-        verify(transactionService).list(USER_ID, 1, 50,
+        verify(transactionService).list(USER_ID, null, 1, 50,
                 LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), 5L, TransactionType.EXPENSE);
     }
 
     @Test
     void listWithInvalidPagingReturns400() throws Exception {
-        when(transactionService.list(eq(USER_ID), eq(0), eq(101), isNull(), isNull(), isNull(), isNull()))
+        when(transactionService.list(eq(USER_ID), isNull(), eq(0), eq(101), isNull(), isNull(), isNull(), isNull()))
                 .thenThrow(new InvalidTransactionException("size must be between 1 and 100"));
 
         mockMvc.perform(get("/api/transactions")
@@ -262,7 +262,7 @@ class TransactionControllerTest {
 
     @Test
     void summaryReturnsContractShape() throws Exception {
-        when(transactionService.summary(USER_ID, 2026, 6)).thenReturn(new MonthlySummaryResponse(
+        when(transactionService.summary(USER_ID, null, 2026, 6)).thenReturn(new MonthlySummaryResponse(
                 2026, 6, new BigDecimal("1500.00"), new BigDecimal("120.75"), new BigDecimal("1379.25"),
                 List.of(new CategorySummary(5L, "Comida", "#EF4444", TransactionType.EXPENSE,
                         new BigDecimal("100.50")))));
@@ -293,7 +293,7 @@ class TransactionControllerTest {
 
     @Test
     void summaryWithInvalidMonthReturns400() throws Exception {
-        when(transactionService.summary(anyLong(), eq(2026), eq(13)))
+        when(transactionService.summary(anyLong(), isNull(), eq(2026), eq(13)))
                 .thenThrow(new InvalidTransactionException("month must be between 1 and 12"));
 
         mockMvc.perform(get("/api/transactions/summary")

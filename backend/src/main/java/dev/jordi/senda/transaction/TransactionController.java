@@ -34,18 +34,20 @@ public class TransactionController {
 
     @GetMapping
     public PageResponse<TransactionResponse> list(
+            @RequestParam(required = false) Long spaceId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) TransactionType type) {
-        return transactionService.list(CurrentUser.id(), page, size, from, to, categoryId, type);
+        return transactionService.list(CurrentUser.id(), spaceId, page, size, from, to, categoryId, type);
     }
 
     @GetMapping("/summary")
-    public MonthlySummaryResponse summary(@RequestParam int year, @RequestParam int month) {
-        return transactionService.summary(CurrentUser.id(), year, month);
+    public MonthlySummaryResponse summary(@RequestParam(required = false) Long spaceId,
+                                          @RequestParam int year, @RequestParam int month) {
+        return transactionService.summary(CurrentUser.id(), spaceId, year, month);
     }
 
     @GetMapping("/trends")

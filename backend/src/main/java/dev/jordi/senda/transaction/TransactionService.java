@@ -5,6 +5,7 @@ import dev.jordi.senda.category.CategoryRepository;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.NotFoundException;
 import dev.jordi.senda.common.TransactionType;
+import dev.jordi.senda.space.SpaceAccess;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -34,15 +35,18 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
+    private final SpaceAccess spaceAccess;
 
     public TransactionService(TransactionRepository transactionRepository,
-                              CategoryRepository categoryRepository) {
+                              CategoryRepository categoryRepository,
+                              SpaceAccess spaceAccess) {
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
+        this.spaceAccess = spaceAccess;
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<TransactionResponse> list(Long userId, int page, int size,
+    public PageResponse<TransactionResponse> list(Long userId, Long spaceId, int page, int size,
                                                   LocalDate from, LocalDate to,
                                                   Long categoryId, TransactionType type) {
         if (page < 0) {
@@ -51,10 +55,13 @@ public class TransactionService {
         if (size < 1 || size > MAX_PAGE_SIZE) {
             throw new InvalidTransactionException("size must be between 1 and " + MAX_PAGE_SIZE);
         }
+        if (spaceId != null) {
+            spaceAccess.assertActiveMember(userId, spaceId);
+        }
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Order.desc("date"), Sort.Order.desc("id")));
         Page<Transaction> result = transactionRepository.findAll(
-                buildSpecification(userId, from, to, categoryId, type), pageable);
+                buildSpecification(userId, spaceId, from, to, categoryId, type), pageable);
         List<TransactionResponse> content = result.getContent().stream()
                 .map(TransactionResponse::from)
                 .toList();
@@ -67,34 +74,36 @@ public class TransactionService {
         Category category = resolveCategory(userId, request, null);
         Transaction transaction = new Transaction(userId, category, request.type(),
                 request.amount(), request.date(), request.description());
+        transaction.setSpaceId(request.spaceId());
         return TransactionResponse.from(transactionRepository.save(transaction));
     }
 
     @Transactional(readOnly = true)
     public TransactionResponse get(Long userId, Long id) {
-        return TransactionResponse.from(findOwned(userId, id));
+        return TransactionResponse.from(findAccessible(userId, id));
     }
 
     @Transactional
     public TransactionResponse update(Long userId, Long id, TransactionRequest request) {
-        Transaction transaction = findOwned(userId, id);
+        Transaction transaction = findAccessible(userId, id);
         Category category = resolveCategory(userId, request, transaction.getCategory().getId());
         transaction.setCategory(category);
         transaction.setType(request.type());
         transaction.setAmount(request.amount());
         transaction.setDate(request.date());
         transaction.setDescription(request.description());
+        transaction.setSpaceId(request.spaceId());
         // Managed entity: JPA dirty checking flushes the update on commit
         return TransactionResponse.from(transaction);
     }
 
     @Transactional
     public void delete(Long userId, Long id) {
-        transactionRepository.delete(findOwned(userId, id));
+        transactionRepository.delete(findAccessible(userId, id));
     }
 
     @Transactional(readOnly = true)
-    public MonthlySummaryResponse summary(Long userId, int year, int month) {
+    public MonthlySummaryResponse summary(Long userId, Long spaceId, int year, int month) {
         if (year < 1 || year > 9999) {
             throw new InvalidTransactionException("year must be between 1 and 9999");
         }
@@ -103,7 +112,13 @@ public class TransactionService {
         }
         LocalDate from = LocalDate.of(year, month, 1);
         LocalDate to = from.plusMonths(1).minusDays(1);
-        List<CategorySummary> byCategory = transactionRepository.summarizeByCategory(userId, from, to);
+        List<CategorySummary> byCategory;
+        if (spaceId == null) {
+            byCategory = transactionRepository.summarizeByCategory(userId, from, to);
+        } else {
+            spaceAccess.assertActiveMember(userId, spaceId);
+            byCategory = transactionRepository.summarizeByCategoryForSpace(spaceId, from, to);
+        }
         BigDecimal totalIncome = sumByType(byCategory, TransactionType.INCOME);
         BigDecimal totalExpense = sumByType(byCategory, TransactionType.EXPENSE);
         return new MonthlySummaryResponse(year, month, totalIncome, totalExpense,
@@ -142,15 +157,39 @@ public class TransactionService {
         return series;
     }
 
-    private Transaction findOwned(Long userId, Long id) {
-        // Foreign or missing resource both map to 404 to avoid leaking existence
-        return transactionRepository.findByIdAndUserIdAndSpaceIdIsNull(id, userId)
+    /**
+     * Loads a transaction the caller may act on: a personal one they authored, or
+     * a shared one of a space they are an ACTIVE member of. 404 otherwise (never
+     * 403: do not reveal the resource exists). get/delete carry no spaceId, so the
+     * scope is read off the row itself.
+     */
+    private Transaction findAccessible(Long userId, Long id) {
+        Transaction transaction = transactionRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Transaction not found"));
+        if (transaction.getSpaceId() == null) {
+            if (!transaction.getUserId().equals(userId)) {
+                throw new NotFoundException("Transaction not found");
+            }
+        } else {
+            spaceAccess.assertActiveMember(userId, transaction.getSpaceId());
+        }
+        return transaction;
     }
 
     private Category resolveCategory(Long userId, TransactionRequest request, Long currentCategoryId) {
-        Category category = categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(request.categoryId(), userId)
-                .orElseThrow(() -> new NotFoundException("Category not found"));
+        // A personal transaction must use a personal category; a space transaction a
+        // category of that same space. Resolving in the request's scope enforces the
+        // rule: a cross-scope categoryId simply is not found -> 404.
+        Long spaceId = request.spaceId();
+        Category category;
+        if (spaceId == null) {
+            category = categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(request.categoryId(), userId)
+                    .orElseThrow(() -> new NotFoundException("Category not found"));
+        } else {
+            spaceAccess.assertActiveMember(userId, spaceId);
+            category = categoryRepository.findByIdAndSpaceId(request.categoryId(), spaceId)
+                    .orElseThrow(() -> new NotFoundException("Category not found"));
+        }
         // Keeping the transaction's current category is allowed even when it was
         // deactivated (soft-deleted): otherwise a transaction whose category was
         // deactivated could never be edited without also changing its category.
@@ -165,10 +204,14 @@ public class TransactionService {
         return category;
     }
 
-    private Specification<Transaction> buildSpecification(Long userId, LocalDate from, LocalDate to,
+    private Specification<Transaction> buildSpecification(Long userId, Long spaceId, LocalDate from, LocalDate to,
                                                           Long categoryId, TransactionType type) {
-        // userId always present: every query is scoped to the authenticated user
-        Specification<Transaction> spec = (root, query, cb) -> cb.equal(root.get("userId"), userId);
+        // Personal: scope to the user AND exclude space rows (they keep the author's
+        // user_id, so without isNull(spaceId) they would leak into personal views).
+        // Space: scope to the space; both members see every row regardless of author.
+        Specification<Transaction> spec = spaceId == null
+                ? (root, query, cb) -> cb.and(cb.equal(root.get("userId"), userId), cb.isNull(root.get("spaceId")))
+                : (root, query, cb) -> cb.equal(root.get("spaceId"), spaceId);
         if (from != null) {
             spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("date"), from));
         }
