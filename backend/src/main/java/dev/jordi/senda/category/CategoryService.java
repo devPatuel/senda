@@ -39,8 +39,8 @@ public class CategoryService {
     @Transactional(readOnly = true)
     public List<CategoryResponse> list(Long userId, TransactionType type, boolean includeInactive) {
         List<Category> categories = includeInactive
-                ? categoryRepository.findByUserId(userId)
-                : categoryRepository.findByUserIdAndActiveTrue(userId);
+                ? categoryRepository.findByUserIdAndSpaceIdIsNull(userId)
+                : categoryRepository.findByUserIdAndSpaceIdIsNullAndActiveTrue(userId);
         return categories.stream()
                 .filter(category -> type == null || category.getType() == type)
                 .sorted(Comparator.comparing(Category::getName, String.CASE_INSENSITIVE_ORDER)
@@ -51,7 +51,7 @@ public class CategoryService {
 
     @Transactional
     public CategoryResponse create(Long userId, CategoryRequest request) {
-        if (categoryRepository.existsByUserIdAndNameAndType(userId, request.name(), request.type())) {
+        if (categoryRepository.existsByUserIdAndNameAndTypeAndSpaceIdIsNull(userId, request.name(), request.type())) {
             throw new ConflictException("Category already exists for this type");
         }
         Category saved = categoryRepository.save(
@@ -63,7 +63,7 @@ public class CategoryService {
     public CategoryResponse update(Long userId, Long id, CategoryUpdateRequest request) {
         Category category = findOwned(userId, id);
         boolean renamed = !category.getName().equals(request.name());
-        if (renamed && categoryRepository.existsByUserIdAndNameAndType(
+        if (renamed && categoryRepository.existsByUserIdAndNameAndTypeAndSpaceIdIsNull(
                 userId, request.name(), category.getType())) {
             throw new ConflictException("Category already exists for this type");
         }
@@ -108,7 +108,7 @@ public class CategoryService {
         Map<Long, BigDecimal> spent = transactionRepository.sumExpenseByCategory(userId, from, to).stream()
                 .collect(Collectors.toMap(CategorySpent::categoryId, CategorySpent::spent));
 
-        List<CategoryBudgetLine> lines = categoryRepository.findByUserIdAndActiveTrue(userId).stream()
+        List<CategoryBudgetLine> lines = categoryRepository.findByUserIdAndSpaceIdIsNullAndActiveTrue(userId).stream()
                 .filter(c -> c.getType() == TransactionType.EXPENSE)
                 .sorted(Comparator.comparing(Category::getName, String.CASE_INSENSITIVE_ORDER)
                         .thenComparing(Category::getId, Comparator.nullsLast(Comparator.naturalOrder())))
@@ -176,7 +176,7 @@ public class CategoryService {
 
     private Category findOwned(Long userId, Long id) {
         // 404 (not 403) for another user's category: do not reveal its existence
-        return categoryRepository.findByIdAndUserId(id, userId)
+        return categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(id, userId)
                 .orElseThrow(() -> new NotFoundException("Category not found"));
     }
 }

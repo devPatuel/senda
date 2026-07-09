@@ -187,7 +187,7 @@ class RecurringPaymentServiceTest {
 
     @Test
     void createAnnualWithoutMonthIsRejected() {
-        when(categoryRepository.findByIdAndUserId(CATEGORY_ID, USER_ID))
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(CATEGORY_ID, USER_ID))
                 .thenReturn(Optional.of(expenseCategory()));
 
         assertThatThrownBy(() -> service.create(USER_ID, request(RecurringFrequency.ANNUAL, 10, null, null, null)))
@@ -197,7 +197,7 @@ class RecurringPaymentServiceTest {
 
     @Test
     void createQuarterlyWithoutMonthIsRejected() {
-        when(categoryRepository.findByIdAndUserId(CATEGORY_ID, USER_ID))
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(CATEGORY_ID, USER_ID))
                 .thenReturn(Optional.of(expenseCategory()));
 
         assertThatThrownBy(() -> service.create(USER_ID, request(RecurringFrequency.QUARTERLY, 10, null, null, null)))
@@ -207,7 +207,7 @@ class RecurringPaymentServiceTest {
 
     @Test
     void createWeeklyWithoutDayOfWeekIsRejected() {
-        when(categoryRepository.findByIdAndUserId(CATEGORY_ID, USER_ID))
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(CATEGORY_ID, USER_ID))
                 .thenReturn(Optional.of(expenseCategory()));
 
         assertThatThrownBy(() -> service.create(USER_ID, request(RecurringFrequency.WEEKLY, 1, null, null, null)))
@@ -217,7 +217,7 @@ class RecurringPaymentServiceTest {
 
     @Test
     void createWithForeignCategoryReturns404() {
-        when(categoryRepository.findByIdAndUserId(CATEGORY_ID, USER_ID)).thenReturn(Optional.empty());
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(CATEGORY_ID, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.create(USER_ID, request(RecurringFrequency.MONTHLY, 1, null, null, null)))
                 .isInstanceOf(NotFoundException.class);
@@ -225,7 +225,7 @@ class RecurringPaymentServiceTest {
 
     @Test
     void createWithIncomeCategoryIsRejected() {
-        when(categoryRepository.findByIdAndUserId(CATEGORY_ID, USER_ID))
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(CATEGORY_ID, USER_ID))
                 .thenReturn(Optional.of(incomeCategory()));
 
         assertThatThrownBy(() -> service.create(USER_ID, request(RecurringFrequency.MONTHLY, 1, null, null, null)))
@@ -313,7 +313,7 @@ class RecurringPaymentServiceTest {
         ReflectionTestUtils.setField(sooner, "id", 2L);
 
         when(repository.findByUserId(USER_ID)).thenReturn(java.util.List.of(later, sooner));
-        lenient().when(categoryRepository.findByUserId(USER_ID))
+        lenient().when(categoryRepository.findByUserIdAndSpaceIdIsNull(USER_ID))
                 .thenReturn(java.util.List.of(expenseCategory()));
 
         var result = service.list(USER_ID);
@@ -323,7 +323,7 @@ class RecurringPaymentServiceTest {
     }
 
     private void stubSaveWithId(long id) {
-        when(categoryRepository.findByIdAndUserId(CATEGORY_ID, USER_ID))
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(CATEGORY_ID, USER_ID))
                 .thenReturn(Optional.of(expenseCategory()));
         when(repository.save(any(RecurringPayment.class))).thenAnswer(inv -> {
             RecurringPayment p = inv.getArgument(0);

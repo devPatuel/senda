@@ -82,7 +82,7 @@ class AccountServiceTest {
     @Test
     void updateChangesFieldsAndArchives() {
         Account existing = account(10L, "Banco", AccountType.BANK, "100.00", false);
-        when(accountRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(accountRepository.findByIdAndUserIdAndSpaceIdIsNull(10L, USER_ID)).thenReturn(Optional.of(existing));
 
         AccountResponse response = service.update(USER_ID, 10L,
                 new AccountUpdateRequest("Banco principal", AccountType.BANK,
@@ -96,7 +96,7 @@ class AccountServiceTest {
     @Test
     void updateKeepsArchivedWhenNull() {
         Account existing = account(10L, "Banco", AccountType.BANK, "100.00", true);
-        when(accountRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(accountRepository.findByIdAndUserIdAndSpaceIdIsNull(10L, USER_ID)).thenReturn(Optional.of(existing));
 
         AccountResponse response = service.update(USER_ID, 10L,
                 new AccountUpdateRequest("Banco", AccountType.BANK, new BigDecimal("100.00"), "EUR", null));
@@ -107,7 +107,7 @@ class AccountServiceTest {
 
     @Test
     void updateForeignOrMissingAccountThrowsNotFound() {
-        when(accountRepository.findByIdAndUserId(99L, USER_ID)).thenReturn(Optional.empty());
+        when(accountRepository.findByIdAndUserIdAndSpaceIdIsNull(99L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.update(USER_ID, 99L,
                 new AccountUpdateRequest("X", AccountType.BANK, BigDecimal.ONE, null, null)))
@@ -119,7 +119,7 @@ class AccountServiceTest {
     @Test
     void deleteRemovesOwnedAccount() {
         Account existing = account(10L, "Banco", AccountType.BANK, "100.00", false);
-        when(accountRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(accountRepository.findByIdAndUserIdAndSpaceIdIsNull(10L, USER_ID)).thenReturn(Optional.of(existing));
 
         service.delete(USER_ID, 10L);
 
@@ -128,7 +128,7 @@ class AccountServiceTest {
 
     @Test
     void deleteForeignOrMissingAccountThrowsNotFound() {
-        when(accountRepository.findByIdAndUserId(99L, USER_ID)).thenReturn(Optional.empty());
+        when(accountRepository.findByIdAndUserIdAndSpaceIdIsNull(99L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.delete(USER_ID, 99L)).isInstanceOf(NotFoundException.class);
         verify(accountRepository, never()).delete(any());
@@ -154,7 +154,7 @@ class AccountServiceTest {
 
     @Test
     void listSortsByNameCaseInsensitive() {
-        when(accountRepository.findByUserIdAndArchivedFalse(USER_ID)).thenReturn(List.of(
+        when(accountRepository.findByUserIdAndSpaceIdIsNullAndArchivedFalse(USER_ID)).thenReturn(List.of(
                 account(1L, "Zelle", AccountType.BANK, "1.00", false),
                 account(2L, "ahorro", AccountType.BANK, "2.00", false)));
 
@@ -165,12 +165,12 @@ class AccountServiceTest {
 
     @Test
     void listIncludeArchivedUsesFullQuery() {
-        when(accountRepository.findByUserId(USER_ID)).thenReturn(List.of(
+        when(accountRepository.findByUserIdAndSpaceIdIsNull(USER_ID)).thenReturn(List.of(
                 account(1L, "Banco", AccountType.BANK, "1.00", true)));
 
         List<AccountResponse> result = service.list(USER_ID, true);
 
         assertThat(result).hasSize(1);
-        verify(accountRepository).findByUserId(USER_ID);
+        verify(accountRepository).findByUserIdAndSpaceIdIsNull(USER_ID);
     }
 }

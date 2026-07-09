@@ -38,7 +38,7 @@ public class RecurringPaymentService {
 
     @Transactional(readOnly = true)
     public List<RecurringPaymentResponse> list(Long userId) {
-        Map<Long, Category> categories = categoryRepository.findByUserId(userId).stream()
+        Map<Long, Category> categories = categoryRepository.findByUserIdAndSpaceIdIsNull(userId).stream()
                 .collect(Collectors.toMap(Category::getId, c -> c));
         List<RecurringPayment> payments = repository.findByUserId(userId);
         List<Long> ids = payments.stream().map(RecurringPayment::getId).toList();
@@ -63,7 +63,7 @@ public class RecurringPaymentService {
                 resolveDayOfWeek(request), request.endDate()));
         // Baseline amount, so a later change can be compared against it
         historyRepository.save(new RecurringAmountHistory(saved.getId(), saved.getAmount()));
-        Category category = categoryRepository.findByIdAndUserId(saved.getCategoryId(), userId).orElse(null);
+        Category category = categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(saved.getCategoryId(), userId).orElse(null);
         return toResponse(saved, category, LocalDate.now(), null);
     }
 
@@ -85,7 +85,7 @@ public class RecurringPaymentService {
         if (request.amount().compareTo(oldAmount) != 0) {
             historyRepository.save(new RecurringAmountHistory(payment.getId(), request.amount()));
         }
-        Category category = categoryRepository.findByIdAndUserId(payment.getCategoryId(), userId).orElse(null);
+        Category category = categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(payment.getCategoryId(), userId).orElse(null);
         BigDecimal previousAmount = previousAmountOf(
                 historyRepository.findByRecurringIdOrderByChangedAtAscIdAsc(payment.getId()));
         // Managed entity: dirty checking flushes on commit
@@ -108,7 +108,7 @@ public class RecurringPaymentService {
      * fields: WEEKLY needs a day of week, ANNUAL and QUARTERLY need an anchor month.
      */
     private void validate(Long userId, RecurringPaymentRequest request) {
-        Category category = categoryRepository.findByIdAndUserId(request.categoryId(), userId)
+        Category category = categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(request.categoryId(), userId)
                 .orElseThrow(() -> new NotFoundException("Category not found"));
         if (category.getType() != TransactionType.EXPENSE) {
             throw new InvalidRecurringException("A recurring payment must use an expense category");

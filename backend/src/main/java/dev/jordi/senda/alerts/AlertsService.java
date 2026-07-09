@@ -75,7 +75,7 @@ public class AlertsService {
         }
         LocalDate from = LocalDate.now(ZONE).minusMonths(2);
         Set<Long> usedCategories = Set.copyOf(transactionRepository.categoryIdsWithExpenseSince(userId, from));
-        Map<Long, Category> categories = categoryRepository.findByUserId(userId).stream()
+        Map<Long, Category> categories = categoryRepository.findByUserIdAndSpaceIdIsNull(userId).stream()
                 .collect(Collectors.toMap(Category::getId, c -> c));
 
         return payments.stream()

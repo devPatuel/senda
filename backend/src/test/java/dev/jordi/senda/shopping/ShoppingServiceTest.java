@@ -107,7 +107,7 @@ class ShoppingServiceTest {
         ShoppingItemRequest req = new ShoppingItemRequest(
                 ShoppingListType.WISHLIST, "NAS", new BigDecimal("500.00"), ENVELOPE_ID, 1, null);
 
-        when(categoryRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(ENVELOPE_ID, USER_ID))
                 .thenReturn(Optional.of(expenseCategory(ENVELOPE_ID, USER_ID, "Ahorro")));
         when(categoryBalanceRepository.findByCategoryId(ENVELOPE_ID))
                 .thenReturn(Optional.of(balance(ENVELOPE_ID, USER_ID, "800.00")));
@@ -131,7 +131,7 @@ class ShoppingServiceTest {
         ShoppingItemRequest req = new ShoppingItemRequest(
                 ShoppingListType.WISHLIST, "Coche", new BigDecimal("15000.00"), ENVELOPE_ID, 2, null);
 
-        when(categoryRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(ENVELOPE_ID, USER_ID))
                 .thenReturn(Optional.of(expenseCategory(ENVELOPE_ID, USER_ID, "Ahorro")));
         when(categoryBalanceRepository.findByCategoryId(ENVELOPE_ID))
                 .thenReturn(Optional.of(balance(ENVELOPE_ID, USER_ID, "500.00")));
@@ -172,7 +172,7 @@ class ShoppingServiceTest {
         ShoppingItemRequest req = new ShoppingItemRequest(
                 ShoppingListType.WISHLIST, "Casa", null, ENVELOPE_ID, null, null);
 
-        when(categoryRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(ENVELOPE_ID, USER_ID))
                 .thenReturn(Optional.of(expenseCategory(ENVELOPE_ID, USER_ID, "Ahorro")));
         when(categoryBalanceRepository.findByCategoryId(ENVELOPE_ID))
                 .thenReturn(Optional.of(balance(ENVELOPE_ID, USER_ID, "200.00")));
@@ -194,7 +194,7 @@ class ShoppingServiceTest {
         ShoppingItemRequest req = new ShoppingItemRequest(
                 ShoppingListType.WISHLIST, "NAS", new BigDecimal("400.00"), ENVELOPE_ID, null, null);
 
-        when(categoryRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(ENVELOPE_ID, USER_ID))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.create(USER_ID, req))
@@ -209,7 +209,7 @@ class ShoppingServiceTest {
         ShoppingItemRequest req = new ShoppingItemRequest(
                 ShoppingListType.WISHLIST, "NAS", new BigDecimal("400.00"), ENVELOPE_ID, null, null);
 
-        when(categoryRepository.findByIdAndUserId(ENVELOPE_ID, USER_ID))
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(ENVELOPE_ID, USER_ID))
                 .thenReturn(Optional.of(incomeCategory(ENVELOPE_ID, USER_ID, "Nómina")));
 
         assertThatThrownBy(() -> service.create(USER_ID, req))

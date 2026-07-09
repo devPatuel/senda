@@ -10,16 +10,21 @@ import java.util.Optional;
 
 public interface AccountRepository extends JpaRepository<Account, Long> {
 
-    List<Account> findByUserId(Long userId);
+    // --- Personal (space_id IS NULL) ---
+    List<Account> findByUserIdAndSpaceIdIsNull(Long userId);
 
-    List<Account> findByUserIdAndArchivedFalse(Long userId);
+    List<Account> findByUserIdAndSpaceIdIsNullAndArchivedFalse(Long userId);
 
-    Optional<Account> findByIdAndUserId(Long id, Long userId);
+    Optional<Account> findByIdAndUserIdAndSpaceIdIsNull(Long id, Long userId);
 
-    /**
-     * Total liquid balance of the user's non-archived accounts, aggregated in
-     * the database. Returns {@code null} when the user has no such accounts.
-     */
-    @Query("select sum(a.balance) from Account a where a.userId = :userId and a.archived = false")
+    /** Total liquid balance of the user's non-archived PERSONAL accounts. Null when none. */
+    @Query("select sum(a.balance) from Account a where a.userId = :userId and a.spaceId is null and a.archived = false")
     BigDecimal sumActiveBalance(@Param("userId") Long userId);
+
+    // --- Space-scoped ---
+    List<Account> findBySpaceId(Long spaceId);
+
+    List<Account> findBySpaceIdAndArchivedFalse(Long spaceId);
+
+    Optional<Account> findByIdAndSpaceId(Long id, Long spaceId);
 }

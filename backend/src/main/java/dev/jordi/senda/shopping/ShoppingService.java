@@ -105,7 +105,7 @@ public class ShoppingService {
     }
 
     private void validateEnvelopeOwnership(Long categoryId, Long userId) {
-        Category category = categoryRepository.findByIdAndUserId(categoryId, userId)
+        Category category = categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(categoryId, userId)
                 .orElseThrow(() -> new NotFoundException("Envelope not found"));
         if (category.getType() != TransactionType.EXPENSE) {
             throw new InvalidShoppingException("Envelope must be an expense category");
@@ -138,7 +138,7 @@ public class ShoppingService {
 
         // Category may have been deleted after the item was created; use null gracefully
         String envelopeName = categoryRepository
-                .findByIdAndUserId(item.getEnvelopeId(), userId)
+                .findByIdAndUserIdAndSpaceIdIsNull(item.getEnvelopeId(), userId)
                 .map(Category::getName)
                 .orElse(null);
 

@@ -8,11 +8,21 @@ import java.util.Optional;
 
 public interface CategoryRepository extends JpaRepository<Category, Long> {
 
-    List<Category> findByUserId(Long userId);
+    // --- Personal (space_id IS NULL) ---
+    List<Category> findByUserIdAndSpaceIdIsNull(Long userId);
 
-    List<Category> findByUserIdAndActiveTrue(Long userId);
+    List<Category> findByUserIdAndSpaceIdIsNullAndActiveTrue(Long userId);
 
-    Optional<Category> findByIdAndUserId(Long id, Long userId);
+    Optional<Category> findByIdAndUserIdAndSpaceIdIsNull(Long id, Long userId);
 
-    boolean existsByUserIdAndNameAndType(Long userId, String name, TransactionType type);
+    boolean existsByUserIdAndNameAndTypeAndSpaceIdIsNull(Long userId, String name, TransactionType type);
+
+    // --- Space-scoped ---
+    List<Category> findBySpaceIdAndActiveTrue(Long spaceId);
+
+    List<Category> findBySpaceId(Long spaceId);
+
+    Optional<Category> findByIdAndSpaceId(Long id, Long spaceId);
+
+    boolean existsBySpaceIdAndNameAndType(Long spaceId, String name, TransactionType type);
 }

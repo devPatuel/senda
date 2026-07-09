@@ -12,12 +12,14 @@ import java.util.Optional;
 public interface TransactionRepository extends JpaRepository<Transaction, Long>,
         JpaSpecificationExecutor<Transaction> {
 
-    Optional<Transaction> findByIdAndUserId(Long id, Long userId);
+    Optional<Transaction> findByIdAndUserIdAndSpaceIdIsNull(Long id, Long userId);
+
+    Optional<Transaction> findByIdAndSpaceId(Long id, Long spaceId);
 
     boolean existsByCategoryId(Long categoryId);
 
     /** Dedupe key for CSV import: same day, amount and description for this user. */
-    boolean existsByUserIdAndDateAndAmountAndDescription(
+    boolean existsByUserIdAndDateAndAmountAndDescriptionAndSpaceIdIsNull(
             Long userId, java.time.LocalDate date, java.math.BigDecimal amount, String description);
 
     /**
@@ -29,7 +31,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
                 c.id, c.name, c.color, c.type, sum(t.amount))
             from Transaction t
             join t.category c
-            where t.userId = :userId and t.date between :from and :to
+            where t.userId = :userId and t.spaceId is null and t.date between :from and :to
             group by c.id, c.name, c.color, c.type
             order by c.type, sum(t.amount) desc
             """)
@@ -38,13 +40,31 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
                                               @Param("to") LocalDate to);
 
     /**
+     * Per-category totals for a couple SPACE in a date range, aggregated in the
+     * database. Authorization by membership is enforced in the service; this query
+     * scopes strictly to the space (never personal rows).
+     */
+    @Query("""
+            select new dev.jordi.senda.transaction.CategorySummary(
+                c.id, c.name, c.color, c.type, sum(t.amount))
+            from Transaction t
+            join t.category c
+            where t.spaceId = :spaceId and t.date between :from and :to
+            group by c.id, c.name, c.color, c.type
+            order by c.type, sum(t.amount) desc
+            """)
+    List<CategorySummary> summarizeByCategoryForSpace(@Param("spaceId") Long spaceId,
+                                                      @Param("from") LocalDate from,
+                                                      @Param("to") LocalDate to);
+
+    /**
      * Per-category expense totals for a user in a date range, aggregated in the
      * database. Used by the budget view to show monthly spend per envelope.
      */
     @Query("""
             select new dev.jordi.senda.transaction.CategorySpent(t.category.id, sum(t.amount))
             from Transaction t
-            where t.userId = :userId
+            where t.userId = :userId and t.spaceId is null
               and t.type = dev.jordi.senda.common.TransactionType.EXPENSE
               and t.date between :from and :to
             group by t.category.id
@@ -61,7 +81,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             select new dev.jordi.senda.transaction.MonthlyTotal(
                 year(t.date), month(t.date), t.type, sum(t.amount))
             from Transaction t
-            where t.userId = :userId and t.date >= :from
+            where t.userId = :userId and t.spaceId is null and t.date >= :from
             group by year(t.date), month(t.date), t.type
             """)
     List<MonthlyTotal> monthlyTotals(@Param("userId") Long userId, @Param("from") LocalDate from);
@@ -75,7 +95,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
                 c.id, c.name, c.color, count(t), sum(t.amount))
             from Transaction t
             join t.category c
-            where t.userId = :userId
+            where t.userId = :userId and t.spaceId is null
               and t.type = dev.jordi.senda.common.TransactionType.EXPENSE
               and t.date between :from and :to
             group by c.id, c.name, c.color
@@ -91,7 +111,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     @Query("""
             select distinct t.category.id
             from Transaction t
-            where t.userId = :userId
+            where t.userId = :userId and t.spaceId is null
               and t.type = dev.jordi.senda.common.TransactionType.EXPENSE
               and t.date >= :from
             """)

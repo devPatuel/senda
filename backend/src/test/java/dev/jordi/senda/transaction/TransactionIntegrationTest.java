@@ -47,14 +47,14 @@ class TransactionIntegrationTest {
         var registrationB = register("userb@example.com", "User B");
         tokenB = registrationB.token();
 
-        var categoriesA = categoryRepository.findByUserIdAndActiveTrue(registrationA.userId());
+        var categoriesA = categoryRepository.findByUserIdAndSpaceIdIsNullAndActiveTrue(registrationA.userId());
         expenseA = categoriesA.stream().filter(c -> c.getType() == TransactionType.EXPENSE)
                 .findFirst().orElseThrow();
         expenseA2 = categoriesA.stream().filter(c -> c.getType() == TransactionType.EXPENSE)
                 .filter(c -> !c.getId().equals(expenseA.getId())).findFirst().orElseThrow();
         incomeA = categoriesA.stream().filter(c -> c.getType() == TransactionType.INCOME)
                 .findFirst().orElseThrow();
-        expenseB = categoryRepository.findByUserIdAndActiveTrue(registrationB.userId()).stream()
+        expenseB = categoryRepository.findByUserIdAndSpaceIdIsNullAndActiveTrue(registrationB.userId()).stream()
                 .filter(c -> c.getType() == TransactionType.EXPENSE).findFirst().orElseThrow();
     }
 

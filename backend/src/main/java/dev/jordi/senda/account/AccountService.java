@@ -22,8 +22,8 @@ public class AccountService {
     @Transactional(readOnly = true)
     public List<AccountResponse> list(Long userId, boolean includeArchived) {
         List<Account> accounts = includeArchived
-                ? accountRepository.findByUserId(userId)
-                : accountRepository.findByUserIdAndArchivedFalse(userId);
+                ? accountRepository.findByUserIdAndSpaceIdIsNull(userId)
+                : accountRepository.findByUserIdAndSpaceIdIsNullAndArchivedFalse(userId);
         return accounts.stream()
                 .sorted(Comparator.comparing(Account::getName, String.CASE_INSENSITIVE_ORDER)
                         .thenComparing(Account::getId, Comparator.nullsLast(Comparator.naturalOrder())))
@@ -66,7 +66,7 @@ public class AccountService {
 
     private Account findOwned(Long userId, Long id) {
         // 404 (not 403) for another user's account: do not reveal its existence
-        return accountRepository.findByIdAndUserId(id, userId)
+        return accountRepository.findByIdAndUserIdAndSpaceIdIsNull(id, userId)
                 .orElseThrow(() -> new NotFoundException("Account not found"));
     }
 

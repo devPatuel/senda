@@ -47,7 +47,7 @@ class AuthIntegrationTest {
 
         var user = userRepository.findByEmail("jordi@example.com").orElseThrow();
         assertThat(user.getPasswordHash()).isNotEqualTo("password123");
-        assertThat(categoryRepository.findByUserId(user.getId())).hasSize(9);
+        assertThat(categoryRepository.findByUserIdAndSpaceIdIsNull(user.getId())).hasSize(9);
     }
 
     @Test

@@ -42,7 +42,7 @@ public class ImportService {
     @Transactional(readOnly = true)
     public List<ImportPreviewRow> preview(Long userId, ImportPreviewRequest request) {
         List<CategoryRule> rules = ruleRepository.findByUserId(userId);
-        Map<Long, Category> categories = categoryRepository.findByUserId(userId).stream()
+        Map<Long, Category> categories = categoryRepository.findByUserIdAndSpaceIdIsNull(userId).stream()
                 .collect(Collectors.toMap(Category::getId, c -> c));
 
         return request.rows().stream().map(in -> {
@@ -62,7 +62,7 @@ public class ImportService {
                 }
             }
 
-            boolean duplicate = transactionRepository.existsByUserIdAndDateAndAmountAndDescription(
+            boolean duplicate = transactionRepository.existsByUserIdAndDateAndAmountAndDescriptionAndSpaceIdIsNull(
                     userId, in.date(), amount, in.description());
             return new ImportPreviewRow(in.date(), in.description(), amount, type,
                     suggestedId, suggestedName, duplicate);
@@ -78,7 +78,7 @@ public class ImportService {
         int imported = 0;
         int skipped = 0;
         for (ImportCommitRequest.Row row : request.rows()) {
-            Category category = categoryRepository.findByIdAndUserId(row.categoryId(), userId)
+            Category category = categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(row.categoryId(), userId)
                     .orElseThrow(() -> new NotFoundException("Category not found"));
             if (!category.isActive()) {
                 throw new InvalidImportException("Category is inactive: " + category.getName());
@@ -89,7 +89,7 @@ public class ImportService {
             }
             // The DB check sees rows flushed earlier in this batch, so duplicate
             // CSV lines collapse to a single transaction too.
-            if (transactionRepository.existsByUserIdAndDateAndAmountAndDescription(
+            if (transactionRepository.existsByUserIdAndDateAndAmountAndDescriptionAndSpaceIdIsNull(
                     userId, row.date(), row.amount(), row.description())) {
                 skipped++;
                 continue;

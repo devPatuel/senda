@@ -72,7 +72,7 @@ public class AllocationService {
                 .map(EnvelopeLineRequest::percentage)
                 .toList());
 
-        List<Category> expense = categoryRepository.findByUserId(userId).stream()
+        List<Category> expense = categoryRepository.findByUserIdAndSpaceIdIsNull(userId).stream()
                 .filter(c -> c.getType() == TransactionType.EXPENSE)
                 .toList();
         Map<Long, Category> byId = expense.stream()
@@ -182,7 +182,7 @@ public class AllocationService {
     // -------------------------------------------------------------------------
 
     private List<Category> activeExpenseCategories(Long userId) {
-        return categoryRepository.findByUserIdAndActiveTrue(userId).stream()
+        return categoryRepository.findByUserIdAndSpaceIdIsNullAndActiveTrue(userId).stream()
                 .filter(c -> c.getType() == TransactionType.EXPENSE)
                 .sorted(Comparator.comparing(Category::getName, String.CASE_INSENSITIVE_ORDER)
                         .thenComparing(Category::getId, Comparator.nullsLast(Comparator.naturalOrder())))

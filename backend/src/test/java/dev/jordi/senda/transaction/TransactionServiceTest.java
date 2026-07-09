@@ -62,7 +62,7 @@ class TransactionServiceTest {
 
     @Test
     void createSavesTransactionAndMapsResponse() {
-        when(categoryRepository.findByIdAndUserId(5L, USER_ID)).thenReturn(Optional.of(expenseCategory));
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.of(expenseCategory));
         when(transactionRepository.save(org.mockito.ArgumentMatchers.any(Transaction.class)))
                 .thenAnswer(invocation -> {
                     Transaction saved = invocation.getArgument(0);
@@ -88,7 +88,7 @@ class TransactionServiceTest {
 
     @Test
     void createWithForeignOrMissingCategoryThrowsNotFound() {
-        when(categoryRepository.findByIdAndUserId(5L, USER_ID)).thenReturn(Optional.empty());
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.create(USER_ID, expenseRequest(5L)))
                 .isInstanceOf(NotFoundException.class);
@@ -97,7 +97,7 @@ class TransactionServiceTest {
 
     @Test
     void createWithMismatchedTypeThrowsInvalidTransaction() {
-        when(categoryRepository.findByIdAndUserId(6L, USER_ID)).thenReturn(Optional.of(incomeCategory));
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(6L, USER_ID)).thenReturn(Optional.of(incomeCategory));
 
         assertThatThrownBy(() -> service.create(USER_ID, expenseRequest(6L)))
                 .isInstanceOf(InvalidTransactionException.class)
@@ -108,7 +108,7 @@ class TransactionServiceTest {
     @Test
     void createWithInactiveCategoryThrowsConflict() {
         Category inactive = category(5L, "Comida", TransactionType.EXPENSE, false);
-        when(categoryRepository.findByIdAndUserId(5L, USER_ID)).thenReturn(Optional.of(inactive));
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.of(inactive));
 
         assertThatThrownBy(() -> service.create(USER_ID, expenseRequest(5L)))
                 .isInstanceOf(ConflictException.class);
@@ -121,8 +121,8 @@ class TransactionServiceTest {
         Transaction existing = new Transaction(USER_ID, expenseCategory, TransactionType.EXPENSE,
                 new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch");
         ReflectionTestUtils.setField(existing, "id", 10L);
-        when(transactionRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
-        when(categoryRepository.findByIdAndUserId(6L, USER_ID)).thenReturn(Optional.of(incomeCategory));
+        when(transactionRepository.findByIdAndUserIdAndSpaceIdIsNull(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(6L, USER_ID)).thenReturn(Optional.of(incomeCategory));
 
         TransactionRequest request = new TransactionRequest(6L, TransactionType.INCOME,
                 new BigDecimal("1500.00"), LocalDate.of(2026, 6, 1), null);
@@ -144,8 +144,8 @@ class TransactionServiceTest {
         Transaction existing = new Transaction(USER_ID, inactive, TransactionType.EXPENSE,
                 new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch");
         ReflectionTestUtils.setField(existing, "id", 10L);
-        when(transactionRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
-        when(categoryRepository.findByIdAndUserId(5L, USER_ID)).thenReturn(Optional.of(inactive));
+        when(transactionRepository.findByIdAndUserIdAndSpaceIdIsNull(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.of(inactive));
 
         TransactionRequest request = new TransactionRequest(5L, TransactionType.EXPENSE,
                 new BigDecimal("20.00"), LocalDate.of(2026, 6, 11), "Lunch");
@@ -162,8 +162,8 @@ class TransactionServiceTest {
                 new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch");
         ReflectionTestUtils.setField(existing, "id", 10L);
         Category otherInactive = category(7L, "Caprichos", TransactionType.EXPENSE, false);
-        when(transactionRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
-        when(categoryRepository.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(otherInactive));
+        when(transactionRepository.findByIdAndUserIdAndSpaceIdIsNull(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(7L, USER_ID)).thenReturn(Optional.of(otherInactive));
 
         assertThatThrownBy(() -> service.update(USER_ID, 10L, expenseRequest(7L)))
                 .isInstanceOf(ConflictException.class);
@@ -171,7 +171,7 @@ class TransactionServiceTest {
 
     @Test
     void updateForeignOrMissingTransactionThrowsNotFound() {
-        when(transactionRepository.findByIdAndUserId(99L, USER_ID)).thenReturn(Optional.empty());
+        when(transactionRepository.findByIdAndUserIdAndSpaceIdIsNull(99L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.update(USER_ID, 99L, expenseRequest(5L)))
                 .isInstanceOf(NotFoundException.class);
@@ -183,7 +183,7 @@ class TransactionServiceTest {
     void deleteRemovesOwnedTransaction() {
         Transaction existing = new Transaction(USER_ID, expenseCategory, TransactionType.EXPENSE,
                 new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), null);
-        when(transactionRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(transactionRepository.findByIdAndUserIdAndSpaceIdIsNull(10L, USER_ID)).thenReturn(Optional.of(existing));
 
         service.delete(USER_ID, 10L);
 
@@ -192,7 +192,7 @@ class TransactionServiceTest {
 
     @Test
     void deleteForeignOrMissingTransactionThrowsNotFound() {
-        when(transactionRepository.findByIdAndUserId(99L, USER_ID)).thenReturn(Optional.empty());
+        when(transactionRepository.findByIdAndUserIdAndSpaceIdIsNull(99L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.delete(USER_ID, 99L))
                 .isInstanceOf(NotFoundException.class);

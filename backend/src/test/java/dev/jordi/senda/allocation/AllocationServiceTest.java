@@ -91,11 +91,11 @@ class AllocationServiceTest {
         Category c2 = expenseCategory(2L, USER_ID, "Inversión", null);
         Category c3 = expenseCategory(3L, USER_ID, "Ocio", null);
 
-        when(categoryRepository.findByUserId(USER_ID)).thenReturn(List.of(c1, c2, c3));
+        when(categoryRepository.findByUserIdAndSpaceIdIsNull(USER_ID)).thenReturn(List.of(c1, c2, c3));
         when(balanceRepository.findByCategoryId(any())).thenReturn(Optional.empty());
         when(balanceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         // list() after the mutation
-        when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(c1, c2, c3));
+        when(categoryRepository.findByUserIdAndSpaceIdIsNullAndActiveTrue(USER_ID)).thenReturn(List.of(c1, c2, c3));
         when(balanceRepository.findByUserId(USER_ID)).thenReturn(List.of());
 
         EnvelopePlanRequest request = new EnvelopePlanRequest(List.of(
@@ -115,10 +115,10 @@ class AllocationServiceTest {
         Category inPlan = expenseCategory(1L, USER_ID, "Ahorro", null);
         Category dropped = expenseCategory(2L, USER_ID, "Viejo", "40");  // had a target
 
-        when(categoryRepository.findByUserId(USER_ID)).thenReturn(List.of(inPlan, dropped));
+        when(categoryRepository.findByUserIdAndSpaceIdIsNull(USER_ID)).thenReturn(List.of(inPlan, dropped));
         when(balanceRepository.findByCategoryId(any())).thenReturn(Optional.empty());
         when(balanceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(inPlan, dropped));
+        when(categoryRepository.findByUserIdAndSpaceIdIsNullAndActiveTrue(USER_ID)).thenReturn(List.of(inPlan, dropped));
         when(balanceRepository.findByUserId(USER_ID)).thenReturn(List.of());
 
         service.savePlan(USER_ID, new EnvelopePlanRequest(List.of(line(1L, "100"))));
@@ -130,7 +130,7 @@ class AllocationServiceTest {
     @Test
     void savePlanReturns404WhenCategoryBelongsToAnotherUser() {
         // No categories for USER_ID, but request references id=99
-        when(categoryRepository.findByUserId(USER_ID)).thenReturn(List.of());
+        when(categoryRepository.findByUserIdAndSpaceIdIsNull(USER_ID)).thenReturn(List.of());
 
         EnvelopePlanRequest request = new EnvelopePlanRequest(List.of(line(99L, "100")));
 
@@ -143,7 +143,7 @@ class AllocationServiceTest {
         // The user owns category 5 and sneaks a foreign id (99) into the plan.
         // Authorization must fail BEFORE any target is changed.
         Category own = expenseCategory(5L, USER_ID, "Mío", null);
-        when(categoryRepository.findByUserId(USER_ID)).thenReturn(List.of(own));
+        when(categoryRepository.findByUserIdAndSpaceIdIsNull(USER_ID)).thenReturn(List.of(own));
 
         EnvelopePlanRequest request = new EnvelopePlanRequest(List.of(
                 line(5L, "50"), line(99L, "50")));
@@ -166,7 +166,7 @@ class AllocationServiceTest {
         Category c2 = expenseCategory(2L, USER_ID, "B", "33.33");
         Category c3 = expenseCategory(3L, USER_ID, "C", "33.34");
 
-        when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(c1, c2, c3));
+        when(categoryRepository.findByUserIdAndSpaceIdIsNullAndActiveTrue(USER_ID)).thenReturn(List.of(c1, c2, c3));
         when(balanceRepository.findByUserId(USER_ID)).thenReturn(List.of(
                 balance(1L, USER_ID, "0.00"),
                 balance(2L, USER_ID, "0.00"),
@@ -194,7 +194,7 @@ class AllocationServiceTest {
         CategoryBalance b1 = balance(1L, USER_ID, "100.00");
         CategoryBalance b2 = balance(2L, USER_ID, "50.00");
 
-        when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(c1, c2));
+        when(categoryRepository.findByUserIdAndSpaceIdIsNullAndActiveTrue(USER_ID)).thenReturn(List.of(c1, c2));
         when(balanceRepository.findByUserId(USER_ID)).thenReturn(List.of(b1, b2));
         lenient().when(balanceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -208,7 +208,7 @@ class AllocationServiceTest {
     void distributeThrowsWhenNoPlanDefined() {
         // Categories exist but none has a target percentage → no plan
         Category c1 = expenseCategory(1L, USER_ID, "Ahorro", null);
-        when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(c1));
+        when(categoryRepository.findByUserIdAndSpaceIdIsNullAndActiveTrue(USER_ID)).thenReturn(List.of(c1));
 
         assertThatThrownBy(() -> service.distribute(USER_ID,
                 new DistributeRequest(new BigDecimal("1000.00"), false)))
@@ -219,7 +219,7 @@ class AllocationServiceTest {
     void distributeThrowsConflictWhenPlanDoesNotSumTo100() {
         // A single category with 50% is a corrupted plan
         Category c1 = expenseCategory(1L, USER_ID, "Ahorro", "50");
-        when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(c1));
+        when(categoryRepository.findByUserIdAndSpaceIdIsNullAndActiveTrue(USER_ID)).thenReturn(List.of(c1));
 
         assertThatThrownBy(() -> service.distribute(USER_ID,
                 new DistributeRequest(new BigDecimal("1000.00"), false)))

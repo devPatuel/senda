@@ -28,7 +28,7 @@ public class CategoryRuleService {
 
     @Transactional(readOnly = true)
     public List<CategoryRuleResponse> list(Long userId) {
-        Map<Long, Category> categories = categoryRepository.findByUserId(userId).stream()
+        Map<Long, Category> categories = categoryRepository.findByUserIdAndSpaceIdIsNull(userId).stream()
                 .collect(Collectors.toMap(Category::getId, c -> c));
         return ruleRepository.findByUserId(userId).stream()
                 .sorted(Comparator.comparing(CategoryRule::getMatchText, String.CASE_INSENSITIVE_ORDER))
@@ -84,7 +84,7 @@ public class CategoryRuleService {
     }
 
     private Category requireOwnedCategory(Long userId, Long categoryId) {
-        return categoryRepository.findByIdAndUserId(categoryId, userId)
+        return categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(categoryId, userId)
                 .orElseThrow(() -> new NotFoundException("Category not found"));
     }
 

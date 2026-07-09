@@ -144,12 +144,12 @@ public class TransactionService {
 
     private Transaction findOwned(Long userId, Long id) {
         // Foreign or missing resource both map to 404 to avoid leaking existence
-        return transactionRepository.findByIdAndUserId(id, userId)
+        return transactionRepository.findByIdAndUserIdAndSpaceIdIsNull(id, userId)
                 .orElseThrow(() -> new NotFoundException("Transaction not found"));
     }
 
     private Category resolveCategory(Long userId, TransactionRequest request, Long currentCategoryId) {
-        Category category = categoryRepository.findByIdAndUserId(request.categoryId(), userId)
+        Category category = categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(request.categoryId(), userId)
                 .orElseThrow(() -> new NotFoundException("Category not found"));
         // Keeping the transaction's current category is allowed even when it was
         // deactivated (soft-deleted): otherwise a transaction whose category was
