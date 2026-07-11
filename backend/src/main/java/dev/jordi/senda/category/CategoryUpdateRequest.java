@@ -19,5 +19,6 @@ public record CategoryUpdateRequest(
         @NotBlank @Size(max = 100) String name,
         @NotNull @Pattern(regexp = "^#[0-9A-Fa-f]{6}$",
                 message = "must be a hex color in #RRGGBB format") String color,
+        @Size(max = 8) String emoji,
         Boolean active) {
 }

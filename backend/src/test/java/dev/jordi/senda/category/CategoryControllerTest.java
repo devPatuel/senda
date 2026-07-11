@@ -59,7 +59,7 @@ class CategoryControllerTest {
     @Test
     void listReturns200WithCategories() throws Exception {
         when(categoryService.list(USER_ID, null, null, false)).thenReturn(List.of(
-                new CategoryResponse(1L, "Comida", TransactionType.EXPENSE, "#EF4444", true)));
+                new CategoryResponse(1L, "Comida", TransactionType.EXPENSE, "#EF4444", null, true)));
 
         mockMvc.perform(get("/api/categories").header("Authorization", bearer))
                 .andExpect(status().isOk())
@@ -94,7 +94,7 @@ class CategoryControllerTest {
     @Test
     void createReturns201() throws Exception {
         when(categoryService.create(eq(USER_ID), any(CategoryRequest.class))).thenReturn(
-                new CategoryResponse(10L, "Gimnasio", TransactionType.EXPENSE, "#FF8800", true));
+                new CategoryResponse(10L, "Gimnasio", TransactionType.EXPENSE, "#FF8800", null, true));
 
         mockMvc.perform(post("/api/categories")
                         .header("Authorization", bearer)
@@ -154,7 +154,7 @@ class CategoryControllerTest {
     @Test
     void updateReturns200() throws Exception {
         when(categoryService.update(eq(USER_ID), eq(5L), any(CategoryUpdateRequest.class))).thenReturn(
-                new CategoryResponse(5L, "Alimentación", TransactionType.EXPENSE, "#00FF00", false));
+                new CategoryResponse(5L, "Alimentación", TransactionType.EXPENSE, "#00FF00", null, false));
 
         mockMvc.perform(put("/api/categories/5")
                         .header("Authorization", bearer)

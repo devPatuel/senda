@@ -44,6 +44,12 @@ public class Category {
     @Column(name = "space_id")
     private Long spaceId;
 
+    // Optional identifying emoji shown next to the name. Null when unset. Kept out
+    // of the constructor so default-category creation (AuthService/SpaceService) is
+    // untouched and those rows simply have no emoji.
+    @Column(length = 16)
+    private String emoji;
+
     protected Category() {
         // JPA only
     }
@@ -106,5 +112,13 @@ public class Category {
 
     public void setSpaceId(Long spaceId) {
         this.spaceId = spaceId;
+    }
+
+    public String getEmoji() {
+        return emoji;
+    }
+
+    public void setEmoji(String emoji) {
+        this.emoji = emoji;
     }
 }

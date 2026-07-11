@@ -86,6 +86,19 @@ class TransactionIntegrationTest {
         return ((Number) JsonPath.read(body, "$.id")).longValue();
     }
 
+    @Test
+    void transactionResponseCarriesCategoryEmoji() throws Exception {
+        expenseA.setEmoji("🍔");
+        categoryRepository.save(expenseA);
+
+        long txId = createTransaction(tokenA, expenseA.getId(), TransactionType.EXPENSE,
+                "12.50", "2026-06-10");
+
+        mockMvc.perform(get("/api/transactions/" + txId).header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.categoryEmoji").value("🍔"));
+    }
+
     // --- KEY TEST: user isolation ---
 
     @Test

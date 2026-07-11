@@ -7,10 +7,11 @@ public record CategoryResponse(
         String name,
         TransactionType type,
         String color,
+        String emoji,
         boolean active) {
 
     public static CategoryResponse from(Category category) {
         return new CategoryResponse(category.getId(), category.getName(), category.getType(),
-                category.getColor(), category.isActive());
+                category.getColor(), category.getEmoji(), category.isActive());
     }
 }
