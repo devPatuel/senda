@@ -76,30 +76,37 @@ export function removeCategory(id) {
 
 /**
  * Budget overview: per expense-category balances + the "to assign" summary.
+ * When `spaceId` is set, returns the couple space's shared budget instead.
+ * @param {number} [spaceId]
  * @returns {Promise<CategoryBudget>}
  */
-export function getBudget() {
-  return http.get('/categories/budget')
+export function getBudget(spaceId) {
+  const query = spaceId != null ? `?spaceId=${spaceId}` : ''
+  return http.get(`/categories/budget${query}`)
 }
 
 /**
  * Adjusts an expense category's envelope balance by a delta (may be negative).
- * Returns the refreshed budget.
+ * With `spaceId`, adjusts the shared couple envelope. Returns the refreshed budget.
  * @param {number} id
  * @param {number} amount
+ * @param {number} [spaceId]
  * @returns {Promise<CategoryBudget>}
  */
-export function assignToCategory(id, amount) {
-  return http.post(`/categories/${id}/assign`, { amount })
+export function assignToCategory(id, amount, spaceId) {
+  const query = spaceId != null ? `?spaceId=${spaceId}` : ''
+  return http.post(`/categories/${id}/assign${query}`, { amount })
 }
 
 /**
  * Sets (or clears, with null) an expense category's funding target.
- * Returns the refreshed budget.
+ * With `spaceId`, targets the shared couple envelope. Returns the refreshed budget.
  * @param {number} id
  * @param {number|null} targetAmount
+ * @param {number} [spaceId]
  * @returns {Promise<CategoryBudget>}
  */
-export function setCategoryTarget(id, targetAmount) {
-  return http.post(`/categories/${id}/target`, { targetAmount })
+export function setCategoryTarget(id, targetAmount, spaceId) {
+  const query = spaceId != null ? `?spaceId=${spaceId}` : ''
+  return http.post(`/categories/${id}/target${query}`, { targetAmount })
 }

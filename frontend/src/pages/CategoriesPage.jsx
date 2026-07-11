@@ -175,7 +175,7 @@ function CategoryForm({ category, spaceId, onClose, onSaved }) {
 }
 
 // Move money into (or out of, with a negative amount) a category envelope.
-function AssignForm({ category, currentBalance, onClose, onSaved }) {
+function AssignForm({ category, currentBalance, spaceId, onClose, onSaved }) {
   const [value, setValue] = useState('')
   const [fieldError, setFieldError] = useState(null)
   const [error, setError] = useState(null)
@@ -192,7 +192,7 @@ function AssignForm({ category, currentBalance, onClose, onSaved }) {
     setFieldError(null)
     setSaving(true)
     try {
-      const budget = await assignToCategory(category.id, amount)
+      const budget = await assignToCategory(category.id, amount, spaceId)
       onSaved(budget)
     } catch (err) {
       setError(err.message || 'No se ha podido asignar')
@@ -240,7 +240,7 @@ function AssignForm({ category, currentBalance, onClose, onSaved }) {
 }
 
 // Set or clear an expense category's funding target.
-function TargetForm({ category, currentTarget, onClose, onSaved }) {
+function TargetForm({ category, currentTarget, spaceId, onClose, onSaved }) {
   const [value, setValue] = useState(currentTarget != null ? String(currentTarget) : '')
   const [fieldError, setFieldError] = useState(null)
   const [error, setError] = useState(null)
@@ -263,7 +263,7 @@ function TargetForm({ category, currentTarget, onClose, onSaved }) {
     setFieldError(null)
     setSaving(true)
     try {
-      const budget = await setCategoryTarget(category.id, targetAmount)
+      const budget = await setCategoryTarget(category.id, targetAmount, spaceId)
       onSaved(budget)
     } catch (err) {
       setError(err.message || 'No se ha podido guardar el objetivo')
@@ -322,10 +322,10 @@ export default function CategoriesPage({ spaceId }) {
     let cancelled = false
     const key = `${showInactive}-${reloadKey}`
     const listOptions = { ...(showInactive && { includeInactive: true }), ...(spaceId != null && { spaceId }) }
-    // The budget/envelope view is personal-only (backend): skip it in space mode.
+    // The budget/envelope view is scoped to the space when one is set (shared couple budget).
     Promise.all([
       listCategories(listOptions),
-      spaceId != null ? Promise.resolve(null) : getBudget(),
+      getBudget(spaceId),
     ])
       .then(([list, budgetData]) => {
         if (!cancelled) {
@@ -655,6 +655,7 @@ export default function CategoriesPage({ spaceId }) {
         <AssignForm
           category={assigning}
           currentBalance={budgetById.get(assigning.id)?.balance ?? 0}
+          spaceId={spaceId}
           onClose={() => setAssigning(null)}
           onSaved={(updatedBudget) => {
             setBudget(updatedBudget)
@@ -669,6 +670,7 @@ export default function CategoriesPage({ spaceId }) {
         <TargetForm
           category={targeting}
           currentTarget={budgetById.get(targeting.id)?.targetAmount ?? null}
+          spaceId={spaceId}
           onClose={() => setTargeting(null)}
           onSaved={(updatedBudget) => {
             setBudget(updatedBudget)

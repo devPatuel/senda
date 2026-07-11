@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CategoriesPage from './CategoriesPage'
-import { listCategories, createCategory, removeCategory, getBudget } from '../api/categories'
+import { listCategories, createCategory, removeCategory, getBudget, assignToCategory } from '../api/categories'
 
 vi.mock('../api/categories', () => ({
   listCategories: vi.fn(),
@@ -104,16 +104,16 @@ describe('CategoriesPage', () => {
     await waitFor(() => expect(screen.queryByText('Comida')).not.toBeInTheDocument())
   })
 
-  it('scopes the list to a couple space and hides the budget when spaceId is set', async () => {
+  it('scopes the list and the shared budget to a couple space when spaceId is set', async () => {
     createCategory.mockResolvedValue({ id: 9, name: 'Ocio', type: 'EXPENSE', color: '#10b981', active: true })
     const user = userEvent.setup()
     render(<CategoriesPage spaceId={7} />)
 
     await screen.findByText('Comida')
     expect(listCategories).toHaveBeenCalledWith(expect.objectContaining({ spaceId: 7 }))
-    // The budget/envelope section is personal-only: it must not appear in space mode
-    expect(getBudget).not.toHaveBeenCalled()
-    expect(screen.queryByText('Por asignar')).not.toBeInTheDocument()
+    // The shared couple budget/envelope section is now scoped to the space
+    expect(getBudget).toHaveBeenCalledWith(7)
+    expect(screen.getByText('Por asignar')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /Nueva categoría/ }))
     await user.type(screen.getByLabelText('Nombre'), 'Ocio')
@@ -122,6 +122,34 @@ describe('CategoriesPage', () => {
     await waitFor(() =>
       expect(createCategory).toHaveBeenCalledWith(expect.objectContaining({ name: 'Ocio', spaceId: 7 })),
     )
+  })
+
+  it('assigns to a shared envelope carrying the spaceId', async () => {
+    assignToCategory.mockResolvedValue({ ...BUDGET, totalAssigned: 250, toAssign: 750 })
+    const user = userEvent.setup()
+    render(<CategoriesPage spaceId={7} />)
+
+    await screen.findByText('Comida')
+    await user.click(screen.getByRole('button', { name: 'Asignar' }))
+    const dialog = screen.getByRole('dialog')
+    await user.type(within(dialog).getByLabelText('Importe a asignar'), '50')
+    await user.click(within(dialog).getByRole('button', { name: 'Asignar' }))
+
+    await waitFor(() => expect(assignToCategory).toHaveBeenCalledWith(1, 50, 7))
+  })
+
+  it('assigns without a spaceId in personal mode', async () => {
+    assignToCategory.mockResolvedValue({ ...BUDGET, totalAssigned: 250, toAssign: 750 })
+    const user = userEvent.setup()
+    render(<CategoriesPage />)
+
+    await screen.findByText('Comida')
+    await user.click(screen.getByRole('button', { name: 'Asignar' }))
+    const dialog = screen.getByRole('dialog')
+    await user.type(within(dialog).getByLabelText('Importe a asignar'), '50')
+    await user.click(within(dialog).getByRole('button', { name: 'Asignar' }))
+
+    await waitFor(() => expect(assignToCategory).toHaveBeenCalledWith(1, 50, undefined))
   })
 
   it('keeps the loaded list visible and shows a banner when the delete fails', async () => {
