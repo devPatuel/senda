@@ -35,6 +35,8 @@ class TransactionServiceTest {
     @Mock
     private CategoryRepository categoryRepository;
     @Mock
+    private dev.jordi.senda.categoryrule.CategoryRuleRepository categoryRuleRepository;
+    @Mock
     private SpaceAccess spaceAccess;
 
     private TransactionService service;
@@ -44,7 +46,8 @@ class TransactionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new TransactionService(transactionRepository, categoryRepository, spaceAccess);
+        service = new TransactionService(transactionRepository, categoryRepository,
+                categoryRuleRepository, spaceAccess);
         expenseCategory = category(5L, "Comida", TransactionType.EXPENSE, true);
         incomeCategory = category(6L, "Nómina", TransactionType.INCOME, true);
     }

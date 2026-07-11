@@ -3,6 +3,7 @@ package dev.jordi.senda.auth;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.GlobalExceptionHandler;
 import dev.jordi.senda.common.JwtAuthFilter;
+import dev.jordi.senda.apitoken.ApiTokenService;
 import dev.jordi.senda.common.JwtService;
 import dev.jordi.senda.common.SecurityConfig;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(AuthController.class)
 @Import({SecurityConfig.class, JwtAuthFilter.class, JwtService.class, GlobalExceptionHandler.class})
 class AuthControllerTest {
+
+    @MockitoBean
+    private ApiTokenService apiTokenService;
 
     @Autowired
     private MockMvc mockMvc;
