@@ -3,6 +3,7 @@ package dev.jordi.senda.allocation;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.GlobalExceptionHandler;
 import dev.jordi.senda.common.JwtAuthFilter;
+import dev.jordi.senda.apitoken.ApiTokenService;
 import dev.jordi.senda.common.JwtService;
 import dev.jordi.senda.common.SecurityConfig;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +30,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(AllocationController.class)
 @Import({SecurityConfig.class, JwtAuthFilter.class, JwtService.class, GlobalExceptionHandler.class})
 class AllocationControllerTest {
+
+    @MockitoBean
+    private ApiTokenService apiTokenService;
 
     private static final Long USER_ID = 1L;
 
