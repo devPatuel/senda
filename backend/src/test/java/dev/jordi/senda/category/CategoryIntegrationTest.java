@@ -94,6 +94,64 @@ class CategoryIntegrationTest {
     }
 
     @Test
+    void createCategoryWithEmojiPersistsAndReturnsIt() throws Exception {
+        String body = mockMvc.perform(post("/api/categories")
+                        .header("Authorization", tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "Gimnasio", "type": "EXPENSE", "color": "#FF8800", "emoji": "🏋️"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.emoji").value("🏋️"))
+                .andReturn().getResponse().getContentAsString();
+        Long id = objectMapper.readTree(body).get("id").asLong();
+
+        Category persisted = categoryRepository.findById(id).orElseThrow();
+        assertThat(persisted.getEmoji()).isEqualTo("🏋️");
+
+        mockMvc.perform(get("/api/categories").header("Authorization", tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.name == 'Gimnasio')].emoji").value("🏋️"));
+    }
+
+    @Test
+    void createCategoryWithoutEmojiReturnsNull() throws Exception {
+        mockMvc.perform(post("/api/categories")
+                        .header("Authorization", tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "Gimnasio", "type": "EXPENSE", "color": "#FF8800"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.emoji").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
+    void updateCategoryChangesEmoji() throws Exception {
+        Long categoryId = createCategoryForUserA("Gimnasio");
+
+        mockMvc.perform(put("/api/categories/" + categoryId)
+                        .header("Authorization", tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "Gimnasio", "color": "#FF8800", "emoji": "💪"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.emoji").value("💪"));
+
+        assertThat(categoryRepository.findById(categoryId).orElseThrow().getEmoji()).isEqualTo("💪");
+
+        mockMvc.perform(put("/api/categories/" + categoryId)
+                        .header("Authorization", tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "Gimnasio", "color": "#FF8800", "emoji": "  "}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.emoji").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
     void userBCannotAssignOrTargetCategoryOfUserA() throws Exception {
         Long categoryId = createCategoryForUserA("Gimnasio");
 

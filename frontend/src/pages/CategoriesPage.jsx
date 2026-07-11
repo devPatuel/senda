@@ -30,6 +30,8 @@ const PALETTE = [
   '#64748b',
 ]
 
+const EMOJI_SUGGESTIONS = ['🍔', '🚗', '🏠', '🎉', '💊', '🛒', '💼', '✈️', '📱', '🎁', '⚡', '💰']
+
 const GROUPS = [
   { type: 'EXPENSE', title: 'Gastos' },
   { type: 'INCOME', title: 'Ingresos' },
@@ -68,12 +70,59 @@ function ColorPicker({ value, onChange }) {
   )
 }
 
+function EmojiPicker({ value, onChange }) {
+  return (
+    <div>
+      <label htmlFor="category-emoji" className="mb-1.5 block text-sm font-medium text-slate-700">
+        Emoji <span className="font-normal text-slate-400">(opcional)</span>
+      </label>
+      <div className="flex items-center gap-2">
+        <input
+          id="category-emoji"
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="🙂"
+          maxLength={8}
+          className="h-10 w-14 rounded-lg border border-slate-200 text-center text-xl focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+        />
+        <div className="flex flex-wrap items-center gap-1">
+          {EMOJI_SUGGESTIONS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => onChange(emoji)}
+              aria-label={`Emoji ${emoji}`}
+              aria-pressed={value === emoji}
+              className={[
+                'h-8 w-8 rounded-lg text-lg transition-colors',
+                value === emoji ? 'bg-emerald-100 ring-1 ring-emerald-300' : 'hover:bg-slate-100',
+              ].join(' ')}
+            >
+              {emoji}
+            </button>
+          ))}
+          {value && (
+            <button
+              type="button"
+              onClick={() => onChange('')}
+              className="ml-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            >
+              Quitar
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function CategoryForm({ category, spaceId, onClose, onSaved }) {
   const isEdit = Boolean(category)
   const [form, setForm] = useState(() =>
     category
-      ? { name: category.name, type: category.type, color: category.color }
-      : { name: '', type: 'EXPENSE', color: PALETTE[4] },
+      ? { name: category.name, type: category.type, color: category.color, emoji: category.emoji ?? '' }
+      : { name: '', type: 'EXPENSE', color: PALETTE[4], emoji: '' },
   )
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState(null)
@@ -92,15 +141,17 @@ function CategoryForm({ category, spaceId, onClose, onSaved }) {
 
     setSaving(true)
     try {
+      const emoji = form.emoji.trim() || null
       if (isEdit) {
         await updateCategory(category.id, {
           name,
           type: category.type,
           color: form.color,
+          emoji,
           active: category.active,
         })
       } else {
-        await createCategory({ name, type: form.type, color: form.color, ...(spaceId != null && { spaceId }) })
+        await createCategory({ name, type: form.type, color: form.color, emoji, ...(spaceId != null && { spaceId }) })
       }
       onSaved()
     } catch (err) {
@@ -164,6 +215,11 @@ function CategoryForm({ category, spaceId, onClose, onSaved }) {
         <ColorPicker
           value={form.color}
           onChange={(color) => setForm((prev) => ({ ...prev, color }))}
+        />
+
+        <EmojiPicker
+          value={form.emoji}
+          onChange={(emoji) => setForm((prev) => ({ ...prev, emoji }))}
         />
 
         <SubmitButton loading={saving} loadingText="Guardando…">
@@ -397,6 +453,7 @@ export default function CategoriesPage({ spaceId }) {
         name: category.name,
         type: category.type,
         color: category.color,
+        emoji: category.emoji,
         active: true,
       })
       setReloadKey((k) => k + 1)
@@ -510,6 +567,14 @@ export default function CategoriesPage({ spaceId }) {
                           style={{ backgroundColor: c.color }}
                           aria-hidden="true"
                         />
+                        {c.emoji && (
+                          <span
+                            className={['shrink-0 text-lg leading-none', c.active ? '' : 'opacity-40'].join(' ')}
+                            aria-hidden="true"
+                          >
+                            {c.emoji}
+                          </span>
+                        )}
                         <span
                           className={[
                             'min-w-0 flex-1 truncate text-sm font-medium',

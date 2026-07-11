@@ -17,6 +17,7 @@ import CategoryRulesPage from './pages/CategoryRulesPage'
 import ImportPage from './pages/ImportPage'
 import SpacePage from './pages/SpacePage'
 import TokensPage from './pages/TokensPage'
+import ProductsPage from './pages/ProductsPage'
 
 export default function App() {
   return (
@@ -39,6 +40,7 @@ export default function App() {
           {/* Patrimonio no longer has a menu entry; reachable by direct URL */}
           <Route path="/patrimonio" element={<NetWorthPage />} />
           <Route path="/compra" element={<ShoppingPage />} />
+          <Route path="/productos" element={<ProductsPage />} />
           <Route path="/pareja" element={<SpacePage />} />
           <Route path="/tokens" element={<TokensPage />} />
         </Route>

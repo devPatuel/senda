@@ -78,6 +78,7 @@ public class CategoryService {
         }
         Category category = new Category(userId, request.name(), request.type(), request.color());
         category.setSpaceId(spaceId);
+        category.setEmoji(normalizeEmoji(request.emoji()));
         return CategoryResponse.from(categoryRepository.save(category));
     }
 
@@ -90,6 +91,7 @@ public class CategoryService {
         }
         category.setName(request.name());
         category.setColor(request.color());
+        category.setEmoji(normalizeEmoji(request.emoji()));
         if (request.active() != null) {
             category.setActive(request.active());
         }
@@ -222,6 +224,11 @@ public class CategoryService {
         balance.setTargetAmount(request.targetAmount());
         categoryBalanceRepository.save(balance);
         return budget(userId, spaceId);
+    }
+
+    // Treat empty/blank emoji as "no emoji" so we never store "".
+    private static String normalizeEmoji(String emoji) {
+        return (emoji == null || emoji.isBlank()) ? null : emoji.trim();
     }
 
     private boolean isDuplicate(Long userId, Category category, String name) {

@@ -73,6 +73,19 @@ describe('TransactionsPage', () => {
     listTransactions.mockResolvedValue(EMPTY_PAGE)
   })
 
+  it('renders the category emoji in the movements list', async () => {
+    listTransactions.mockResolvedValue({
+      content: [{
+        id: 1, categoryId: 1, categoryName: 'Comida', categoryColor: '#ef4444',
+        categoryEmoji: '🍔', type: 'EXPENSE', amount: 12.5, date: '2026-06-10',
+        description: 'Menú', createdAt: '2026-06-10T10:00:00Z',
+      }],
+      page: 0, size: 20, totalElements: 1, totalPages: 1,
+    })
+    renderPage()
+    expect(await screen.findByText('🍔')).toBeInTheDocument()
+  })
+
   it('filters the category select by the selected type in the form', async () => {
     const user = userEvent.setup()
     renderPage()

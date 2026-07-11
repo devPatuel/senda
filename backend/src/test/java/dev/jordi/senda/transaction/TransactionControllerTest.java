@@ -59,7 +59,7 @@ class TransactionControllerTest {
     }
 
     private static final TransactionResponse SAMPLE = new TransactionResponse(
-            10L, 5L, "Comida", "#EF4444", TransactionType.EXPENSE,
+            10L, 5L, "Comida", "#EF4444", "🍔", TransactionType.EXPENSE,
             new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch",
             Instant.parse("2026-06-10T12:00:00Z"));
 

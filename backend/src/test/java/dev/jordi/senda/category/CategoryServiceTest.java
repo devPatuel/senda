@@ -102,7 +102,7 @@ class CategoryServiceTest {
 
     @Test
     void createSavesCategoryAndReturnsResponse() {
-        var request = new CategoryRequest("Gimnasio", TransactionType.EXPENSE, "#FF8800", null);
+        var request = new CategoryRequest("Gimnasio", TransactionType.EXPENSE, "#FF8800", null, null);
         when(categoryRepository.existsByUserIdAndNameAndTypeAndSpaceIdIsNull(USER_ID, "Gimnasio", TransactionType.EXPENSE))
                 .thenReturn(false);
         when(categoryRepository.save(any(Category.class)))
@@ -119,7 +119,7 @@ class CategoryServiceTest {
 
     @Test
     void createWithDuplicateNameAndTypeThrowsConflict() {
-        var request = new CategoryRequest("Comida", TransactionType.EXPENSE, "#FF8800", null);
+        var request = new CategoryRequest("Comida", TransactionType.EXPENSE, "#FF8800", null, null);
         when(categoryRepository.existsByUserIdAndNameAndTypeAndSpaceIdIsNull(USER_ID, "Comida", TransactionType.EXPENSE))
                 .thenReturn(true);
 
@@ -134,7 +134,7 @@ class CategoryServiceTest {
                 .thenReturn(false);
         when(categoryRepository.save(any(Category.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        categoryService.create(USER_ID, new CategoryRequest("Cena fuera", TransactionType.EXPENSE, "#EF4444", 7L));
+        categoryService.create(USER_ID, new CategoryRequest("Cena fuera", TransactionType.EXPENSE, "#EF4444", null, 7L));
 
         verify(spaceAccess).assertActiveMember(USER_ID, 7L);
         ArgumentCaptor<Category> captor = ArgumentCaptor.forClass(Category.class);
@@ -148,7 +148,7 @@ class CategoryServiceTest {
                 .thenReturn(true);
 
         assertThatThrownBy(() -> categoryService.create(USER_ID,
-                new CategoryRequest("Comida", TransactionType.EXPENSE, "#EF4444", 7L)))
+                new CategoryRequest("Comida", TransactionType.EXPENSE, "#EF4444", null, 7L)))
                 .isInstanceOf(ConflictException.class);
         verify(categoryRepository, never()).save(any());
     }
@@ -164,7 +164,7 @@ class CategoryServiceTest {
         when(categoryRepository.save(existing)).thenReturn(existing);
 
         CategoryResponse response = categoryService.update(USER_ID, 5L,
-                new CategoryUpdateRequest("Alimentación", "#00FF00", false));
+                new CategoryUpdateRequest("Alimentación", "#00FF00", null, false));
 
         assertThat(response.name()).isEqualTo("Alimentación");
         assertThat(response.color()).isEqualTo("#00FF00");
@@ -179,7 +179,7 @@ class CategoryServiceTest {
         when(categoryRepository.save(existing)).thenReturn(existing);
 
         CategoryResponse response = categoryService.update(USER_ID, 5L,
-                new CategoryUpdateRequest("Comida", "#00FF00", null));
+                new CategoryUpdateRequest("Comida", "#00FF00", null, null));
 
         assertThat(response.active()).isTrue();
     }
@@ -191,7 +191,7 @@ class CategoryServiceTest {
         when(categoryRepository.save(existing)).thenReturn(existing);
 
         CategoryResponse response = categoryService.update(USER_ID, 5L,
-                new CategoryUpdateRequest("Comida", "#123456", null));
+                new CategoryUpdateRequest("Comida", "#123456", null, null));
 
         assertThat(response.color()).isEqualTo("#123456");
         verify(categoryRepository, never()).existsByUserIdAndNameAndTypeAndSpaceIdIsNull(any(), any(), any());
@@ -205,7 +205,7 @@ class CategoryServiceTest {
                 .thenReturn(true);
 
         assertThatThrownBy(() -> categoryService.update(USER_ID, 5L,
-                new CategoryUpdateRequest("Transporte", "#EF4444", null)))
+                new CategoryUpdateRequest("Transporte", "#EF4444", null, null)))
                 .isInstanceOf(ConflictException.class);
         verify(categoryRepository, never()).save(any());
     }
@@ -217,7 +217,7 @@ class CategoryServiceTest {
         when(categoryRepository.findById(99L)).thenReturn(Optional.of(others));
 
         assertThatThrownBy(() -> categoryService.update(USER_ID, 99L,
-                new CategoryUpdateRequest("Comida", "#EF4444", null)))
+                new CategoryUpdateRequest("Comida", "#EF4444", null, null)))
                 .isInstanceOf(NotFoundException.class);
     }
 

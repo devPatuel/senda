@@ -14,5 +14,6 @@ public record CategoryRequest(
         @NotNull TransactionType type,
         @NotNull @Pattern(regexp = "^#[0-9A-Fa-f]{6}$",
                 message = "must be a hex color in #RRGGBB format") String color,
+        @Size(max = 8) String emoji,
         Long spaceId) {
 }
