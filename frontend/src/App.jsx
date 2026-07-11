@@ -16,6 +16,7 @@ import ShoppingPage from './pages/ShoppingPage'
 import CategoryRulesPage from './pages/CategoryRulesPage'
 import ImportPage from './pages/ImportPage'
 import SpacePage from './pages/SpacePage'
+import TokensPage from './pages/TokensPage'
 
 export default function App() {
   return (
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/patrimonio" element={<NetWorthPage />} />
           <Route path="/compra" element={<ShoppingPage />} />
           <Route path="/pareja" element={<SpacePage />} />
+          <Route path="/tokens" element={<TokensPage />} />
         </Route>
       </Route>
 
