@@ -94,6 +94,27 @@ class CategoryIntegrationTest {
     }
 
     @Test
+    void userBCannotAssignOrTargetCategoryOfUserA() throws Exception {
+        Long categoryId = createCategoryForUserA("Gimnasio");
+
+        mockMvc.perform(post("/api/categories/" + categoryId + "/assign")
+                        .header("Authorization", tokenB)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount": 100.00}
+                                """))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(post("/api/categories/" + categoryId + "/target")
+                        .header("Authorization", tokenB)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"targetAmount": 200.00}
+                                """))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void userBCannotUpdateCategoryOfUserA() throws Exception {
         Long categoryId = createCategoryForUserA("Gimnasio");
 
