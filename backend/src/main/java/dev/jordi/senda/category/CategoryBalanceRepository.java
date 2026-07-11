@@ -9,5 +9,7 @@ public interface CategoryBalanceRepository extends JpaRepository<CategoryBalance
 
     List<CategoryBalance> findByUserId(Long userId);
 
+    List<CategoryBalance> findByCategoryIdIn(List<Long> categoryIds);
+
     Optional<CategoryBalance> findByCategoryId(Long categoryId);
 }

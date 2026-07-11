@@ -36,20 +36,22 @@ public class CategoryController {
     }
 
     @GetMapping("/budget")
-    public CategoryBudgetResponse budget() {
-        return categoryService.budget(CurrentUser.id());
+    public CategoryBudgetResponse budget(@RequestParam(required = false) Long spaceId) {
+        return categoryService.budget(CurrentUser.id(), spaceId);
     }
 
     @PostMapping("/{id}/assign")
     public CategoryBudgetResponse assign(@PathVariable Long id,
+                                         @RequestParam(required = false) Long spaceId,
                                          @Valid @RequestBody AssignRequest request) {
-        return categoryService.assign(CurrentUser.id(), id, request);
+        return categoryService.assign(CurrentUser.id(), id, spaceId, request);
     }
 
     @PostMapping("/{id}/target")
     public CategoryBudgetResponse target(@PathVariable Long id,
+                                         @RequestParam(required = false) Long spaceId,
                                          @Valid @RequestBody TargetRequest request) {
-        return categoryService.setTarget(CurrentUser.id(), id, request);
+        return categoryService.setTarget(CurrentUser.id(), id, spaceId, request);
     }
 
     @PostMapping

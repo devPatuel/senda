@@ -1,5 +1,6 @@
 package dev.jordi.senda.category;
 
+import dev.jordi.senda.account.AccountRepository;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.NotFoundException;
 import dev.jordi.senda.common.TransactionType;
@@ -13,13 +14,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,6 +37,12 @@ class CategoryServiceTest {
 
     @Mock
     private TransactionRepository transactionRepository;
+
+    @Mock
+    private CategoryBalanceRepository categoryBalanceRepository;
+
+    @Mock
+    private AccountRepository accountRepository;
 
     @Mock
     private SpaceAccess spaceAccess;
@@ -246,5 +256,46 @@ class CategoryServiceTest {
         assertThatThrownBy(() -> categoryService.delete(USER_ID, 99L))
                 .isInstanceOf(NotFoundException.class);
         verify(categoryRepository, never()).delete(any());
+    }
+
+    // --- budget / assign / setTarget (space-aware) ---
+
+    @Test
+    void budgetForSpaceUsesSpaceCategoriesAccountsAndSpend() {
+        Category cat = new Category(USER_ID, "Comida", TransactionType.EXPENSE, "#EF4444");
+        ReflectionTestUtils.setField(cat, "id", 3L);
+        cat.setSpaceId(7L);
+        when(categoryRepository.findBySpaceIdAndActiveTrue(7L)).thenReturn(List.of(cat));
+        when(categoryBalanceRepository.findByCategoryIdIn(List.of(3L))).thenReturn(List.of());
+        when(transactionRepository.sumExpenseByCategoryForSpace(eq(7L), any(), any())).thenReturn(List.of());
+        when(accountRepository.sumActiveBalanceBySpaceIds(List.of(7L))).thenReturn(new BigDecimal("300.00"));
+
+        CategoryBudgetResponse budget = categoryService.budget(USER_ID, 7L);
+
+        verify(spaceAccess).assertActiveMember(USER_ID, 7L);
+        assertThat(budget.totalAccounts()).isEqualByComparingTo("300.00");
+        assertThat(budget.categories()).hasSize(1);
+    }
+
+    @Test
+    void assignInSpaceAdjustsSharedEnvelopeAfterMembershipCheck() {
+        Category cat = new Category(USER_ID, "Comida", TransactionType.EXPENSE, "#EF4444");
+        ReflectionTestUtils.setField(cat, "id", 3L);
+        cat.setSpaceId(7L);
+        when(categoryRepository.findById(3L)).thenReturn(Optional.of(cat));
+        when(categoryBalanceRepository.findByCategoryId(3L)).thenReturn(Optional.empty());
+        // budget() re-fetch after assign:
+        when(categoryRepository.findBySpaceIdAndActiveTrue(7L)).thenReturn(List.of(cat));
+        when(categoryBalanceRepository.findByCategoryIdIn(any())).thenReturn(List.of());
+        when(transactionRepository.sumExpenseByCategoryForSpace(eq(7L), any(), any())).thenReturn(List.of());
+        when(accountRepository.sumActiveBalanceBySpaceIds(List.of(7L))).thenReturn(new BigDecimal("100.00"));
+
+        categoryService.assign(USER_ID, 3L, 7L, new AssignRequest(new BigDecimal("50.00")));
+
+        // membership is checked twice: findAccessible on the space category + the budget() re-fetch
+        verify(spaceAccess, times(2)).assertActiveMember(USER_ID, 7L);
+        ArgumentCaptor<CategoryBalance> captor = ArgumentCaptor.forClass(CategoryBalance.class);
+        verify(categoryBalanceRepository).save(captor.capture());
+        assertThat(captor.getValue().getBalance()).isEqualByComparingTo("50.00");
     }
 }

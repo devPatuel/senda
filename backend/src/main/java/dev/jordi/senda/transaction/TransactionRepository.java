@@ -74,6 +74,23 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
                                              @Param("to") LocalDate to);
 
     /**
+     * Per-category expense totals for a couple SPACE in a date range, aggregated
+     * in the database. Authorization by membership is enforced in the service;
+     * this query scopes strictly to the space (never personal rows).
+     */
+    @Query("""
+            select new dev.jordi.senda.transaction.CategorySpent(t.category.id, sum(t.amount))
+            from Transaction t
+            where t.spaceId = :spaceId
+              and t.type = dev.jordi.senda.common.TransactionType.EXPENSE
+              and t.date between :from and :to
+            group by t.category.id
+            """)
+    List<CategorySpent> sumExpenseByCategoryForSpace(@Param("spaceId") Long spaceId,
+                                                     @Param("from") LocalDate from,
+                                                     @Param("to") LocalDate to);
+
+    /**
      * Per-(year, month, type) totals from {@code from} onward, aggregated in the
      * database. The service reshapes these into a dense per-month trend series.
      */

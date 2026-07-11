@@ -119,17 +119,39 @@ public class CategoryService {
      * (including inactive ones, whose money is still assigned).
      */
     @Transactional(readOnly = true)
-    public CategoryBudgetResponse budget(Long userId) {
-        Map<Long, CategoryBalance> balances = categoryBalanceRepository.findByUserId(userId).stream()
-                .collect(Collectors.toMap(CategoryBalance::getCategoryId, b -> b));
-
+    public CategoryBudgetResponse budget(Long userId, Long spaceId) {
         LocalDate from = LocalDate.now().withDayOfMonth(1);
         LocalDate to = from.plusMonths(1).minusDays(1);
-        Map<Long, BigDecimal> spent = transactionRepository.sumExpenseByCategory(userId, from, to).stream()
-                .collect(Collectors.toMap(CategorySpent::categoryId, CategorySpent::spent));
 
-        List<CategoryBudgetLine> lines = categoryRepository.findByUserIdAndSpaceIdIsNullAndActiveTrue(userId).stream()
-                .filter(c -> c.getType() == TransactionType.EXPENSE)
+        List<Category> expenseCategories;
+        Map<Long, CategoryBalance> balances;
+        Map<Long, BigDecimal> spent;
+        BigDecimal totalAccounts;
+
+        if (spaceId == null) {
+            expenseCategories = categoryRepository.findByUserIdAndSpaceIdIsNullAndActiveTrue(userId).stream()
+                    .filter(c -> c.getType() == TransactionType.EXPENSE).toList();
+            balances = categoryBalanceRepository.findByUserId(userId).stream()
+                    .collect(Collectors.toMap(CategoryBalance::getCategoryId, b -> b));
+            spent = transactionRepository.sumExpenseByCategory(userId, from, to).stream()
+                    .collect(Collectors.toMap(CategorySpent::categoryId, CategorySpent::spent));
+            totalAccounts = accountRepository.sumActiveBalance(userId);
+        } else {
+            spaceAccess.assertActiveMember(userId, spaceId);
+            expenseCategories = categoryRepository.findBySpaceIdAndActiveTrue(spaceId).stream()
+                    .filter(c -> c.getType() == TransactionType.EXPENSE).toList();
+            List<Long> ids = expenseCategories.stream().map(Category::getId).toList();
+            balances = (ids.isEmpty() ? List.<CategoryBalance>of() : categoryBalanceRepository.findByCategoryIdIn(ids)).stream()
+                    .collect(Collectors.toMap(CategoryBalance::getCategoryId, b -> b));
+            spent = transactionRepository.sumExpenseByCategoryForSpace(spaceId, from, to).stream()
+                    .collect(Collectors.toMap(CategorySpent::categoryId, CategorySpent::spent));
+            totalAccounts = accountRepository.sumActiveBalanceBySpaceIds(List.of(spaceId));
+        }
+        if (totalAccounts == null) {
+            totalAccounts = ZERO;
+        }
+
+        List<CategoryBudgetLine> lines = expenseCategories.stream()
                 .sorted(Comparator.comparing(Category::getName, String.CASE_INSENSITIVE_ORDER)
                         .thenComparing(Category::getId, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(c -> {
@@ -145,10 +167,6 @@ public class CategoryService {
                 })
                 .toList();
 
-        BigDecimal totalAccounts = accountRepository.sumActiveBalance(userId);
-        if (totalAccounts == null) {
-            totalAccounts = ZERO;
-        }
         BigDecimal totalAssigned = balances.values().stream()
                 .map(CategoryBalance::getBalance)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
@@ -164,8 +182,8 @@ public class CategoryService {
      * refreshed budget so the caller can update the whole view in one round-trip.
      */
     @Transactional
-    public CategoryBudgetResponse assign(Long userId, Long categoryId, AssignRequest request) {
-        Category category = findOwned(userId, categoryId);
+    public CategoryBudgetResponse assign(Long userId, Long categoryId, Long spaceId, AssignRequest request) {
+        Category category = findAccessible(userId, categoryId);
         if (category.getType() != TransactionType.EXPENSE) {
             throw new ConflictException("Only expense categories can hold a balance");
         }
@@ -173,7 +191,7 @@ public class CategoryService {
                 .orElseGet(() -> new CategoryBalance(categoryId, userId));
         balance.setBalance(balance.getBalance().add(request.amount()));
         categoryBalanceRepository.save(balance);
-        return budget(userId);
+        return budget(userId, spaceId);
     }
 
     /**
@@ -182,8 +200,8 @@ public class CategoryService {
      * refreshed budget so the caller can update the whole view in one round-trip.
      */
     @Transactional
-    public CategoryBudgetResponse setTarget(Long userId, Long categoryId, TargetRequest request) {
-        Category category = findOwned(userId, categoryId);
+    public CategoryBudgetResponse setTarget(Long userId, Long categoryId, Long spaceId, TargetRequest request) {
+        Category category = findAccessible(userId, categoryId);
         if (category.getType() != TransactionType.EXPENSE) {
             throw new ConflictException("Only expense categories can hold a target");
         }
@@ -191,7 +209,7 @@ public class CategoryService {
                 .orElseGet(() -> new CategoryBalance(categoryId, userId));
         balance.setTargetAmount(request.targetAmount());
         categoryBalanceRepository.save(balance);
-        return budget(userId);
+        return budget(userId, spaceId);
     }
 
     private boolean isDuplicate(Long userId, Category category, String name) {
@@ -199,13 +217,6 @@ public class CategoryService {
         return category.getSpaceId() == null
                 ? categoryRepository.existsByUserIdAndNameAndTypeAndSpaceIdIsNull(userId, name, category.getType())
                 : categoryRepository.existsBySpaceIdAndNameAndType(category.getSpaceId(), name, category.getType());
-    }
-
-    private Category findOwned(Long userId, Long id) {
-        // 404 (not 403) for another user's category: do not reveal its existence.
-        // Budget/assign/target stay strictly personal (space_id IS NULL).
-        return categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(id, userId)
-                .orElseThrow(() -> new NotFoundException("Category not found"));
     }
 
     /**
