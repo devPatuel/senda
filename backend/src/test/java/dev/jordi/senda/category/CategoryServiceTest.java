@@ -266,6 +266,7 @@ class CategoryServiceTest {
         ReflectionTestUtils.setField(cat, "id", 3L);
         cat.setSpaceId(7L);
         when(categoryRepository.findBySpaceIdAndActiveTrue(7L)).thenReturn(List.of(cat));
+        when(categoryRepository.findBySpaceId(7L)).thenReturn(List.of(cat));
         when(categoryBalanceRepository.findByCategoryIdIn(List.of(3L))).thenReturn(List.of());
         when(transactionRepository.sumExpenseByCategoryForSpace(eq(7L), any(), any())).thenReturn(List.of());
         when(accountRepository.sumActiveBalanceBySpaceIds(List.of(7L))).thenReturn(new BigDecimal("300.00"));
@@ -286,6 +287,7 @@ class CategoryServiceTest {
         when(categoryBalanceRepository.findByCategoryId(3L)).thenReturn(Optional.empty());
         // budget() re-fetch after assign:
         when(categoryRepository.findBySpaceIdAndActiveTrue(7L)).thenReturn(List.of(cat));
+        when(categoryRepository.findBySpaceId(7L)).thenReturn(List.of(cat));
         when(categoryBalanceRepository.findByCategoryIdIn(any())).thenReturn(List.of());
         when(transactionRepository.sumExpenseByCategoryForSpace(eq(7L), any(), any())).thenReturn(List.of());
         when(accountRepository.sumActiveBalanceBySpaceIds(List.of(7L))).thenReturn(new BigDecimal("100.00"));

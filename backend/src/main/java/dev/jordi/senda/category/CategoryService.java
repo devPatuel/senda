@@ -148,7 +148,11 @@ public class CategoryService {
             spaceAccess.assertActiveMember(userId, spaceId);
             expenseCategories = categoryRepository.findBySpaceIdAndActiveTrue(spaceId).stream()
                     .filter(c -> c.getType() == TransactionType.EXPENSE).toList();
-            List<Long> ids = expenseCategories.stream().map(Category::getId).toList();
+            // Balances cover ALL of the space's categories (including inactive ones,
+            // whose money is still assigned), so totalAssigned matches the personal
+            // path; lines below still show only the active categories.
+            List<Long> ids = categoryRepository.findBySpaceId(spaceId).stream()
+                    .map(Category::getId).toList();
             balances = (ids.isEmpty() ? List.<CategoryBalance>of() : categoryBalanceRepository.findByCategoryIdIn(ids)).stream()
                     .collect(Collectors.toMap(CategoryBalance::getCategoryId, b -> b));
             spent = transactionRepository.sumExpenseByCategoryForSpace(spaceId, from, to).stream()
