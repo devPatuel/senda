@@ -14,7 +14,7 @@ vi.mock('../api/categories', () => ({
   setCategoryTarget: vi.fn(),
 }))
 
-const COMIDA = { id: 1, name: 'Comida', type: 'EXPENSE', color: '#ef4444', active: true }
+const COMIDA = { id: 1, name: 'Comida', type: 'EXPENSE', color: '#ef4444', emoji: '🍔', active: true }
 const NOMINA = { id: 2, name: 'Nómina', type: 'INCOME', color: '#10b981', active: true }
 
 // Comida has a 300 target with a 150 balance (50% funded).
@@ -46,6 +46,31 @@ describe('CategoriesPage', () => {
     vi.resetAllMocks()
     listCategories.mockResolvedValue([COMIDA, NOMINA])
     getBudget.mockResolvedValue(BUDGET)
+  })
+
+  it('renders the category emoji next to its name', async () => {
+    render(<CategoriesPage />)
+    await screen.findByText('Comida')
+    expect(screen.getByText('🍔')).toBeInTheDocument()
+  })
+
+  it('sends the chosen emoji when creating a category', async () => {
+    createCategory.mockResolvedValue({ id: 9, name: 'Viajes', type: 'EXPENSE', color: '#10b981', emoji: '✈️', active: true })
+    const user = userEvent.setup()
+    render(<CategoriesPage />)
+
+    await screen.findByText('Comida')
+    await user.click(screen.getByRole('button', { name: /Nueva categoría/i }))
+
+    await user.type(screen.getByLabelText('Nombre'), 'Viajes')
+    await user.type(screen.getByRole('textbox', { name: /emoji/i }), '✈️')
+    await user.click(screen.getByRole('button', { name: 'Crear categoría' }))
+
+    await waitFor(() =>
+      expect(createCategory).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Viajes', emoji: '✈️' }),
+      ),
+    )
   })
 
   it('shows the funding-target progress bar for a category with a target', async () => {

@@ -284,6 +284,11 @@ export default function TransactionsPage({ spaceId }) {
                   style={{ backgroundColor: t.categoryColor }}
                   aria-hidden="true"
                 />
+                {t.categoryEmoji && (
+                  <span className="shrink-0 text-base leading-none" aria-hidden="true">
+                    {t.categoryEmoji}
+                  </span>
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-slate-900">
                     {t.description || t.categoryName}

@@ -9,6 +9,7 @@ import { http } from './http'
  * @property {string} name
  * @property {TransactionType} type
  * @property {string} color
+ * @property {string|null} emoji
  * @property {boolean} active
  */
 
