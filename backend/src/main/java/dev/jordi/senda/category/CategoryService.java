@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -131,7 +132,14 @@ public class CategoryService {
         if (spaceId == null) {
             expenseCategories = categoryRepository.findByUserIdAndSpaceIdIsNullAndActiveTrue(userId).stream()
                     .filter(c -> c.getType() == TransactionType.EXPENSE).toList();
+            // Envelopes are keyed by category and owned by the user who first assigned to
+            // them, so a couple-category envelope also carries this userId. Restrict the
+            // personal budget to envelopes of personal (space_id IS NULL) categories,
+            // including inactive ones, so shared money never leaks into the personal view.
+            Set<Long> personalCategoryIds = categoryRepository.findByUserIdAndSpaceIdIsNull(userId).stream()
+                    .map(Category::getId).collect(Collectors.toSet());
             balances = categoryBalanceRepository.findByUserId(userId).stream()
+                    .filter(b -> personalCategoryIds.contains(b.getCategoryId()))
                     .collect(Collectors.toMap(CategoryBalance::getCategoryId, b -> b));
             spent = transactionRepository.sumExpenseByCategory(userId, from, to).stream()
                     .collect(Collectors.toMap(CategorySpent::categoryId, CategorySpent::spent));
