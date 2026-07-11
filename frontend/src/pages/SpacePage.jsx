@@ -336,6 +336,10 @@ export default function SpacePage() {
   if (activeSpace) {
     return (
       <div className="space-y-4">
+        {/* A pending invite stays actionable even once the user has their own
+            active space, otherwise it would be orphaned and impossible to
+            accept or decline. */}
+        {pendingSpace && <PendingInvite space={pendingSpace} onChanged={reload} />}
         <SpaceHeader space={activeSpace} onLeave={reload} />
         <SpaceResources spaceId={activeSpace.id} />
       </div>

@@ -110,7 +110,7 @@ export default function NetWorthPage() {
             </section>
 
             {/* Couple share: only shown when the user has a couple space */}
-            {Number(data.coupleShare) > 0 && (
+            {Number(data.coupleShare) !== 0 && (
               <Block label="Pareja (50%)" value={data.coupleShare} tone="neutral" />
             )}
           </div>
@@ -159,7 +159,7 @@ export default function NetWorthPage() {
                   {formatCurrency(data.debtsAgainst)}
                 </span>
               </li>
-              {Number(data.coupleShare) > 0 && (
+              {Number(data.coupleShare) !== 0 && (
                 <li className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 text-slate-600">
                     <span className="h-2.5 w-2.5 rounded-full bg-sky-400" aria-hidden="true" />
