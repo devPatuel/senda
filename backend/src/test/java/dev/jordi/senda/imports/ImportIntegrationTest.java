@@ -86,6 +86,23 @@ class ImportIntegrationTest {
                 .content(json));
     }
 
+    // Cross-tenant: user B cannot commit an import that references user A's category.
+    @Test
+    void commitCannotUseAnotherUsersCategory() throws Exception {
+        String tokenB = register("import-intruder@example.com", "Intruder");
+        String body = """
+                {"rows": [
+                  {"date": "%s", "description": "x", "amount": 10.00, "type": "EXPENSE", "categoryId": %d}
+                ]}
+                """.formatted(today, comida); // 'comida' belongs to user A
+
+        mockMvc.perform(post("/api/imports/commit")
+                        .header("Authorization", "Bearer " + tokenB)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isNotFound());
+    }
+
     @Test
     void previewDerivesTypeSuggestsCategoryAndFlagsDuplicates() throws Exception {
         createRule("MERCADONA", comida);

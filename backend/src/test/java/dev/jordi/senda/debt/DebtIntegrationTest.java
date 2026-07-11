@@ -131,6 +131,23 @@ class DebtIntegrationTest {
                 .andExpect(jsonPath("$[0].originalAmount").value(200.00));
     }
 
+    // Reading and deleting another user's payments (not just posting) must also 404.
+    @Test
+    void userBCannotListNorDeleteUserADebtPayments() throws Exception {
+        long idA = createDebt(tokenA, "THEY_OWE_ME", "Carlos", "Viaje", "200.00", "2026-06-01");
+        long paymentA = addPayment(tokenA, idA, "30.00", "2026-06-02");
+
+        // B lists A's payments -> 404 (the debt is not B's)
+        mockMvc.perform(get("/api/debts/" + idA + "/payments")
+                        .header("Authorization", "Bearer " + tokenB))
+                .andExpect(status().isNotFound());
+
+        // B deletes A's payment -> 404
+        mockMvc.perform(delete("/api/debts/" + idA + "/payments/" + paymentA)
+                        .header("Authorization", "Bearer " + tokenB))
+                .andExpect(status().isNotFound());
+    }
+
     // =========================================================================
     // Partial payments, auto-settle, un-settle
     // =========================================================================
