@@ -239,4 +239,15 @@ class InvestmentIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.symbol").value("BTC"));
     }
+
+    // The only holding sub-resource not covered above: listing another user's lots.
+    @Test
+    void userBCannotListUserAHoldingLots() throws Exception {
+        long criptoA = firstAssetClassId(tokenA, "Cripto");
+        long holdingA = createHolding(tokenA, criptoA, "BTC", "Bitcoin", "2", "10000");
+
+        mockMvc.perform(get("/api/investments/holdings/" + holdingA + "/lots")
+                        .header("Authorization", "Bearer " + tokenB))
+                .andExpect(status().isNotFound());
+    }
 }
