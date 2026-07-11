@@ -66,6 +66,12 @@ public class TransactionController {
         return transactionService.create(CurrentUser.id(), request);
     }
 
+    @PostMapping("/quick")
+    @ResponseStatus(HttpStatus.CREATED)
+    public TransactionResponse quick(@Valid @RequestBody QuickTransactionRequest request) {
+        return transactionService.quickCreate(CurrentUser.id(), request);
+    }
+
     @PutMapping("/{id}")
     public TransactionResponse update(@PathVariable Long id,
                                       @Valid @RequestBody TransactionRequest request) {

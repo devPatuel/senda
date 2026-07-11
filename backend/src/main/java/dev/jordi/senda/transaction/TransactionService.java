@@ -2,6 +2,9 @@ package dev.jordi.senda.transaction;
 
 import dev.jordi.senda.category.Category;
 import dev.jordi.senda.category.CategoryRepository;
+import dev.jordi.senda.categoryrule.CategoryRule;
+import dev.jordi.senda.categoryrule.CategoryRuleRepository;
+import dev.jordi.senda.categoryrule.CategoryRuleService;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.NotFoundException;
 import dev.jordi.senda.common.TransactionType;
@@ -35,13 +38,16 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
+    private final CategoryRuleRepository categoryRuleRepository;
     private final SpaceAccess spaceAccess;
 
     public TransactionService(TransactionRepository transactionRepository,
                               CategoryRepository categoryRepository,
+                              CategoryRuleRepository categoryRuleRepository,
                               SpaceAccess spaceAccess) {
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
+        this.categoryRuleRepository = categoryRuleRepository;
         this.spaceAccess = spaceAccess;
     }
 
@@ -77,6 +83,34 @@ public class TransactionService {
                 request.amount(), request.date(), request.description());
         transaction.setSpaceId(request.spaceId());
         return TransactionResponse.from(transactionRepository.save(transaction));
+    }
+
+    /**
+     * Quick capture (Apple Shortcut): always a personal EXPENSE dated today. When
+     * no category is given, it is resolved from the user's category rules against
+     * the description; if none match, a 400 asks for an explicit category or rule.
+     */
+    @Transactional
+    public TransactionResponse quickCreate(Long userId, QuickTransactionRequest request) {
+        Category category = resolveQuickCategory(userId, request);
+        Transaction transaction = new Transaction(userId, category, TransactionType.EXPENSE,
+                request.amount(), LocalDate.now(ZONE), request.description());
+        // Personal scope: spaceId stays null.
+        return TransactionResponse.from(transactionRepository.save(transaction));
+    }
+
+    private Category resolveQuickCategory(Long userId, QuickTransactionRequest request) {
+        if (request.categoryId() != null) {
+            return categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(request.categoryId(), userId)
+                    .orElseThrow(() -> new NotFoundException("Category not found"));
+        }
+        List<CategoryRule> rules = categoryRuleRepository.findByUserId(userId);
+        Long matchedCategoryId = CategoryRuleService.firstMatch(rules, request.description())
+                .map(CategoryRule::getCategoryId)
+                .orElseThrow(() -> new InvalidTransactionException(
+                        "No category matched; pass categoryId or add a category rule"));
+        return categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(matchedCategoryId, userId)
+                .orElseThrow(() -> new NotFoundException("Category not found"));
     }
 
     @Transactional(readOnly = true)
