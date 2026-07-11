@@ -159,6 +159,29 @@ class SpaceScopingIntegrationTest {
     }
 
     @Test
+    void coupleTransactionDoesNotLeakIntoPersonalTrends() throws Exception {
+        String tokenA = register("a@example.com", "User A");
+        long spaceId = createSpace(tokenA, "Pareja");
+
+        long personalCat = categoryId(tokenA, null, "Comida");
+        long spaceCat = categoryId(tokenA, spaceId, "Comida");
+
+        // Trends is relative to "now": use the current month so the rows fall in range.
+        String today = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Madrid")).toString();
+        createTransaction(tokenA, personalCat, "111.11", today, null);
+        createTransaction(tokenA, spaceCat, "777.77", today, spaceId);
+
+        String trends = mockMvc.perform(get("/api/transactions/trends?months=3")
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        // The personal expense shows up; the couple expense must NOT leak into it.
+        assertThat(trends).contains("111.11");
+        assertThat(trends).doesNotContain("777.77");
+    }
+
+    @Test
     void coupleAccountDoesNotLeakIntoPersonalBalanceNorBudget() throws Exception {
         String tokenA = register("a@example.com", "User A");
         long spaceId = createSpace(tokenA, "Pareja");
