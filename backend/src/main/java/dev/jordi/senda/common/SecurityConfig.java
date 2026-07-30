@@ -3,6 +3,7 @@ package dev.jordi.senda.common;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,10 +32,13 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final ObjectMapper objectMapper;
+    private final List<String> allowedOrigins;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter, ObjectMapper objectMapper) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, ObjectMapper objectMapper,
+                          @Value("${senda.cors.allowed-origins}") List<String> allowedOrigins) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.objectMapper = objectMapper;
+        this.allowedOrigins = allowedOrigins;
     }
 
     @Bean
@@ -69,10 +73,17 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * Allowed origins come from configuration, never hardcoded. Production serves
+     * the SPA and the API from the same origin behind a reverse proxy, but browsers
+     * still attach an Origin header to same-origin POSTs: a list frozen at the
+     * development URL turns every write into a 403 the moment the app is deployed
+     * anywhere else.
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
+        configuration.setAllowedOrigins(allowedOrigins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

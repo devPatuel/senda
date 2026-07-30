@@ -30,3 +30,9 @@ senda:
     # Local development: run with the 'local' profile (application-local.yml).
     secret: ${SENDA_JWT_SECRET}
     expiration: 24h
+  cors:
+    # Every URL the browser may load the app from. The Vite dev server is the
+    # default because it is the only one that is the same on every machine; any
+    # deployment adds its own with SENDA_CORS_ORIGINS (comma separated).
+    # It must include the port: for CORS, a different port is a different origin.
+    allowed-origins: ${SENDA_CORS_ORIGINS:http://localhost:5173}
