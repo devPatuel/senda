@@ -49,6 +49,14 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(404, "Not Found", message));
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ErrorResponse> handleForbidden(ForbiddenException ex) {
+        // 403, not 401: the request is understood and authentication would not change
+        // the outcome. The message is a deliberate policy statement, not a leak.
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(403, "Forbidden", ex.getMessage()));
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)

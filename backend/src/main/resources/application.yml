@@ -24,6 +24,11 @@ management:
         include: health
 
 senda:
+  auth:
+    # Self-service sign-up. Closed by default: Senda is single-user in practice and
+    # any deployment is reachable by every device on its network. Open it (true) only
+    # long enough to create the first account, then close it again.
+    registration-enabled: ${SENDA_REGISTRATION_ENABLED:false}
   jwt:
     # No default ON PURPOSE: without SENDA_JWT_SECRET the app must fail to start.
     # A known fallback secret would let anyone forge tokens for any user.

@@ -38,6 +38,12 @@ bruta y contra agotamiento de CPU (cada intento ejecuta BCrypt).
 
 Alta de usuario. Crea automáticamente sus categorías por defecto.
 
+**Cerrado por defecto.** El alta self-service solo funciona si el despliegue pone
+`senda.auth.registration-enabled: true` (env `SENDA_REGISTRATION_ENABLED`); si no,
+responde `403 Forbidden` antes de tocar la base de datos. Senda es de un solo usuario
+en la práctica y cualquier despliegue es alcanzable por toda su red: se abre lo justo
+para crear la primera cuenta y se vuelve a cerrar. El perfil `local` lo trae abierto.
+
 Body:
 
 ```json
@@ -56,7 +62,7 @@ Respuesta `201 Created`:
 }
 ```
 
-Errores: `409` email duplicado, `400` validación.
+Errores: `403` registro cerrado, `409` email duplicado, `400` validación.
 
 ### POST /api/auth/login
 

@@ -1,6 +1,7 @@
 package dev.jordi.senda.auth;
 
 import dev.jordi.senda.common.ConflictException;
+import dev.jordi.senda.common.ForbiddenException;
 import dev.jordi.senda.common.GlobalExceptionHandler;
 import dev.jordi.senda.common.JwtAuthFilter;
 import dev.jordi.senda.apitoken.ApiTokenService;
@@ -70,6 +71,22 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.error").value("Conflict"))
                 .andExpect(jsonPath("$.message").value("Email already registered"))
                 .andExpect(jsonPath("$.fieldErrors").doesNotExist());
+    }
+
+    @Test
+    void registerWithRegistrationClosedReturns403() throws Exception {
+        when(authService.register(any(RegisterRequest.class)))
+                .thenThrow(new ForbiddenException("Registration is closed"));
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "intruder@example.com", "password": "password123", "name": "Intruder"}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("Forbidden"))
+                .andExpect(jsonPath("$.message").value("Registration is closed"));
     }
 
     @Test

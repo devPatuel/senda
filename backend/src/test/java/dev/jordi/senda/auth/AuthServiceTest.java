@@ -4,16 +4,17 @@ import dev.jordi.senda.category.Category;
 import dev.jordi.senda.category.CategoryRepository;
 import dev.jordi.senda.category.DefaultCategories;
 import dev.jordi.senda.common.ConflictException;
+import dev.jordi.senda.common.ForbiddenException;
 import dev.jordi.senda.common.JwtService;
 import dev.jordi.senda.investment.AssetClass;
 import dev.jordi.senda.investment.AssetClassRepository;
 import dev.jordi.senda.investment.DefaultAssetClasses;
 import dev.jordi.senda.user.User;
 import dev.jordi.senda.user.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -28,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,8 +46,17 @@ class AuthServiceTest {
     @Mock
     private JwtService jwtService;
 
-    @InjectMocks
     private AuthService authService;
+
+    @BeforeEach
+    void setUp() {
+        authService = authServiceWithRegistration(true);
+    }
+
+    private AuthService authServiceWithRegistration(boolean registrationEnabled) {
+        return new AuthService(userRepository, categoryRepository, assetClassRepository,
+                passwordEncoder, jwtService, registrationEnabled);
+    }
 
     private User savedUser() {
         User user = new User("jordi@example.com", "hashed", "Jordi");
@@ -102,6 +113,17 @@ class AuthServiceTest {
                 .isInstanceOf(ConflictException.class);
 
         verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void registerWithRegistrationClosedThrowsForbidden() {
+        AuthService closedRegistration = authServiceWithRegistration(false);
+
+        assertThatThrownBy(() -> closedRegistration.register(
+                new RegisterRequest("intruder@example.com", "password123", "Intruder")))
+                .isInstanceOf(ForbiddenException.class);
+
+        verifyNoInteractions(userRepository, categoryRepository, assetClassRepository, jwtService);
     }
 
     @Test

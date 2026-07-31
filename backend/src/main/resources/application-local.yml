@@ -1,5 +1,8 @@
 # Local development ONLY. Activate with: ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 # This secret is public (committed): never enable this profile in a real environment.
 senda:
+  auth:
+    # Local development creates throwaway accounts all the time
+    registration-enabled: true
   jwt:
     secret: ${SENDA_JWT_SECRET:senda-local-profile-secret-Zp4xN8vQ1tR6yW3mK9jB2cF7gD5sH0aL}

@@ -53,7 +53,12 @@ export default function RegisterPage() {
       await register(form.name.trim(), form.email.trim(), form.password)
       navigate('/', { replace: true })
     } catch (err) {
-      setError(err.message || 'No se ha podido completar el registro')
+      // The API answers 403 with an English policy message; UI copy is the client's job
+      setError(
+        err.status === 403
+          ? 'El registro está cerrado en esta instalación de Senda'
+          : err.message || 'No se ha podido completar el registro',
+      )
       if (err.fieldErrors) setFieldErrors(err.fieldErrors)
     } finally {
       setLoading(false)
