@@ -21,6 +21,7 @@ const ICONS = {
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   ),
+  rutina: svg('M9 11l3 3L22 4', 'M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'),
   movimientos: svg('M7 4v13', 'm3.5 13.5 3.5 3.5 3.5-3.5', 'M17 20V7', 'm13.5 10.5 3.5-3.5 3.5 3.5'),
   recurrentes: svg('M17 2l4 4-4 4', 'M3 11V9a4 4 0 0 1 4-4h14', 'M7 22l-4-4 4-4', 'M21 13v2a4 4 0 0 1-4 4H3'),
   importar: svg('M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4', 'M7 10l5 5 5-5', 'M12 15V3'),
@@ -59,6 +60,13 @@ const NAV_GROUPS = [
       { to: '/', label: 'Inicio', end: true, icon: ICONS.inicio },
       { to: '/patrimonio', label: 'Patrimonio', icon: ICONS.patrimonio },
       { to: '/pareja', label: 'Pareja', icon: ICONS.pareja },
+    ],
+  },
+  {
+    // First non-financial group; Salud/Gym and the reading list will land here too.
+    title: 'Rutina',
+    items: [
+      { to: '/habitos', label: 'Hábitos', icon: ICONS.rutina },
     ],
   },
   {
