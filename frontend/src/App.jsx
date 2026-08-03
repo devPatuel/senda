@@ -20,6 +20,7 @@ import TokensPage from './pages/TokensPage'
 import ProductsPage from './pages/ProductsPage'
 import WishlistPage from './pages/WishlistPage'
 import HabitsPage from './pages/HabitsPage'
+import HabitDetailPage from './pages/HabitDetailPage'
 
 export default function App() {
   return (
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="/productos" element={<ProductsPage />} />
           <Route path="/deseos" element={<WishlistPage />} />
           <Route path="/habitos" element={<HabitsPage />} />
+          <Route path="/habitos/:id" element={<HabitDetailPage />} />
           <Route path="/pareja" element={<SpacePage />} />
           <Route path="/tokens" element={<TokensPage />} />
         </Route>
