@@ -269,8 +269,9 @@ class TransactionControllerTest {
         when(transactionService.summary(USER_ID, null, 2026, 6)).thenReturn(new MonthlySummaryResponse(
                 2026, 6, new BigDecimal("1500.00"), new BigDecimal("120.75"), new BigDecimal("1379.25"),
                 List.of(new CategorySummary(5L, "Comida", "#EF4444", TransactionType.EXPENSE,
-                        new BigDecimal("100.50"), false)),
-                new BigDecimal("0.00"), new BigDecimal("100.50"), null, null));
+                        new BigDecimal("100.50"), false, false)),
+                new BigDecimal("0.00"), new BigDecimal("100.50"), null, null,
+                new BigDecimal("0.00"), new BigDecimal("0.00")));
 
         mockMvc.perform(get("/api/transactions/summary")
                         .header("Authorization", bearer)

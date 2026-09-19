@@ -13,5 +13,7 @@ public record MonthlySummaryResponse(
         BigDecimal fixedExpenseTotal,
         BigDecimal variableExpenseTotal,
         BigDecimal fixedExpensePercentage,
-        CategorySummary topExpenseCategory) {
+        CategorySummary topExpenseCategory,
+        BigDecimal transfersIn,
+        BigDecimal transfersOut) {
 }

@@ -127,8 +127,9 @@ function CategoryForm({ category, spaceId, onClose, onSaved }) {
           color: category.color,
           emoji: category.emoji ?? '',
           fixed: category.fixed ?? false,
+          transfer: category.transfer ?? false,
         }
-      : { name: '', type: 'EXPENSE', color: PALETTE[4], emoji: '', fixed: false },
+      : { name: '', type: 'EXPENSE', color: PALETTE[4], emoji: '', fixed: false, transfer: false },
   )
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState(null)
@@ -156,6 +157,7 @@ function CategoryForm({ category, spaceId, onClose, onSaved }) {
           emoji,
           active: category.active,
           fixed: form.fixed,
+          transfer: form.transfer,
         })
       } else {
         await createCategory({
@@ -164,6 +166,7 @@ function CategoryForm({ category, spaceId, onClose, onSaved }) {
           color: form.color,
           emoji,
           fixed: form.fixed,
+          transfer: form.transfer,
           ...(spaceId != null && { spaceId }),
         })
       }
@@ -246,6 +249,21 @@ function CategoryForm({ category, spaceId, onClose, onSaved }) {
             />
             Gasto fijo
           </label>
+        )}
+
+        <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={form.transfer}
+            onChange={(e) => setForm((prev) => ({ ...prev, transfer: e.target.checked }))}
+            className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
+          />
+          Traspaso entre cuentas propias
+        </label>
+        {form.transfer && (
+          <p className="-mt-2 text-xs text-slate-500">
+            No cuenta como ingreso ni como gasto: se resume aparte.
+          </p>
         )}
 
         <SubmitButton loading={saving} loadingText="Guardando…">

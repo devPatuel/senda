@@ -42,6 +42,12 @@ public class Category {
     @Column(nullable = false)
     private boolean fixed = false;
 
+    // Marks money moved between the user's own accounts (funding the couple's
+    // shared account, for instance). Such a movement is neither income nor
+    // spending, so the monthly summary reports it apart from both.
+    @Column(name = "is_transfer", nullable = false)
+    private boolean transfer = false;
+
     // Target share of the salary split (0-100). Null when the category is not
     // part of the allocation plan. Only meaningful for EXPENSE categories.
     @Column(name = "target_percentage")
@@ -110,6 +116,14 @@ public class Category {
 
     public void setFixed(boolean fixed) {
         this.fixed = fixed;
+    }
+
+    public boolean isTransfer() {
+        return transfer;
+    }
+
+    public void setTransfer(boolean transfer) {
+        this.transfer = transfer;
     }
 
     public BigDecimal getTargetPercentage() {

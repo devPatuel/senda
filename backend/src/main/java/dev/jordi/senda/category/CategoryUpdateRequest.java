@@ -13,8 +13,8 @@ import jakarta.validation.constraints.Size;
  * silently ignored. Changing the type would silently re-classify every existing
  * transaction of the category, which is never what the user wants.
  *
- * <p>{@code active} and {@code fixed} are optional: when {@code null}, the
- * current value is kept.
+ * <p>{@code active}, {@code fixed} and {@code transfer} are optional: when
+ * {@code null}, the current value is kept.
  */
 public record CategoryUpdateRequest(
         @NotBlank @Size(max = 100) String name,
@@ -22,5 +22,6 @@ public record CategoryUpdateRequest(
                 message = "must be a hex color in #RRGGBB format") String color,
         @Size(max = 8) String emoji,
         Boolean active,
-        Boolean fixed) {
+        Boolean fixed,
+        Boolean transfer) {
 }

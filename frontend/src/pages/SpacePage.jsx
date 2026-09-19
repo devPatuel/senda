@@ -13,8 +13,10 @@ import { ConfirmDialog, ErrorState, LoadingState, Notice } from '../components/u
 import AccountsPage from './AccountsPage'
 import CategoriesPage from './CategoriesPage'
 import TransactionsPage from './TransactionsPage'
+import SpaceSummary from '../components/SpaceSummary'
 
 const TABS = [
+  { key: 'resumen', label: 'Resumen' },
   { key: 'cuentas', label: 'Cuentas' },
   { key: 'categorias', label: 'Categorías' },
   { key: 'movimientos', label: 'Movimientos' },
@@ -165,8 +167,10 @@ function InviteForm({ spaceId, onInvited }) {
 
 const STATUS_LABELS = { ACTIVE: 'Activo', PENDING: 'Pendiente' }
 
-// Header of the active space: name, members, invite form and leave button.
+// Header of the active space: just its name, with members, invites and leaving
+// tucked behind "Ajustes" — housekeeping done once, not on every visit.
 function SpaceHeader({ space, onLeave }) {
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [members, setMembers] = useState(null)
   const [membersError, setMembersError] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
@@ -175,6 +179,7 @@ function SpaceHeader({ space, onLeave }) {
   const [actionError, setActionError] = useState(null)
 
   useEffect(() => {
+    if (!settingsOpen) return undefined
     let cancelled = false
     listMembers(space.id)
       .then((list) => {
@@ -189,7 +194,7 @@ function SpaceHeader({ space, onLeave }) {
     return () => {
       cancelled = true
     }
-  }, [space.id, reloadKey])
+  }, [space.id, reloadKey, settingsOpen])
 
   async function handleLeave() {
     setLeaving(true)
@@ -207,15 +212,16 @@ function SpaceHeader({ space, onLeave }) {
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6">
+    <section>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{space.name}</h1>
         <button
           type="button"
-          onClick={() => setConfirmLeave(true)}
-          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:border-red-300 hover:text-red-600"
+          aria-expanded={settingsOpen}
+          onClick={() => setSettingsOpen((open) => !open)}
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
         >
-          Salir del espacio
+          Ajustes
         </button>
       </div>
 
@@ -227,29 +233,40 @@ function SpaceHeader({ space, onLeave }) {
         </div>
       )}
 
-      <div className="mt-4">
-        <p className="text-sm font-medium text-slate-700">Miembros</p>
-        {membersError && (
-          <p className="mt-1 text-sm text-red-600">{membersError}</p>
-        )}
-        {members && (
-          <ul className="mt-2 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
-            {members.map((m) => (
-              <li key={m.userId} className="flex items-center justify-between gap-3 px-3 py-2">
-                <div className="min-w-0">
-                  {m.name && <p className="truncate text-sm font-medium text-slate-900">{m.name}</p>}
-                  <p className="truncate text-xs text-slate-500">{m.email}</p>
-                </div>
-                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-                  {STATUS_LABELS[m.status] ?? m.status}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {settingsOpen && (
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-medium text-slate-700">Miembros</p>
+            <button
+              type="button"
+              onClick={() => setConfirmLeave(true)}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:border-red-300 hover:text-red-600"
+            >
+              Salir del espacio
+            </button>
+          </div>
+          {membersError && (
+            <p className="mt-1 text-sm text-red-600">{membersError}</p>
+          )}
+          {members && (
+            <ul className="mt-2 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+              {members.map((m) => (
+                <li key={m.userId} className="flex items-center justify-between gap-3 px-3 py-2">
+                  <div className="min-w-0">
+                    {m.name && <p className="truncate text-sm font-medium text-slate-900">{m.name}</p>}
+                    <p className="truncate text-xs text-slate-500">{m.email}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                    {STATUS_LABELS[m.status] ?? m.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
 
-      <InviteForm spaceId={space.id} onInvited={() => setReloadKey((k) => k + 1)} />
+          <InviteForm spaceId={space.id} onInvited={() => setReloadKey((k) => k + 1)} />
+        </div>
+      )}
 
       {confirmLeave && (
         <ConfirmDialog
@@ -267,7 +284,7 @@ function SpaceHeader({ space, onLeave }) {
 
 // Tabbed resource pages, reused with the space's id.
 function SpaceResources({ spaceId }) {
-  const [activeTab, setActiveTab] = useState('cuentas')
+  const [activeTab, setActiveTab] = useState('resumen')
 
   return (
     <div className="space-y-4">
@@ -289,6 +306,7 @@ function SpaceResources({ spaceId }) {
         ))}
       </div>
 
+      {activeTab === 'resumen' && <SpaceSummary spaceId={spaceId} />}
       {activeTab === 'cuentas' && <AccountsPage spaceId={spaceId} />}
       {activeTab === 'categorias' && <CategoriesPage spaceId={spaceId} />}
       {activeTab === 'movimientos' && <TransactionsPage spaceId={spaceId} />}

@@ -95,8 +95,16 @@ Categorías del usuario autenticado.
 |---|---|---|
 | `type` | `INCOME` \| `EXPENSE` | Opcional, filtra por tipo |
 | `includeInactive` | boolean | Opcional, default `false` (solo activas) |
+| `spaceId` | number | Opcional, categorías del espacio en vez de las personales |
 
 Respuesta `200 OK`: `[CategoryResponse]`.
+
+Dos marcas opcionales al crear o editar una categoría:
+
+| Campo | Significado |
+|---|---|
+| `fixed` | Gasto recurrente no discrecional (alquiler, seguros). Separa fijo de variable en el resumen. Solo tiene sentido en categorías de gasto |
+| `transfer` | Movimiento de dinero entre cuentas propias. Ni ingreso ni gasto: se resume aparte (ver el resumen mensual) |
 
 Categorías por defecto creadas al registrarse:
 
@@ -227,8 +235,20 @@ Respuesta `204 No Content`. Errores: `404` si no existe o es de otro usuario.
 
 ### GET /api/transactions/summary?year=&month=
 
-Resumen mensual del usuario autenticado. `balance = totalIncome - totalExpense`.
-`byCategory` solo incluye categorías con movimientos en ese mes.
+Resumen mensual del usuario autenticado (o del espacio, con `spaceId`).
+`balance = totalIncome - totalExpense`. `byCategory` solo incluye categorías con
+movimientos en ese mes.
+
+Las categorías marcadas como **traspaso** (`transfer`) quedan fuera de
+`totalIncome` y `totalExpense` y se resumen aparte en `transfersIn` /
+`transfersOut`: mover dinero entre cuentas propias (financiar la cuenta conjunta,
+por ejemplo) no es ni ingreso ni gasto, y contarlo como tal infla los totales y
+cualquier ratio derivado de ellos. Siguen apareciendo en `byCategory` con su
+marca, para poder mostrarlas por separado.
+
+`fixedExpensePercentage` es `null` cuando no hay ingresos reales en el mes: un
+porcentaje "sobre nada" no significa nada, y el cliente debe distinguir ese caso
+de un 0%.
 
 Respuesta `200 OK`:
 
@@ -239,9 +259,15 @@ Respuesta `200 OK`:
   "totalIncome": 1800.00,
   "totalExpense": 23.50,
   "balance": 1776.50,
+  "fixedExpenseTotal": 0.00,
+  "variableExpenseTotal": 23.50,
+  "fixedExpensePercentage": 0.00,
+  "transfersIn": 0.00,
+  "transfersOut": 0.00,
+  "topExpenseCategory": { "categoryId": 3, "categoryName": "Comida", "categoryColor": "#EF4444", "type": "EXPENSE", "total": 23.50, "fixed": false, "transfer": false },
   "byCategory": [
-    { "categoryId": 8, "categoryName": "Nómina", "categoryColor": "#22C55E", "type": "INCOME", "total": 1800.00 },
-    { "categoryId": 3, "categoryName": "Comida", "categoryColor": "#EF4444", "type": "EXPENSE", "total": 23.50 }
+    { "categoryId": 8, "categoryName": "Nómina", "categoryColor": "#22C55E", "type": "INCOME", "total": 1800.00, "fixed": false, "transfer": false },
+    { "categoryId": 3, "categoryName": "Comida", "categoryColor": "#EF4444", "type": "EXPENSE", "total": 23.50, "fixed": false, "transfer": false }
   ]
 }
 ```

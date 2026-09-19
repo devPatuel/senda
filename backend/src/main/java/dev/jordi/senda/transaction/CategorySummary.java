@@ -13,5 +13,6 @@ public record CategorySummary(
         String categoryColor,
         TransactionType type,
         BigDecimal total,
-        boolean fixed) {
+        boolean fixed,
+        boolean transfer) {
 }

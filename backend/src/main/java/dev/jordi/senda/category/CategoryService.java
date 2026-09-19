@@ -80,6 +80,7 @@ public class CategoryService {
         category.setSpaceId(spaceId);
         category.setEmoji(normalizeEmoji(request.emoji()));
         category.setFixed(Boolean.TRUE.equals(request.fixed()));
+        category.setTransfer(Boolean.TRUE.equals(request.transfer()));
         return CategoryResponse.from(categoryRepository.save(category));
     }
 
@@ -98,6 +99,9 @@ public class CategoryService {
         }
         if (request.fixed() != null) {
             category.setFixed(request.fixed());
+        }
+        if (request.transfer() != null) {
+            category.setTransfer(request.transfer());
         }
         return CategoryResponse.from(categoryRepository.save(category));
     }

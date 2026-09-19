@@ -144,10 +144,21 @@ public class TransactionService {
             spaceAccess.assertActiveMember(userId, spaceId);
             byCategory = transactionRepository.summarizeByCategoryForSpace(spaceId, from, to);
         }
-        BigDecimal totalIncome = sumByType(byCategory, TransactionType.INCOME);
-        BigDecimal totalExpense = sumByType(byCategory, TransactionType.EXPENSE);
+        // Transfers (own money moved between accounts) are reported apart: counting
+        // them as income or spending would inflate both totals and every ratio
+        // derived from them.
+        List<CategorySummary> real = byCategory.stream()
+                .filter(summary -> !summary.transfer())
+                .toList();
+        BigDecimal totalIncome = sumByType(real, TransactionType.INCOME);
+        BigDecimal totalExpense = sumByType(real, TransactionType.EXPENSE);
+        List<CategorySummary> transfers = byCategory.stream()
+                .filter(CategorySummary::transfer)
+                .toList();
+        BigDecimal transfersIn = sumByType(transfers, TransactionType.INCOME);
+        BigDecimal transfersOut = sumByType(transfers, TransactionType.EXPENSE);
 
-        List<CategorySummary> expenses = byCategory.stream()
+        List<CategorySummary> expenses = real.stream()
                 .filter(summary -> summary.type() == TransactionType.EXPENSE)
                 .toList();
         BigDecimal fixedExpenseTotal = expenses.stream()
@@ -167,7 +178,8 @@ public class TransactionService {
 
         return new MonthlySummaryResponse(year, month, totalIncome, totalExpense,
                 totalIncome.subtract(totalExpense), byCategory,
-                fixedExpenseTotal, variableExpenseTotal, fixedExpensePercentage, topExpenseCategory);
+                fixedExpenseTotal, variableExpenseTotal, fixedExpensePercentage, topExpenseCategory,
+                transfersIn, transfersOut);
     }
 
     /**

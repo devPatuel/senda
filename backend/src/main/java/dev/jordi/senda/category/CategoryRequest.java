@@ -16,5 +16,6 @@ public record CategoryRequest(
                 message = "must be a hex color in #RRGGBB format") String color,
         @Size(max = 8) String emoji,
         Long spaceId,
-        Boolean fixed) {
+        Boolean fixed,
+        Boolean transfer) {
 }

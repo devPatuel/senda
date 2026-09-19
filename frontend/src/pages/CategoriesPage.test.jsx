@@ -85,6 +85,28 @@ describe('CategoriesPage', () => {
     expect(screen.queryByLabelText('Gasto fijo')).not.toBeInTheDocument()
   })
 
+  it('sends transfer=true for a category that only moves money between accounts', async () => {
+    createCategory.mockResolvedValue({
+      id: 10, name: 'Aportaciones', type: 'INCOME', color: '#10b981', transfer: true, active: true,
+    })
+    const user = userEvent.setup()
+    render(<CategoriesPage />)
+
+    await screen.findByText('Comida')
+    await user.click(screen.getByRole('button', { name: /Nueva categoría/i }))
+    await user.click(screen.getByRole('button', { name: 'Ingreso' }))
+    await user.type(screen.getByLabelText('Nombre'), 'Aportaciones')
+    // Unlike "fixed", a transfer can be an income category too
+    await user.click(screen.getByLabelText('Traspaso entre cuentas propias'))
+    await user.click(screen.getByRole('button', { name: 'Crear categoría' }))
+
+    await waitFor(() =>
+      expect(createCategory).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Aportaciones', transfer: true }),
+      ),
+    )
+  })
+
   it('sends fixed=true when the "fixed expense" checkbox is checked', async () => {
     createCategory.mockResolvedValue({ id: 9, name: 'Alquiler', type: 'EXPENSE', color: '#10b981', fixed: true, active: true })
     const user = userEvent.setup()

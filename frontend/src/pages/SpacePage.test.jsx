@@ -32,6 +32,9 @@ vi.mock('./CategoriesPage', () => ({
 vi.mock('./TransactionsPage', () => ({
   default: ({ spaceId }) => <div>Movimientos stub {spaceId}</div>,
 }))
+vi.mock('../components/SpaceSummary', () => ({
+  default: ({ spaceId }) => <div>Resumen stub {spaceId}</div>,
+}))
 
 const ACTIVE_SPACE = { id: 7, name: 'Nuestra pareja', myStatus: 'ACTIVE', createdBy: 1, createdAt: '2026-07-01' }
 const PENDING_SPACE = { id: 9, name: 'Invitación', myStatus: 'PENDING', createdBy: 2, createdAt: '2026-07-02' }
@@ -89,6 +92,7 @@ describe('SpacePage', () => {
     const user = userEvent.setup()
     render(<SpacePage />)
 
+    await user.click(await screen.findByRole('button', { name: 'Ajustes' }))
     await screen.findByText('pareja@mail.com')
     await user.type(screen.getByLabelText('Invitar por email'), 'nuevo@mail.com')
     await user.click(screen.getByRole('button', { name: 'Invitar' }))
@@ -101,12 +105,15 @@ describe('SpacePage', () => {
     const user = userEvent.setup()
     render(<SpacePage />)
 
-    // Cuentas is the default tab.
-    expect(await screen.findByText('Cuentas stub 7')).toBeInTheDocument()
+    // Resumen is the default tab: the month's figures, not a form.
+    expect(await screen.findByText('Resumen stub 7')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Movimientos' }))
     expect(await screen.findByText('Movimientos stub 7')).toBeInTheDocument()
-    expect(screen.queryByText('Cuentas stub 7')).not.toBeInTheDocument()
+    expect(screen.queryByText('Resumen stub 7')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Cuentas' }))
+    expect(await screen.findByText('Cuentas stub 7')).toBeInTheDocument()
   })
 
   it('leaves the space after confirming the dialog', async () => {
@@ -115,12 +122,26 @@ describe('SpacePage', () => {
     const user = userEvent.setup()
     render(<SpacePage />)
 
-    await screen.findByText('pareja@mail.com')
+    await user.click(await screen.findByRole('button', { name: 'Ajustes' }))
     await user.click(screen.getByRole('button', { name: 'Salir del espacio' }))
     // Confirm in the dialog.
     const dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('button', { name: 'Salir' }))
 
     await waitFor(() => expect(leaveSpace).toHaveBeenCalledWith(7))
+  })
+
+  it('keeps members and invites out of the way until asked for', async () => {
+    listSpaces.mockResolvedValue([ACTIVE_SPACE])
+    const user = userEvent.setup()
+    render(<SpacePage />)
+
+    // Landing on the space shows its figures, not an invite form
+    expect(await screen.findByText('Resumen stub 7')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Invitar por email')).not.toBeInTheDocument()
+    expect(screen.queryByText('pareja@mail.com')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Ajustes' }))
+    expect(await screen.findByLabelText('Invitar por email')).toBeInTheDocument()
   })
 })

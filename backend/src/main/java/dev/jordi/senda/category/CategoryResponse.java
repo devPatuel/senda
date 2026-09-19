@@ -9,10 +9,12 @@ public record CategoryResponse(
         String color,
         String emoji,
         boolean active,
-        boolean fixed) {
+        boolean fixed,
+        boolean transfer) {
 
     public static CategoryResponse from(Category category) {
         return new CategoryResponse(category.getId(), category.getName(), category.getType(),
-                category.getColor(), category.getEmoji(), category.isActive(), category.isFixed());
+                category.getColor(), category.getEmoji(), category.isActive(), category.isFixed(),
+                category.isTransfer());
     }
 }
