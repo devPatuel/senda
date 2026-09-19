@@ -253,4 +253,26 @@ describe('DashboardPage', () => {
     // Saving triggers a refresh: the summary is fetched again
     await waitFor(() => expect(getSummary.mock.calls.length).toBeGreaterThan(callsBefore))
   })
+
+  it('breaks down the couple share so the net worth figures add up', async () => {
+    getNetWorth.mockResolvedValue({
+      ...NET_WORTH,
+      liquid: 1000,
+      coupleShare: 800,
+      net: 1800,
+    })
+    renderDashboard()
+
+    await screen.findByText(visibleCurrency(1800))
+    expect(screen.getByText('Pareja (50%)')).toBeInTheDocument()
+    expect(screen.getByText(visibleCurrency(800))).toBeInTheDocument()
+  })
+
+  it('omits the couple share when the user has no couple space', async () => {
+    getNetWorth.mockResolvedValue({ ...NET_WORTH, coupleShare: 0 })
+    renderDashboard()
+
+    await screen.findByText('Líquido')
+    expect(screen.queryByText('Pareja (50%)')).not.toBeInTheDocument()
+  })
 })

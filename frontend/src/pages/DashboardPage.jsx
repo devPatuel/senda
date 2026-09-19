@@ -245,6 +245,9 @@ export default function DashboardPage() {
   const forgotten = alerts?.forgottenSubscriptions ?? []
   const hasAlerts = antExpenses.length + forgotten.length > 0
   const debtsNet = netWorth ? Number(netWorth.debtsInFavor) - Number(netWorth.debtsAgainst) : 0
+  // Half of the couple accounts' balance is part of the net worth. Hiding it made
+  // the breakdown fail to add up to the headline figure.
+  const coupleShare = netWorth ? Number(netWorth.coupleShare ?? 0) : 0
 
   return (
     <div className="space-y-5">
@@ -266,9 +269,15 @@ export default function DashboardPage() {
           >
             {formatCurrency(netWorth.net)}
           </p>
-          <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
+          <div
+            className={[
+              'mt-4 grid gap-2 border-t border-slate-100 pt-4',
+              coupleShare !== 0 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3',
+            ].join(' ')}
+          >
             <NetWorthStat label="Líquido" value={netWorth.liquid} />
             <NetWorthStat label="Inversiones" value={netWorth.investments} />
+            {coupleShare !== 0 && <NetWorthStat label="Pareja (50%)" value={coupleShare} />}
             <NetWorthStat
               label="Deudas"
               value={debtsNet}
