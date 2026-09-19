@@ -5,9 +5,11 @@ import { MemoryRouter } from 'react-router-dom'
 import ImportPage from './ImportPage'
 import { listCategories } from '../api/categories'
 import { previewImport, commitImport } from '../api/imports'
+import { listSpaces } from '../api/spaces'
 
 vi.mock('../api/categories', () => ({ listCategories: vi.fn() }))
 vi.mock('../api/imports', () => ({ previewImport: vi.fn(), commitImport: vi.fn() }))
+vi.mock('../api/spaces', () => ({ listSpaces: vi.fn() }))
 
 const CATEGORIES = [
   { id: 1, name: 'Comida', type: 'EXPENSE', color: '#ef4444', active: true },
@@ -25,6 +27,7 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks()
   listCategories.mockResolvedValue(CATEGORIES)
+  listSpaces.mockResolvedValue([])
 })
 
 describe('ImportPage', () => {
@@ -56,17 +59,19 @@ describe('ImportPage', () => {
     // Preview step: the row and its suggested category
     expect(await screen.findByText('Compra MERCADONA')).toBeInTheDocument()
     await waitFor(() =>
-      expect(previewImport).toHaveBeenCalledWith([
-        { date: '2026-06-01', description: 'Compra MERCADONA', amount: -20.5 },
-      ]),
+      expect(previewImport).toHaveBeenCalledWith(
+        [{ date: '2026-06-01', description: 'Compra MERCADONA', amount: -20.5 }],
+        null,
+      ),
     )
 
     await user.click(screen.getByRole('button', { name: /Importar 1 movimiento/ }))
 
     await waitFor(() =>
-      expect(commitImport).toHaveBeenCalledWith([
-        { date: '2026-06-01', description: 'Compra MERCADONA', amount: 20.5, type: 'EXPENSE', categoryId: 1 },
-      ]),
+      expect(commitImport).toHaveBeenCalledWith(
+        [{ date: '2026-06-01', description: 'Compra MERCADONA', amount: 20.5, type: 'EXPENSE', categoryId: 1 }],
+        null,
+      ),
     )
     expect(await screen.findByText(/Importación completada/)).toBeInTheDocument()
   })
@@ -95,5 +100,56 @@ describe('ImportPage', () => {
     expect(await screen.findByText('Duplicado')).toBeInTheDocument()
     // Nothing importable -> the import button is disabled (0 rows)
     expect(screen.getByRole('button', { name: /Importar 0 movimiento/ })).toBeDisabled()
+  })
+
+  it('imports a shared statement into the couple space', async () => {
+    listSpaces.mockResolvedValue([{ id: 7, name: 'Pareja', myStatus: 'ACTIVE' }])
+    const SPACE_CATEGORIES = [
+      { id: 9, name: 'Supermercados', type: 'EXPENSE', color: '#10b981', active: true },
+    ]
+    listCategories.mockImplementation(({ spaceId } = {}) =>
+      Promise.resolve(spaceId ? SPACE_CATEGORIES : CATEGORIES),
+    )
+    previewImport.mockResolvedValue([
+      {
+        date: '2026-09-03',
+        description: 'Mercadona',
+        amount: 73.15,
+        type: 'EXPENSE',
+        suggestedCategoryId: null,
+        suggestedCategoryName: null,
+        duplicate: false,
+      },
+    ])
+    commitImport.mockResolvedValue({ imported: 1, skipped: 0 })
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.selectOptions(await screen.findByLabelText('Destino'), '7')
+    // The space's own categories replace the personal ones
+    await waitFor(() => expect(listCategories).toHaveBeenCalledWith({ spaceId: 7 }))
+
+    const csv = 'fecha;concepto;importe\n2026-09-03;Mercadona;-73,15'
+    await user.upload(screen.getByLabelText('Archivo CSV'), new File([csv], 'extracto.csv', { type: 'text/csv' }))
+    await screen.findByText('Asigna las columnas')
+    await user.click(screen.getByRole('button', { name: 'Previsualizar' }))
+
+    await waitFor(() =>
+      expect(previewImport).toHaveBeenCalledWith(
+        [{ date: '2026-09-03', description: 'Mercadona', amount: -73.15 }],
+        7,
+      ),
+    )
+
+    await screen.findByText('Mercadona')
+    await user.selectOptions(screen.getByLabelText('Categoría'), '9')
+    await user.click(screen.getByRole('button', { name: /Importar 1 movimiento/ }))
+
+    await waitFor(() =>
+      expect(commitImport).toHaveBeenCalledWith(
+        [{ date: '2026-09-03', description: 'Mercadona', amount: 73.15, type: 'EXPENSE', categoryId: 9 }],
+        7,
+      ),
+    )
   })
 })

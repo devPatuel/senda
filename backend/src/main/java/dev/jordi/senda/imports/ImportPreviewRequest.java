@@ -5,5 +5,9 @@ import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
 
-public record ImportPreviewRequest(@NotEmpty @Valid List<ImportRowInput> rows) {
+/**
+ * Rows to preview, scoped either to the user's personal ledger ({@code spaceId}
+ * null) or to a space they belong to (a shared account statement).
+ */
+public record ImportPreviewRequest(Long spaceId, @NotEmpty @Valid List<ImportRowInput> rows) {
 }

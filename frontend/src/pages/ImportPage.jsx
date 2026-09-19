@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listCategories } from '../api/categories'
 import { previewImport, commitImport } from '../api/imports'
+import { listSpaces } from '../api/spaces'
 import { parseCsv, parseDate, parseAmount } from '../lib/csv'
 import { formatCurrency, formatDate } from '../lib/format'
 import { FormError, SubmitButton } from '../components/form'
@@ -22,6 +23,9 @@ function guessColumns(header) {
 
 export default function ImportPage() {
   const [categories, setCategories] = useState([])
+  const [spaces, setSpaces] = useState([])
+  // '' = personal ledger; otherwise the id of the space the statement belongs to
+  const [spaceId, setSpaceId] = useState('')
   const [rows, setRows] = useState(null) // string[][]
   const [fileName, setFileName] = useState('')
   const [hasHeader, setHasHeader] = useState(true)
@@ -31,9 +35,11 @@ export default function ImportPage() {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState(null)
 
+  // Categories belong to a scope: reload them whenever the destination changes,
+  // since a row can only be filed under a category of the ledger it goes into.
   useEffect(() => {
     let cancelled = false
-    listCategories({})
+    listCategories(spaceId ? { spaceId: Number(spaceId) } : {})
       .then((cats) => {
         if (!cancelled) setCategories(cats)
       })
@@ -43,7 +49,31 @@ export default function ImportPage() {
     return () => {
       cancelled = true
     }
+  }, [spaceId])
+
+  useEffect(() => {
+    let cancelled = false
+    listSpaces()
+      .then((all) => {
+        if (!cancelled) setSpaces(all.filter((s) => s.myStatus === 'ACTIVE'))
+      })
+      .catch(() => {
+        // Without spaces the import simply stays personal
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
+
+  const targetSpaceId = spaceId ? Number(spaceId) : null
+
+  // Switching destination invalidates a preview built against the other ledger.
+  function handleDestinationChange(e) {
+    setSpaceId(e.target.value)
+    setPreview(null)
+    setResult(null)
+    setError(null)
+  }
 
   const columnCount = rows && rows.length > 0 ? Math.max(...rows.map((r) => r.length)) : 0
   const columnLabels = useMemo(() => {
@@ -95,7 +125,7 @@ export default function ImportPage() {
     }
     setBusy(true)
     try {
-      const rowsPreview = await previewImport(inputs)
+      const rowsPreview = await previewImport(inputs, targetSpaceId)
       setPreview(
         rowsPreview.map((r) => ({
           ...r,
@@ -129,7 +159,7 @@ export default function ImportPage() {
         type: r.type,
         categoryId: Number(r.categoryId),
       }))
-      const res = await commitImport(payload)
+      const res = await commitImport(payload, targetSpaceId)
       setResult(res)
       setPreview(null)
       setRows(null)
@@ -159,8 +189,20 @@ export default function ImportPage() {
 
       <FormError message={error} />
 
-      {/* Step 1: file */}
+      {/* Step 1: destination + file */}
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
+        {spaces.length > 0 && (
+          <div className="mb-4">
+            <SelectField label="Destino" name="destino" value={spaceId} onChange={handleDestinationChange}>
+              <option value="">Mis cuentas</option>
+              {spaces.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </SelectField>
+          </div>
+        )}
         <label className="block text-sm font-medium text-slate-700">Archivo CSV</label>
         <input
           type="file"

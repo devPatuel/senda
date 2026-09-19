@@ -22,6 +22,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     boolean existsByUserIdAndDateAndAmountAndDescriptionAndSpaceIdIsNull(
             Long userId, java.time.LocalDate date, java.math.BigDecimal amount, String description);
 
+    /** Same key for a shared statement: duplicates are per space, not per member. */
+    boolean existsBySpaceIdAndDateAndAmountAndDescription(
+            Long spaceId, java.time.LocalDate date, java.math.BigDecimal amount, String description);
+
     /**
      * Per-category totals for a user in a date range, aggregated in the
      * database (never loads transactions into memory).

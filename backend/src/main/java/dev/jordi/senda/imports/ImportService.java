@@ -7,6 +7,7 @@ import dev.jordi.senda.categoryrule.CategoryRuleRepository;
 import dev.jordi.senda.categoryrule.CategoryRuleService;
 import dev.jordi.senda.common.NotFoundException;
 import dev.jordi.senda.common.TransactionType;
+import dev.jordi.senda.space.SpaceAccess;
 import dev.jordi.senda.transaction.Transaction;
 import dev.jordi.senda.transaction.TransactionRepository;
 import org.springframework.stereotype.Service;
@@ -25,13 +26,16 @@ public class ImportService {
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
     private final CategoryRuleRepository ruleRepository;
+    private final SpaceAccess spaceAccess;
 
     public ImportService(TransactionRepository transactionRepository,
                          CategoryRepository categoryRepository,
-                         CategoryRuleRepository ruleRepository) {
+                         CategoryRuleRepository ruleRepository,
+                         SpaceAccess spaceAccess) {
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
         this.ruleRepository = ruleRepository;
+        this.spaceAccess = spaceAccess;
     }
 
     /**
@@ -41,8 +45,17 @@ public class ImportService {
      */
     @Transactional(readOnly = true)
     public List<ImportPreviewRow> preview(Long userId, ImportPreviewRequest request) {
+        Long spaceId = request.spaceId();
+        if (spaceId != null) {
+            spaceAccess.assertActiveMember(userId, spaceId);
+        }
         List<CategoryRule> rules = ruleRepository.findByUserId(userId);
-        Map<Long, Category> categories = categoryRepository.findByUserIdAndSpaceIdIsNull(userId).stream()
+        // Categories of the target scope only: a rule pointing at a personal
+        // category must not suggest itself for a shared statement (and vice versa),
+        // since the transaction would be rejected on commit.
+        Map<Long, Category> categories = (spaceId == null
+                ? categoryRepository.findByUserIdAndSpaceIdIsNull(userId)
+                : categoryRepository.findBySpaceId(spaceId)).stream()
                 .collect(Collectors.toMap(Category::getId, c -> c));
 
         return request.rows().stream().map(in -> {
@@ -62,8 +75,11 @@ public class ImportService {
                 }
             }
 
-            boolean duplicate = transactionRepository.existsByUserIdAndDateAndAmountAndDescriptionAndSpaceIdIsNull(
-                    userId, in.date(), amount, in.description());
+            boolean duplicate = spaceId == null
+                    ? transactionRepository.existsByUserIdAndDateAndAmountAndDescriptionAndSpaceIdIsNull(
+                            userId, in.date(), amount, in.description())
+                    : transactionRepository.existsBySpaceIdAndDateAndAmountAndDescription(
+                            spaceId, in.date(), amount, in.description());
             return new ImportPreviewRow(in.date(), in.description(), amount, type,
                     suggestedId, suggestedName, duplicate);
         }).toList();
@@ -75,10 +91,18 @@ public class ImportService {
      */
     @Transactional
     public ImportCommitResponse commit(Long userId, ImportCommitRequest request) {
+        Long spaceId = request.spaceId();
+        if (spaceId != null) {
+            spaceAccess.assertActiveMember(userId, spaceId);
+        }
         int imported = 0;
         int skipped = 0;
         for (ImportCommitRequest.Row row : request.rows()) {
-            Category category = categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(row.categoryId(), userId)
+            // Resolving in the target scope is what enforces it: a category from the
+            // other scope is simply not found -> 404.
+            Category category = (spaceId == null
+                    ? categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(row.categoryId(), userId)
+                    : categoryRepository.findByIdAndSpaceId(row.categoryId(), spaceId))
                     .orElseThrow(() -> new NotFoundException("Category not found"));
             if (!category.isActive()) {
                 throw new InvalidImportException("Category is inactive: " + category.getName());
@@ -89,13 +113,19 @@ public class ImportService {
             }
             // The DB check sees rows flushed earlier in this batch, so duplicate
             // CSV lines collapse to a single transaction too.
-            if (transactionRepository.existsByUserIdAndDateAndAmountAndDescriptionAndSpaceIdIsNull(
-                    userId, row.date(), row.amount(), row.description())) {
+            boolean exists = spaceId == null
+                    ? transactionRepository.existsByUserIdAndDateAndAmountAndDescriptionAndSpaceIdIsNull(
+                            userId, row.date(), row.amount(), row.description())
+                    : transactionRepository.existsBySpaceIdAndDateAndAmountAndDescription(
+                            spaceId, row.date(), row.amount(), row.description());
+            if (exists) {
                 skipped++;
                 continue;
             }
-            transactionRepository.save(new Transaction(
-                    userId, category, row.type(), row.amount(), row.date(), row.description()));
+            Transaction transaction = new Transaction(
+                    userId, category, row.type(), row.amount(), row.date(), row.description());
+            transaction.setSpaceId(spaceId);
+            transactionRepository.save(transaction);
             imported++;
         }
         return new ImportCommitResponse(imported, skipped);

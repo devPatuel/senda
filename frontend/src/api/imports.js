@@ -16,17 +16,19 @@ import { http } from './http'
  * Previews parsed rows: derives type, suggests categories from rules and flags
  * duplicates. Each input row is { date: ISO, description, amount: signed }.
  * @param {{date: string, description: string|null, amount: number}[]} rows
+ * @param {number|null} spaceId  null imports into the personal ledger
  * @returns {Promise<ImportPreviewRow[]>}
  */
-export function previewImport(rows) {
-  return http.post('/imports/preview', { rows })
+export function previewImport(rows, spaceId = null) {
+  return http.post('/imports/preview', { rows, spaceId })
 }
 
 /**
  * Imports the confirmed rows, skipping duplicates.
  * @param {{date: string, description: string|null, amount: number, type: 'INCOME'|'EXPENSE', categoryId: number}[]} rows
+ * @param {number|null} spaceId  null imports into the personal ledger
  * @returns {Promise<{imported: number, skipped: number}>}
  */
-export function commitImport(rows) {
-  return http.post('/imports/commit', { rows })
+export function commitImport(rows, spaceId = null) {
+  return http.post('/imports/commit', { rows, spaceId })
 }
