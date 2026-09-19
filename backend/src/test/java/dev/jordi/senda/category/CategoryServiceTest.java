@@ -102,7 +102,7 @@ class CategoryServiceTest {
 
     @Test
     void createSavesCategoryAndReturnsResponse() {
-        var request = new CategoryRequest("Gimnasio", TransactionType.EXPENSE, "#FF8800", null, null);
+        var request = new CategoryRequest("Gimnasio", TransactionType.EXPENSE, "#FF8800", null, null, null);
         when(categoryRepository.existsByUserIdAndNameAndTypeAndSpaceIdIsNull(USER_ID, "Gimnasio", TransactionType.EXPENSE))
                 .thenReturn(false);
         when(categoryRepository.save(any(Category.class)))
@@ -118,8 +118,35 @@ class CategoryServiceTest {
     }
 
     @Test
+    void createSetsFixedWhenRequested() {
+        var request = new CategoryRequest("Alquiler", TransactionType.EXPENSE, "#FF8800", null, null, true);
+        when(categoryRepository.existsByUserIdAndNameAndTypeAndSpaceIdIsNull(USER_ID, "Alquiler", TransactionType.EXPENSE))
+                .thenReturn(false);
+        when(categoryRepository.save(any(Category.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CategoryResponse response = categoryService.create(USER_ID, request);
+
+        assertThat(response.fixed()).isTrue();
+        ArgumentCaptor<Category> captor = ArgumentCaptor.forClass(Category.class);
+        verify(categoryRepository).save(captor.capture());
+        assertThat(captor.getValue().isFixed()).isTrue();
+    }
+
+    @Test
+    void createDefaultsFixedToFalseWhenNotProvided() {
+        var request = new CategoryRequest("Ocio", TransactionType.EXPENSE, "#FF8800", null, null, null);
+        when(categoryRepository.existsByUserIdAndNameAndTypeAndSpaceIdIsNull(USER_ID, "Ocio", TransactionType.EXPENSE))
+                .thenReturn(false);
+        when(categoryRepository.save(any(Category.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CategoryResponse response = categoryService.create(USER_ID, request);
+
+        assertThat(response.fixed()).isFalse();
+    }
+
+    @Test
     void createWithDuplicateNameAndTypeThrowsConflict() {
-        var request = new CategoryRequest("Comida", TransactionType.EXPENSE, "#FF8800", null, null);
+        var request = new CategoryRequest("Comida", TransactionType.EXPENSE, "#FF8800", null, null, null);
         when(categoryRepository.existsByUserIdAndNameAndTypeAndSpaceIdIsNull(USER_ID, "Comida", TransactionType.EXPENSE))
                 .thenReturn(true);
 
@@ -134,7 +161,7 @@ class CategoryServiceTest {
                 .thenReturn(false);
         when(categoryRepository.save(any(Category.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        categoryService.create(USER_ID, new CategoryRequest("Cena fuera", TransactionType.EXPENSE, "#EF4444", null, 7L));
+        categoryService.create(USER_ID, new CategoryRequest("Cena fuera", TransactionType.EXPENSE, "#EF4444", null, 7L, null));
 
         verify(spaceAccess).assertActiveMember(USER_ID, 7L);
         ArgumentCaptor<Category> captor = ArgumentCaptor.forClass(Category.class);
@@ -148,7 +175,7 @@ class CategoryServiceTest {
                 .thenReturn(true);
 
         assertThatThrownBy(() -> categoryService.create(USER_ID,
-                new CategoryRequest("Comida", TransactionType.EXPENSE, "#EF4444", null, 7L)))
+                new CategoryRequest("Comida", TransactionType.EXPENSE, "#EF4444", null, 7L, null)))
                 .isInstanceOf(ConflictException.class);
         verify(categoryRepository, never()).save(any());
     }
@@ -164,12 +191,37 @@ class CategoryServiceTest {
         when(categoryRepository.save(existing)).thenReturn(existing);
 
         CategoryResponse response = categoryService.update(USER_ID, 5L,
-                new CategoryUpdateRequest("Alimentación", "#00FF00", null, false));
+                new CategoryUpdateRequest("Alimentación", "#00FF00", null, false, null));
 
         assertThat(response.name()).isEqualTo("Alimentación");
         assertThat(response.color()).isEqualTo("#00FF00");
         assertThat(response.active()).isFalse();
         assertThat(response.type()).isEqualTo(TransactionType.EXPENSE);
+    }
+
+    @Test
+    void updateCanSetFixedFlag() {
+        Category existing = category(5L, "Comida", TransactionType.EXPENSE, "#EF4444");
+        when(categoryRepository.findById(5L)).thenReturn(Optional.of(existing));
+        when(categoryRepository.save(existing)).thenReturn(existing);
+
+        CategoryResponse response = categoryService.update(USER_ID, 5L,
+                new CategoryUpdateRequest("Comida", "#EF4444", null, null, true));
+
+        assertThat(response.fixed()).isTrue();
+    }
+
+    @Test
+    void updateWithNullFixedKeepsCurrentValue() {
+        Category existing = category(5L, "Comida", TransactionType.EXPENSE, "#EF4444");
+        existing.setFixed(true);
+        when(categoryRepository.findById(5L)).thenReturn(Optional.of(existing));
+        when(categoryRepository.save(existing)).thenReturn(existing);
+
+        CategoryResponse response = categoryService.update(USER_ID, 5L,
+                new CategoryUpdateRequest("Comida", "#EF4444", null, null, null));
+
+        assertThat(response.fixed()).isTrue();
     }
 
     @Test
@@ -179,7 +231,7 @@ class CategoryServiceTest {
         when(categoryRepository.save(existing)).thenReturn(existing);
 
         CategoryResponse response = categoryService.update(USER_ID, 5L,
-                new CategoryUpdateRequest("Comida", "#00FF00", null, null));
+                new CategoryUpdateRequest("Comida", "#00FF00", null, null, null));
 
         assertThat(response.active()).isTrue();
     }
@@ -191,7 +243,7 @@ class CategoryServiceTest {
         when(categoryRepository.save(existing)).thenReturn(existing);
 
         CategoryResponse response = categoryService.update(USER_ID, 5L,
-                new CategoryUpdateRequest("Comida", "#123456", null, null));
+                new CategoryUpdateRequest("Comida", "#123456", null, null, null));
 
         assertThat(response.color()).isEqualTo("#123456");
         verify(categoryRepository, never()).existsByUserIdAndNameAndTypeAndSpaceIdIsNull(any(), any(), any());
@@ -205,7 +257,7 @@ class CategoryServiceTest {
                 .thenReturn(true);
 
         assertThatThrownBy(() -> categoryService.update(USER_ID, 5L,
-                new CategoryUpdateRequest("Transporte", "#EF4444", null, null)))
+                new CategoryUpdateRequest("Transporte", "#EF4444", null, null, null)))
                 .isInstanceOf(ConflictException.class);
         verify(categoryRepository, never()).save(any());
     }
@@ -217,7 +269,7 @@ class CategoryServiceTest {
         when(categoryRepository.findById(99L)).thenReturn(Optional.of(others));
 
         assertThatThrownBy(() -> categoryService.update(USER_ID, 99L,
-                new CategoryUpdateRequest("Comida", "#EF4444", null, null)))
+                new CategoryUpdateRequest("Comida", "#EF4444", null, null, null)))
                 .isInstanceOf(NotFoundException.class);
     }
 

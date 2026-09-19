@@ -71,7 +71,11 @@ public class AuthService {
 
     private void copyDefaultCategories(Long userId) {
         List<Category> categories = DefaultCategories.ALL.stream()
-                .map(definition -> new Category(userId, definition.name(), definition.type(), definition.color()))
+                .map(definition -> {
+                    Category category = new Category(userId, definition.name(), definition.type(), definition.color());
+                    category.setFixed(definition.fixed());
+                    return category;
+                })
                 .toList();
         categoryRepository.saveAll(categories);
     }

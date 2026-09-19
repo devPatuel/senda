@@ -121,8 +121,14 @@ function CategoryForm({ category, spaceId, onClose, onSaved }) {
   const isEdit = Boolean(category)
   const [form, setForm] = useState(() =>
     category
-      ? { name: category.name, type: category.type, color: category.color, emoji: category.emoji ?? '' }
-      : { name: '', type: 'EXPENSE', color: PALETTE[4], emoji: '' },
+      ? {
+          name: category.name,
+          type: category.type,
+          color: category.color,
+          emoji: category.emoji ?? '',
+          fixed: category.fixed ?? false,
+        }
+      : { name: '', type: 'EXPENSE', color: PALETTE[4], emoji: '', fixed: false },
   )
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState(null)
@@ -149,9 +155,17 @@ function CategoryForm({ category, spaceId, onClose, onSaved }) {
           color: form.color,
           emoji,
           active: category.active,
+          fixed: form.fixed,
         })
       } else {
-        await createCategory({ name, type: form.type, color: form.color, emoji, ...(spaceId != null && { spaceId }) })
+        await createCategory({
+          name,
+          type: form.type,
+          color: form.color,
+          emoji,
+          fixed: form.fixed,
+          ...(spaceId != null && { spaceId }),
+        })
       }
       onSaved()
     } catch (err) {
@@ -221,6 +235,18 @@ function CategoryForm({ category, spaceId, onClose, onSaved }) {
           value={form.emoji}
           onChange={(emoji) => setForm((prev) => ({ ...prev, emoji }))}
         />
+
+        {form.type === 'EXPENSE' && (
+          <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-slate-600">
+            <input
+              type="checkbox"
+              checked={form.fixed}
+              onChange={(e) => setForm((prev) => ({ ...prev, fixed: e.target.checked }))}
+              className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
+            />
+            Gasto fijo
+          </label>
+        )}
 
         <SubmitButton loading={saving} loadingText="Guardando…">
           {isEdit ? 'Guardar cambios' : 'Crear categoría'}

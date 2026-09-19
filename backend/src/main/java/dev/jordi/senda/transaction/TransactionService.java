@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -160,8 +161,28 @@ public class TransactionService {
         }
         BigDecimal totalIncome = sumByType(byCategory, TransactionType.INCOME);
         BigDecimal totalExpense = sumByType(byCategory, TransactionType.EXPENSE);
+
+        List<CategorySummary> expenses = byCategory.stream()
+                .filter(summary -> summary.type() == TransactionType.EXPENSE)
+                .toList();
+        BigDecimal fixedExpenseTotal = expenses.stream()
+                .filter(CategorySummary::fixed)
+                .map(CategorySummary::total)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.UNNECESSARY);
+        BigDecimal variableExpenseTotal = totalExpense.subtract(fixedExpenseTotal);
+        // Null (not zero) when there is no income: a ratio "of nothing" is
+        // meaningless, and the frontend must tell "0%" apart from "not applicable".
+        BigDecimal fixedExpensePercentage = totalIncome.signum() == 0 ? null
+                : fixedExpenseTotal.multiply(BigDecimal.valueOf(100))
+                        .divide(totalIncome, 2, RoundingMode.HALF_UP);
+        CategorySummary topExpenseCategory = expenses.stream()
+                .max(Comparator.comparing(CategorySummary::total))
+                .orElse(null);
+
         return new MonthlySummaryResponse(year, month, totalIncome, totalExpense,
-                totalIncome.subtract(totalExpense), byCategory);
+                totalIncome.subtract(totalExpense), byCategory,
+                fixedExpenseTotal, variableExpenseTotal, fixedExpensePercentage, topExpenseCategory);
     }
 
     /**

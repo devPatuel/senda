@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CategoriesPage from './CategoriesPage'
-import { listCategories, createCategory, removeCategory, getBudget, assignToCategory } from '../api/categories'
+import { listCategories, createCategory, updateCategory, removeCategory, getBudget, assignToCategory } from '../api/categories'
 
 vi.mock('../api/categories', () => ({
   listCategories: vi.fn(),
@@ -70,6 +70,50 @@ describe('CategoriesPage', () => {
       expect(createCategory).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'Viajes', emoji: '✈️' }),
       ),
+    )
+  })
+
+  it('shows the "fixed expense" checkbox only for expense categories', async () => {
+    const user = userEvent.setup()
+    render(<CategoriesPage />)
+
+    await screen.findByText('Comida')
+    await user.click(screen.getByRole('button', { name: /Nueva categoría/i }))
+    expect(screen.getByLabelText('Gasto fijo')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Ingreso' }))
+    expect(screen.queryByLabelText('Gasto fijo')).not.toBeInTheDocument()
+  })
+
+  it('sends fixed=true when the "fixed expense" checkbox is checked', async () => {
+    createCategory.mockResolvedValue({ id: 9, name: 'Alquiler', type: 'EXPENSE', color: '#10b981', fixed: true, active: true })
+    const user = userEvent.setup()
+    render(<CategoriesPage />)
+
+    await screen.findByText('Comida')
+    await user.click(screen.getByRole('button', { name: /Nueva categoría/i }))
+    await user.type(screen.getByLabelText('Nombre'), 'Alquiler')
+    await user.click(screen.getByLabelText('Gasto fijo'))
+    await user.click(screen.getByRole('button', { name: 'Crear categoría' }))
+
+    await waitFor(() =>
+      expect(createCategory).toHaveBeenCalledWith(expect.objectContaining({ name: 'Alquiler', fixed: true })),
+    )
+  })
+
+  it('preselects the "fixed expense" checkbox when editing an already-fixed category', async () => {
+    const vivienda = { id: 3, name: 'Vivienda', type: 'EXPENSE', color: '#8b5cf6', fixed: true, active: true }
+    listCategories.mockResolvedValue([COMIDA, NOMINA, vivienda])
+    const user = userEvent.setup()
+    render(<CategoriesPage />)
+
+    await screen.findByText('Vivienda')
+    await user.click(screen.getByRole('button', { name: 'Editar Vivienda' }))
+    expect(screen.getByLabelText('Gasto fijo')).toBeChecked()
+
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+    await waitFor(() =>
+      expect(updateCategory).toHaveBeenCalledWith(3, expect.objectContaining({ fixed: true })),
     )
   })
 

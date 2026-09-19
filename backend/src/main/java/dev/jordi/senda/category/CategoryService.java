@@ -79,6 +79,7 @@ public class CategoryService {
         Category category = new Category(userId, request.name(), request.type(), request.color());
         category.setSpaceId(spaceId);
         category.setEmoji(normalizeEmoji(request.emoji()));
+        category.setFixed(Boolean.TRUE.equals(request.fixed()));
         return CategoryResponse.from(categoryRepository.save(category));
     }
 
@@ -94,6 +95,9 @@ public class CategoryService {
         category.setEmoji(normalizeEmoji(request.emoji()));
         if (request.active() != null) {
             category.setActive(request.active());
+        }
+        if (request.fixed() != null) {
+            category.setFixed(request.fixed());
         }
         return CategoryResponse.from(categoryRepository.save(category));
     }

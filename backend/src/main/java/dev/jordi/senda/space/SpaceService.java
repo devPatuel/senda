@@ -44,6 +44,7 @@ public class SpaceService {
                 .map(def -> {
                     Category c = new Category(userId, def.name(), def.type(), def.color());
                     c.setSpaceId(space.getId());
+                    c.setFixed(def.fixed());
                     return c;
                 })
                 .toList();

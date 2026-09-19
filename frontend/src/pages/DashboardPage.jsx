@@ -476,6 +476,31 @@ export default function DashboardPage() {
               </section>
             </div>
 
+            {(summary.fixedExpensePercentage != null || summary.topExpenseCategory) && (
+              <div className="grid grid-cols-2 gap-3">
+                {summary.fixedExpensePercentage != null && (
+                  <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p className="text-sm text-slate-500">Gasto fijo</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-900">
+                      {Number(summary.fixedExpensePercentage).toFixed(0)}%
+                    </p>
+                    <p className="text-xs text-slate-400">de tus ingresos</p>
+                  </section>
+                )}
+                {summary.topExpenseCategory && (
+                  <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p className="text-sm text-slate-500">Mayor gasto</p>
+                    <p className="mt-1 truncate text-xl font-semibold text-slate-900">
+                      {summary.topExpenseCategory.categoryName}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {formatCurrency(summary.topExpenseCategory.total)}
+                    </p>
+                  </section>
+                )}
+              </div>
+            )}
+
             <CategoryBreakdown title="Gastos por categoría" items={expenses} prevById={prevById} type="EXPENSE" />
             <CategoryBreakdown title="Ingresos por categoría" items={incomes} prevById={prevById} type="INCOME" />
           </>

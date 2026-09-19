@@ -294,9 +294,9 @@ class TransactionServiceTest {
     @Test
     void summaryComputesTotalsAndBalanceFromAggregation() {
         List<CategorySummary> rows = List.of(
-                new CategorySummary(6L, "Nómina", "#22C55E", TransactionType.INCOME, new BigDecimal("1500.00")),
-                new CategorySummary(5L, "Comida", "#EF4444", TransactionType.EXPENSE, new BigDecimal("100.50")),
-                new CategorySummary(7L, "Transporte", "#3B82F6", TransactionType.EXPENSE, new BigDecimal("20.25")));
+                new CategorySummary(6L, "Nómina", "#22C55E", TransactionType.INCOME, new BigDecimal("1500.00"), false),
+                new CategorySummary(5L, "Comida", "#EF4444", TransactionType.EXPENSE, new BigDecimal("100.50"), false),
+                new CategorySummary(7L, "Transporte", "#3B82F6", TransactionType.EXPENSE, new BigDecimal("20.25"), false));
         when(transactionRepository.summarizeByCategory(USER_ID,
                 LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30))).thenReturn(rows);
 
@@ -321,6 +321,41 @@ class TransactionServiceTest {
         assertThat(summary.totalExpense()).isEqualByComparingTo("0.00");
         assertThat(summary.balance()).isEqualByComparingTo("0.00");
         assertThat(summary.byCategory()).isEmpty();
+        assertThat(summary.fixedExpenseTotal()).isEqualByComparingTo("0.00");
+        assertThat(summary.variableExpenseTotal()).isEqualByComparingTo("0.00");
+        assertThat(summary.fixedExpensePercentage()).isNull();
+        assertThat(summary.topExpenseCategory()).isNull();
+    }
+
+    @Test
+    void summaryComputesFixedVariableTotalsAndTopExpenseCategory() {
+        List<CategorySummary> rows = List.of(
+                new CategorySummary(6L, "Nómina", "#22C55E", TransactionType.INCOME, new BigDecimal("2000.00"), false),
+                new CategorySummary(8L, "Vivienda", "#8B5CF6", TransactionType.EXPENSE, new BigDecimal("800.00"), true),
+                new CategorySummary(5L, "Comida", "#EF4444", TransactionType.EXPENSE, new BigDecimal("300.00"), false),
+                new CategorySummary(7L, "Transporte", "#3B82F6", TransactionType.EXPENSE, new BigDecimal("50.00"), false));
+        when(transactionRepository.summarizeByCategory(USER_ID,
+                LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30))).thenReturn(rows);
+
+        MonthlySummaryResponse summary = service.summary(USER_ID, null, 2026, 6);
+
+        assertThat(summary.fixedExpenseTotal()).isEqualByComparingTo("800.00");
+        assertThat(summary.variableExpenseTotal()).isEqualByComparingTo("350.00");
+        assertThat(summary.fixedExpensePercentage()).isEqualByComparingTo("40.00");
+        assertThat(summary.topExpenseCategory().categoryName()).isEqualTo("Vivienda");
+    }
+
+    @Test
+    void summaryFixedExpensePercentageIsNullWhenNoIncome() {
+        List<CategorySummary> rows = List.of(
+                new CategorySummary(5L, "Comida", "#EF4444", TransactionType.EXPENSE, new BigDecimal("100.00"), false));
+        when(transactionRepository.summarizeByCategory(USER_ID,
+                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31))).thenReturn(rows);
+
+        MonthlySummaryResponse summary = service.summary(USER_ID, null, 2026, 1);
+
+        assertThat(summary.fixedExpensePercentage()).isNull();
+        assertThat(summary.topExpenseCategory().categoryName()).isEqualTo("Comida");
     }
 
     // --- trends ---

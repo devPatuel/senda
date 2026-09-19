@@ -36,6 +36,12 @@ public class Category {
     @Column(nullable = false)
     private boolean active = true;
 
+    // Only meaningful for EXPENSE categories: marks recurring, non-discretionary
+    // spend (rent, insurance...) so the monthly summary can split fixed vs.
+    // variable expense. Defaults to false (variable) for INCOME and new categories.
+    @Column(nullable = false)
+    private boolean fixed = false;
+
     // Target share of the salary split (0-100). Null when the category is not
     // part of the allocation plan. Only meaningful for EXPENSE categories.
     @Column(name = "target_percentage")
@@ -96,6 +102,14 @@ public class Category {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public boolean isFixed() {
+        return fixed;
+    }
+
+    public void setFixed(boolean fixed) {
+        this.fixed = fixed;
     }
 
     public BigDecimal getTargetPercentage() {

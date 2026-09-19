@@ -132,6 +132,32 @@ describe('DashboardPage', () => {
     expect(getSummary).toHaveBeenCalledWith(year, month)
   })
 
+  it('shows the fixed-expense percentage and the top expense category when the backend sends them', async () => {
+    getSummary.mockResolvedValue(
+      buildSummary({
+        fixedExpenseTotal: 800,
+        variableExpenseTotal: 350.25,
+        fixedExpensePercentage: 40,
+        topExpenseCategory: { categoryId: 1, categoryName: 'Comida', categoryColor: '#ef4444', type: 'EXPENSE', total: 350.25 },
+      }),
+    )
+    renderDashboard()
+
+    expect(await screen.findByText('40%')).toBeInTheDocument()
+    expect(screen.getByText('Gasto fijo')).toBeInTheDocument()
+    expect(screen.getByText('Mayor gasto')).toBeInTheDocument()
+    expect(screen.getAllByText('Comida').length).toBeGreaterThan(0)
+  })
+
+  it('hides the fixed-expense indicator when the backend has no income to compute it', async () => {
+    getSummary.mockResolvedValue(buildSummary({ fixedExpensePercentage: null, topExpenseCategory: null }))
+    renderDashboard()
+
+    await screen.findByText(visibleCurrency(1149.75))
+    expect(screen.queryByText('Gasto fijo')).not.toBeInTheDocument()
+    expect(screen.queryByText('Mayor gasto')).not.toBeInTheDocument()
+  })
+
   it('also fetches the previous month to compute deltas', async () => {
     renderDashboard()
 

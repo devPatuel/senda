@@ -93,6 +93,10 @@ class AuthServiceTest {
             assertThat(category.isActive()).isTrue();
         });
         assertThat(categories).extracting(Category::getName).contains("Comida", "Nómina");
+        assertThat(categories).filteredOn(c -> c.getName().equals("Vivienda"))
+                .extracting(Category::isFixed).containsExactly(true);
+        assertThat(categories).filteredOn(c -> c.getName().equals("Comida"))
+                .extracting(Category::isFixed).containsExactly(false);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<AssetClass>> assetClassesCaptor = ArgumentCaptor.forClass(List.class);

@@ -9,19 +9,19 @@ import java.util.List;
  */
 public final class DefaultCategories {
 
-    public record Definition(String name, TransactionType type, String color) {
+    public record Definition(String name, TransactionType type, String color, boolean fixed) {
     }
 
     public static final List<Definition> ALL = List.of(
-            new Definition("Comida", TransactionType.EXPENSE, "#EF4444"),
-            new Definition("Transporte", TransactionType.EXPENSE, "#3B82F6"),
-            new Definition("Vivienda", TransactionType.EXPENSE, "#8B5CF6"),
-            new Definition("Ocio", TransactionType.EXPENSE, "#F59E0B"),
-            new Definition("Salud", TransactionType.EXPENSE, "#10B981"),
-            new Definition("Compras", TransactionType.EXPENSE, "#EC4899"),
-            new Definition("Otros gastos", TransactionType.EXPENSE, "#6B7280"),
-            new Definition("Nómina", TransactionType.INCOME, "#22C55E"),
-            new Definition("Otros ingresos", TransactionType.INCOME, "#14B8A6"));
+            new Definition("Comida", TransactionType.EXPENSE, "#EF4444", false),
+            new Definition("Transporte", TransactionType.EXPENSE, "#3B82F6", false),
+            new Definition("Vivienda", TransactionType.EXPENSE, "#8B5CF6", true),
+            new Definition("Ocio", TransactionType.EXPENSE, "#F59E0B", false),
+            new Definition("Salud", TransactionType.EXPENSE, "#10B981", false),
+            new Definition("Compras", TransactionType.EXPENSE, "#EC4899", false),
+            new Definition("Otros gastos", TransactionType.EXPENSE, "#6B7280", false),
+            new Definition("Nómina", TransactionType.INCOME, "#22C55E", false),
+            new Definition("Otros ingresos", TransactionType.INCOME, "#14B8A6", false));
 
     private DefaultCategories() {
     }

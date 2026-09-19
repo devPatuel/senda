@@ -9,5 +9,9 @@ public record MonthlySummaryResponse(
         BigDecimal totalIncome,
         BigDecimal totalExpense,
         BigDecimal balance,
-        List<CategorySummary> byCategory) {
+        List<CategorySummary> byCategory,
+        BigDecimal fixedExpenseTotal,
+        BigDecimal variableExpenseTotal,
+        BigDecimal fixedExpensePercentage,
+        CategorySummary topExpenseCategory) {
 }

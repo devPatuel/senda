@@ -28,11 +28,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
      */
     @Query("""
             select new dev.jordi.senda.transaction.CategorySummary(
-                c.id, c.name, c.color, c.type, sum(t.amount))
+                c.id, c.name, c.color, c.type, sum(t.amount), c.fixed)
             from Transaction t
             join t.category c
             where t.userId = :userId and t.spaceId is null and t.date between :from and :to
-            group by c.id, c.name, c.color, c.type
+            group by c.id, c.name, c.color, c.type, c.fixed
             order by c.type, sum(t.amount) desc
             """)
     List<CategorySummary> summarizeByCategory(@Param("userId") Long userId,
@@ -46,11 +46,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
      */
     @Query("""
             select new dev.jordi.senda.transaction.CategorySummary(
-                c.id, c.name, c.color, c.type, sum(t.amount))
+                c.id, c.name, c.color, c.type, sum(t.amount), c.fixed)
             from Transaction t
             join t.category c
             where t.spaceId = :spaceId and t.date between :from and :to
-            group by c.id, c.name, c.color, c.type
+            group by c.id, c.name, c.color, c.type, c.fixed
             order by c.type, sum(t.amount) desc
             """)
     List<CategorySummary> summarizeByCategoryForSpace(@Param("spaceId") Long spaceId,
