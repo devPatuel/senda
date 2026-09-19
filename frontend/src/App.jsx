@@ -12,15 +12,10 @@ import InvestmentsPage from './pages/InvestmentsPage'
 import AllocationPage from './pages/AllocationPage'
 import NetWorthPage from './pages/NetWorthPage'
 import RecurringPage from './pages/RecurringPage'
-import ShoppingPage from './pages/ShoppingPage'
-import CategoryRulesPage from './pages/CategoryRulesPage'
 import ImportPage from './pages/ImportPage'
 import SpacePage from './pages/SpacePage'
 import TokensPage from './pages/TokensPage'
-import ProductsPage from './pages/ProductsPage'
 import WishlistPage from './pages/WishlistPage'
-import HabitsPage from './pages/HabitsPage'
-import HabitDetailPage from './pages/HabitDetailPage'
 
 export default function App() {
   return (
@@ -38,15 +33,10 @@ export default function App() {
           <Route path="/inversiones" element={<InvestmentsPage />} />
           <Route path="/reparto" element={<AllocationPage />} />
           <Route path="/recurrentes" element={<RecurringPage />} />
-          <Route path="/reglas" element={<CategoryRulesPage />} />
           <Route path="/importar" element={<ImportPage />} />
           {/* Patrimonio no longer has a menu entry; reachable by direct URL */}
           <Route path="/patrimonio" element={<NetWorthPage />} />
-          <Route path="/compra" element={<ShoppingPage />} />
-          <Route path="/productos" element={<ProductsPage />} />
           <Route path="/deseos" element={<WishlistPage />} />
-          <Route path="/habitos" element={<HabitsPage />} />
-          <Route path="/habitos/:id" element={<HabitDetailPage />} />
           <Route path="/pareja" element={<SpacePage />} />
           <Route path="/tokens" element={<TokensPage />} />
         </Route>

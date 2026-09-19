@@ -31,15 +31,13 @@ beforeEach(() => {
 })
 
 describe('ImportPage', () => {
-  it('parses a CSV, previews with rule suggestions and imports', async () => {
+  it('parses a CSV, previews the rows and imports them', async () => {
     previewImport.mockResolvedValue([
       {
         date: '2026-06-01',
         description: 'Compra MERCADONA',
         amount: 20.5,
         type: 'EXPENSE',
-        suggestedCategoryId: 1,
-        suggestedCategoryName: 'Comida',
         duplicate: false,
       },
     ])
@@ -56,7 +54,7 @@ describe('ImportPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Previsualizar' }))
 
-    // Preview step: the row and its suggested category
+    // Preview step: the row, with the category still to be picked
     expect(await screen.findByText('Compra MERCADONA')).toBeInTheDocument()
     await waitFor(() =>
       expect(previewImport).toHaveBeenCalledWith(
@@ -65,6 +63,7 @@ describe('ImportPage', () => {
       ),
     )
 
+    await user.selectOptions(screen.getByLabelText('Categoría'), '1')
     await user.click(screen.getByRole('button', { name: /Importar 1 movimiento/ }))
 
     await waitFor(() =>
@@ -116,8 +115,6 @@ describe('ImportPage', () => {
         description: 'Mercadona',
         amount: 73.15,
         type: 'EXPENSE',
-        suggestedCategoryId: null,
-        suggestedCategoryName: null,
         duplicate: false,
       },
     ])

@@ -21,7 +21,6 @@ const ICONS = {
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   ),
-  rutina: svg('M9 11l3 3L22 4', 'M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'),
   movimientos: svg('M7 4v13', 'm3.5 13.5 3.5 3.5 3.5-3.5', 'M17 20V7', 'm13.5 10.5 3.5-3.5 3.5 3.5'),
   recurrentes: svg('M17 2l4 4-4 4', 'M3 11V9a4 4 0 0 1 4-4h14', 'M7 22l-4-4 4-4', 'M21 13v2a4 4 0 0 1-4 4H3'),
   importar: svg('M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4', 'M7 10l5 5 5-5', 'M12 15V3'),
@@ -32,16 +31,7 @@ const ICONS = {
     </svg>
   ),
   categorias: svg('M4 7h16', 'M4 12h16', 'M4 17h10'),
-  reglas: svg('M3 4h18l-7 8v6l-4 2v-8L3 4z'),
-  productos: svg('M20.59 13.41 12 22l-8-8V4h10l6.59 6.59a2 2 0 0 1 0 2.82Z', 'M7.5 7.5h.01'),
   deseos: svg('M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z'),
-  compra: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
-      <circle cx="9" cy="20" r="1.5" />
-      <circle cx="18" cy="20" r="1.5" />
-      <path d="M2 3h2.5l2.2 12.5a1 1 0 0 0 1 .8h9.3a1 1 0 0 0 1-.8L21 7H6" />
-    </svg>
-  ),
   cuentas: svg('M3 21h18', 'M5 21V9l7-5 7 5v12', 'M9 21v-6h6v6'),
   inversiones: svg('M3 17l6-6 4 4 8-8', 'M17 7h4v4'),
   deudas: svg('M16 8a6 6 0 1 0-8 5.66', 'M12 6v6l3 2', 'M16 16h6', 'M19 13v6'),
@@ -63,13 +53,6 @@ const NAV_GROUPS = [
     ],
   },
   {
-    // First non-financial group; Salud/Gym and the reading list will land here too.
-    title: 'Rutina',
-    items: [
-      { to: '/habitos', label: 'Hábitos', icon: ICONS.rutina },
-    ],
-  },
-  {
     title: 'Movimientos',
     items: [
       { to: '/movimientos', label: 'Movimientos', icon: ICONS.movimientos },
@@ -82,9 +65,6 @@ const NAV_GROUPS = [
     items: [
       { to: '/reparto', label: 'Reparto', icon: ICONS.reparto },
       { to: '/categorias', label: 'Categorías', icon: ICONS.categorias },
-      { to: '/reglas', label: 'Reglas', icon: ICONS.reglas },
-      { to: '/productos', label: 'Productos', icon: ICONS.productos },
-      { to: '/compra', label: 'Compra', icon: ICONS.compra },
       { to: '/deseos', label: 'Deseos', icon: ICONS.deseos },
     ],
   },

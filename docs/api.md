@@ -389,33 +389,7 @@ suma 100.
   "net": 38320.00 }
 ```
 
-`net` = `liquid + investments + debtsInFavor − debtsAgainst`. Solo lectura.
-
----
-
-## Lista de la compra y deseos
-
-`ShoppingItemResponse`:
-
-```json
-{ "id": 1, "listType": "WISHLIST", "name": "NAS", "estimatedPrice": 600.00,
-  "envelopeId": 2, "envelopeName": "Inversión", "envelopeBalance": 800.00,
-  "priority": 1, "bought": false, "feasible": true, "notes": null, "createdAt": "..." }
-```
-
-`listType`: `GROCERY` (comida, check/uncheck) | `WISHLIST` (deseos). `feasible` (solo
-deseos con sobre y precio) = saldo del sobre asociado ≥ `estimatedPrice`; `null` si no
-aplica. `priority`: 1–5.
-
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | `/api/shopping/items?listType=` | Lista los items (filtro opcional por tipo) |
-| POST | `/api/shopping/items` | Crea (`201`). `404` si el `envelopeId` no es del usuario |
-| PUT | `/api/shopping/items/{id}` | Edita; el `listType` no se puede cambiar (`400`) |
-| PATCH | `/api/shopping/items/{id}/bought` | Marca comprado/no comprado. Body: `{ "bought": true }` |
-| DELETE | `/api/shopping/items/{id}` | Borra (`204`) |
-
-Errores: `400` validación / cambio de `listType`, `404` item o sobre ajeno/inexistente.
+`net` = `liquid + investments + coupleShare + debtsInFavor − debtsAgainst`. Solo lectura.
 
 ---
 

@@ -32,10 +32,16 @@ describe('Layout sidebar', () => {
     expect(screen.getAllByText('Movimientos').length).toBeGreaterThanOrEqual(2)
   })
 
-  it('recupera las rutas antes huérfanas (/patrimonio y /reglas)', () => {
+  it('enlaza la pantalla de Patrimonio', () => {
     renderLayout()
     expect(screen.getAllByRole('link', { name: /Patrimonio/i })[0]).toHaveAttribute('href', '/patrimonio')
-    expect(screen.getAllByRole('link', { name: /Reglas/i })[0]).toHaveAttribute('href', '/reglas')
+  })
+
+  it('no ofrece los modulos retirados (Compra, Productos, Reglas, Habitos)', () => {
+    renderLayout()
+    for (const label of [/Compra/i, /Productos/i, /Reglas/i, /Hábitos/i]) {
+      expect(screen.queryByRole('link', { name: label })).not.toBeInTheDocument()
+    }
   })
 
   it('enlaza la pantalla de Tokens en el pie', () => {

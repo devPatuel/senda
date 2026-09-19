@@ -42,26 +42,12 @@ class QuickTransactionIntegrationTest {
     }
 
     @Test
-    void quickAddAutoCategorizesByRule() throws Exception {
-        String token = registerAndGetToken("quick-b@test.dev");
-        long categoryId = createCategory(token, "Supermercado quick");
-        createRule(token, "mercadona", categoryId);
-
-        mvc.perform(post("/api/transactions/quick")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(APPLICATION_JSON)
-                        .content("{\"amount\":30,\"description\":\"Compra en Mercadona centro\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.categoryId").value((int) categoryId));
-    }
-
-    @Test
-    void quickAddWithoutCategoryOrRuleReturns400() throws Exception {
+    void quickAddWithoutCategoryReturns400() throws Exception {
         String token = registerAndGetToken("quick-c@test.dev");
         mvc.perform(post("/api/transactions/quick")
                         .header("Authorization", "Bearer " + token)
                         .contentType(APPLICATION_JSON)
-                        .content("{\"amount\":10,\"description\":\"algo sin regla\"}"))
+                        .content("{\"amount\":10,\"description\":\"algo sin categoria\"}"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -88,16 +74,6 @@ class QuickTransactionIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return mapper.readTree(body).get("id").asLong();
-    }
-
-    private void createRule(String token, String matchText, long categoryId) throws Exception {
-        mvc.perform(post("/api/category-rules")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(APPLICATION_JSON)
-                        .content("""
-                                {"matchText": "%s", "categoryId": %d}
-                                """.formatted(matchText, categoryId)))
-                .andExpect(status().isCreated());
     }
 
     private String registerAndGetToken(String email) throws Exception {

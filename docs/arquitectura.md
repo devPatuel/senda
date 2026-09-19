@@ -58,7 +58,7 @@ pagos recurrentes) no toca los existentes.
 | `dev.jordi.senda.investment` | Clases de activo, posiciones (coste medio), lotes, NFTs y servicio de precios |
 | `dev.jordi.senda.allocation` | Reparto de sueldo por sobres (suma 100%) y saldos acumulados |
 | `dev.jordi.senda.networth` | Patrimonio neto: agrega cuentas, inversiones y deudas (solo lectura, sin tablas) |
-| `dev.jordi.senda.shopping` | Lista de la compra (comida) y deseos con factibilidad por sobre |
+| `dev.jordi.senda.wishlist` | Lista de deseos (nombre, foto, enlace, precio estimado) |
 | `dev.jordi.senda.common` | Config, seguridad compartida, manejo global de errores |
 
 ### Manejo de errores
@@ -136,10 +136,8 @@ allocation_envelopes id, user_id, name, percentage NUMERIC(5,2), position, creat
 envelope_balances   id, envelope_id (FK ON DELETE CASCADE, UNIQUE), user_id,
                     balance NUMERIC(14,2) — saldo acumulado por sobre
 
-shopping_items      id, user_id, list_type (GROCERY|WISHLIST), name,
-                    estimated_price NUMERIC(14,2) (nullable),
-                    envelope_id (FK allocation_envelopes ON DELETE SET NULL, nullable),
-                    priority (1–5, nullable), bought, notes, created_at                   (V7)
+wishlist_items      id, user_id, name, image_url, product_url, estimated_price,
+                    comment, created_at                                                   (V22)
 ```
 
 Reglas de dominio de finanzas:
@@ -154,7 +152,7 @@ Reglas de dominio de finanzas:
 - **Reparto**: los porcentajes de los sobres deben sumar exactamente 100
   (ver [ADR 0009](adr/0009-reparto-sobres-suma-100.md)).
 - **Patrimonio**: agregación de solo lectura (ver [ADR 0010](adr/0010-calculo-patrimonio-neto.md)).
-- **Deseos** (`shopping`): `feasible` = saldo del sobre asociado ≥ precio estimado.
+- **Deseos** (`wishlist`): lista simple de cosas que quieres comprar, sin cálculo asociado.
 
 Reglas de dominio:
 

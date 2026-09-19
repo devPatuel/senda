@@ -62,16 +62,6 @@ class ImportIntegrationTest {
         return ids.get(0).longValue();
     }
 
-    private void createRule(String matchText, long categoryId) throws Exception {
-        mockMvc.perform(post("/api/category-rules")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"matchText": "%s", "categoryId": %d}
-                                """.formatted(matchText, categoryId)))
-                .andExpect(status().isCreated());
-    }
-
     private org.springframework.test.web.servlet.ResultActions preview(String json) throws Exception {
         return mockMvc.perform(post("/api/imports/preview")
                 .header("Authorization", "Bearer " + token)
@@ -104,9 +94,7 @@ class ImportIntegrationTest {
     }
 
     @Test
-    void previewDerivesTypeSuggestsCategoryAndFlagsDuplicates() throws Exception {
-        createRule("MERCADONA", comida);
-
+    void previewDerivesTypeAndFlagsDuplicates() throws Exception {
         preview("""
                 {"rows": [
                   {"date": "%s", "description": "Compra MERCADONA 23", "amount": -20.50},
@@ -116,10 +104,9 @@ class ImportIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].type").value("EXPENSE"))
                 .andExpect(jsonPath("$[0].amount").value(20.50))
-                .andExpect(jsonPath("$[0].suggestedCategoryName").value("Comida"))
                 .andExpect(jsonPath("$[0].duplicate").value(false))
                 .andExpect(jsonPath("$[1].type").value("INCOME"))
-                .andExpect(jsonPath("$[1].suggestedCategoryId").value(org.hamcrest.Matchers.nullValue()));
+                .andExpect(jsonPath("$[1].amount").value(1500.00));
     }
 
     @Test

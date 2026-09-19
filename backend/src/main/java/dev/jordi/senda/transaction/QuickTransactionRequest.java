@@ -8,11 +8,10 @@ import java.math.BigDecimal;
 
 /**
  * Lightweight body for POST /api/transactions/quick (Apple Shortcut capture).
- * Type is always EXPENSE and date is today; when {@code categoryId} is null the
- * category is resolved from the user's category rules against {@code description}.
+ * Type is always EXPENSE and date is today.
  */
 public record QuickTransactionRequest(
         @NotNull @Positive BigDecimal amount,
         @NotBlank String description,
-        Long categoryId) {
+        @NotNull Long categoryId) {
 }

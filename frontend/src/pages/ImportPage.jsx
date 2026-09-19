@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { listCategories } from '../api/categories'
 import { previewImport, commitImport } from '../api/imports'
 import { listSpaces } from '../api/spaces'
@@ -129,7 +128,7 @@ export default function ImportPage() {
       setPreview(
         rowsPreview.map((r) => ({
           ...r,
-          categoryId: r.suggestedCategoryId ? String(r.suggestedCategoryId) : '',
+          categoryId: '',
           // Duplicates start unchecked so they are not re-imported by default
           include: !r.duplicate,
         })),
@@ -173,12 +172,7 @@ export default function ImportPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Importar extracto</h1>
-        <Link to="/reglas" className="text-sm font-medium text-emerald-600 hover:text-emerald-700">
-          Gestionar reglas
-        </Link>
-      </div>
+      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Importar extracto</h1>
 
       {result && (
         <Notice onClose={() => setResult(null)}>

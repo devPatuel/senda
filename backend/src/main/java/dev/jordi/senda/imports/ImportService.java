@@ -2,9 +2,6 @@ package dev.jordi.senda.imports;
 
 import dev.jordi.senda.category.Category;
 import dev.jordi.senda.category.CategoryRepository;
-import dev.jordi.senda.categoryrule.CategoryRule;
-import dev.jordi.senda.categoryrule.CategoryRuleRepository;
-import dev.jordi.senda.categoryrule.CategoryRuleService;
 import dev.jordi.senda.common.NotFoundException;
 import dev.jordi.senda.common.TransactionType;
 import dev.jordi.senda.space.SpaceAccess;
@@ -16,32 +13,25 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class ImportService {
 
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
-    private final CategoryRuleRepository ruleRepository;
     private final SpaceAccess spaceAccess;
 
     public ImportService(TransactionRepository transactionRepository,
                          CategoryRepository categoryRepository,
-                         CategoryRuleRepository ruleRepository,
                          SpaceAccess spaceAccess) {
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
-        this.ruleRepository = ruleRepository;
         this.spaceAccess = spaceAccess;
     }
 
     /**
-     * Normalizes each parsed row (sign → type, absolute amount), suggests a
-     * category from the matching rule, and flags rows that duplicate an existing
-     * transaction by (date, amount, description).
+     * Normalizes each parsed row (sign → type, absolute amount) and flags rows
+     * that duplicate an existing transaction by (date, amount, description).
      */
     @Transactional(readOnly = true)
     public List<ImportPreviewRow> preview(Long userId, ImportPreviewRequest request) {
@@ -49,39 +39,16 @@ public class ImportService {
         if (spaceId != null) {
             spaceAccess.assertActiveMember(userId, spaceId);
         }
-        List<CategoryRule> rules = ruleRepository.findByUserId(userId);
-        // Categories of the target scope only: a rule pointing at a personal
-        // category must not suggest itself for a shared statement (and vice versa),
-        // since the transaction would be rejected on commit.
-        Map<Long, Category> categories = (spaceId == null
-                ? categoryRepository.findByUserIdAndSpaceIdIsNull(userId)
-                : categoryRepository.findBySpaceId(spaceId)).stream()
-                .collect(Collectors.toMap(Category::getId, c -> c));
-
         return request.rows().stream().map(in -> {
             TransactionType type = in.amount().signum() < 0 ? TransactionType.EXPENSE : TransactionType.INCOME;
             BigDecimal amount = in.amount().abs().setScale(2, RoundingMode.HALF_UP);
-
-            Long suggestedId = null;
-            String suggestedName = null;
-            Optional<CategoryRule> match = CategoryRuleService.firstMatch(rules, in.description());
-            if (match.isPresent()) {
-                Category c = categories.get(match.get().getCategoryId());
-                // Only suggest when the rule's category type matches the row's sign,
-                // since a transaction's type must equal its category's type.
-                if (c != null && c.isActive() && c.getType() == type) {
-                    suggestedId = c.getId();
-                    suggestedName = c.getName();
-                }
-            }
 
             boolean duplicate = spaceId == null
                     ? transactionRepository.existsByUserIdAndDateAndAmountAndDescriptionAndSpaceIdIsNull(
                             userId, in.date(), amount, in.description())
                     : transactionRepository.existsBySpaceIdAndDateAndAmountAndDescription(
                             spaceId, in.date(), amount, in.description());
-            return new ImportPreviewRow(in.date(), in.description(), amount, type,
-                    suggestedId, suggestedName, duplicate);
+            return new ImportPreviewRow(in.date(), in.description(), amount, type, duplicate);
         }).toList();
     }
 
