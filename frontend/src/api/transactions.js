@@ -120,6 +120,30 @@ export function getSummary(year, month, spaceId) {
  */
 
 /**
+ * @typedef {Object} YearSummary
+ * @property {number} year
+ * @property {number} totalIncome
+ * @property {number} totalExpense
+ * @property {number} balance
+ * @property {number} monthlyAverageExpense
+ * @property {MonthlyTrend[]} months  always twelve, January first
+ * @property {CategorySummary[]} byCategory
+ */
+
+/**
+ * Whole-year summary: totals, the twelve months and the per-category breakdown.
+ * When `spaceId` is set, summarizes the couple space's transactions instead.
+ * @param {number} year
+ * @param {number} [spaceId]
+ * @returns {Promise<YearSummary>}
+ */
+export function getYearSummary(year, spaceId) {
+  const params = new URLSearchParams({ year: String(year) })
+  if (spaceId != null) params.set('spaceId', String(spaceId))
+  return http.get(`/transactions/summary/year?${params.toString()}`)
+}
+
+/**
  * Income/expense/balance series for the last `months` months (default 6),
  * oldest first, with zero-filled gaps.
  * @param {number} [months]

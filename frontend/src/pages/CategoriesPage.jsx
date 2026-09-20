@@ -633,17 +633,23 @@ export default function CategoriesPage({ spaceId }) {
                           </span>
                         )}
                         {b && c.active && (
-                          <div className="shrink-0 text-right">
+                          <div
+                            className="shrink-0 text-right"
+                            data-testid={`category-envelope-${c.id}`}
+                            data-negative={String(Number(b.available) < 0)}
+                          >
+                            {/* What is left leads: it is the figure that answers
+                                "can I spend?". Assigned and spent explain it. */}
                             <p
                               className={[
                                 'text-sm font-semibold tabular-nums',
-                                Number(b.balance) < 0 ? 'text-red-600' : 'text-slate-900',
+                                Number(b.available) < 0 ? 'text-red-600' : 'text-slate-900',
                               ].join(' ')}
                             >
-                              {formatCurrency(b.balance)}
+                              {formatCurrency(b.available)}
                             </p>
                             <p className="text-xs text-slate-400 tabular-nums">
-                              gastado {formatCurrency(b.spentThisMonth)}
+                              {formatCurrency(b.spent)} de {formatCurrency(b.balance)}
                             </p>
                           </div>
                         )}

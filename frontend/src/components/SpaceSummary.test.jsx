@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import SpaceSummary from './SpaceSummary'
-import { getSummary } from '../api/transactions'
+import { getSummary, getYearSummary } from '../api/transactions'
 import { listAccounts } from '../api/accounts'
+import { getBudget } from '../api/categories'
 import { formatCurrency } from '../lib/format'
 
-vi.mock('../api/transactions', () => ({ getSummary: vi.fn() }))
+vi.mock('../api/transactions', () => ({ getSummary: vi.fn(), getYearSummary: vi.fn() }))
 vi.mock('../api/accounts', () => ({ listAccounts: vi.fn() }))
+vi.mock('../api/categories', () => ({ getBudget: vi.fn() }))
 
 // Testing Library normalizes whitespace, so the non-breaking space Intl puts
 // before "€" must be normalized in the expected string too.
@@ -42,9 +44,36 @@ const SUMMARY = {
   ],
 }
 
+const BUDGET = {
+  totalAccounts: 1412.35,
+  totalAssigned: 410,
+  toAssign: 1002.35,
+  categories: [
+    {
+      id: 78, name: 'Supermercados', color: '#10b981',
+      balance: 10, spentThisMonth: 236.4, spent: 236.4, available: -226.4,
+      targetPercentage: null, targetAmount: null,
+    },
+  ],
+}
+
+const YEAR_SUMMARY = {
+  year,
+  totalIncome: 0,
+  totalExpense: 1164.15,
+  balance: -1164.15,
+  monthlyAverageExpense: 97.01,
+  months: Array.from({ length: 12 }, (_, i) => ({
+    year, month: i + 1, income: 0, expense: i === month - 1 ? 388.05 : 0, balance: 0,
+  })),
+  byCategory: [],
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   getSummary.mockResolvedValue(SUMMARY)
+  getYearSummary.mockResolvedValue(YEAR_SUMMARY)
+  getBudget.mockResolvedValue(BUDGET)
   listAccounts.mockResolvedValue([
     { id: 1, name: 'Cuenta común', balance: 1412.35, archived: false },
   ])
@@ -55,7 +84,9 @@ describe('SpaceSummary', () => {
     render(<SpaceSummary spaceId={7} />)
 
     await waitFor(() => expect(getSummary).toHaveBeenCalledWith(year, month, 7))
-    expect(await screen.findByText(visibleCurrency(388.05))).toBeInTheDocument()
+    // The month's spending also shows up in the pace block, so anchor on the tile
+    const spentTile = (await screen.findByText('Gastado')).closest('section')
+    expect(within(spentTile).getByText(visibleCurrency(388.05))).toBeInTheDocument()
     expect(screen.getByText(visibleCurrency(1412.35))).toBeInTheDocument()
   })
 
@@ -88,6 +119,29 @@ describe('SpaceSummary', () => {
 
     const prev = month === 1 ? [year - 1, 12] : [year, month - 1]
     await waitFor(() => expect(getSummary).toHaveBeenCalledWith(prev[0], prev[1], 7))
+  })
+
+  it('shows what is left in each category', async () => {
+    render(<SpaceSummary spaceId={7} />)
+
+    const row = await screen.findByTestId('availability-78')
+    expect(row).toHaveAttribute('data-negative', 'true')
+    // The budget is fetched once and shared with the availability block
+    await waitFor(() => expect(getBudget).toHaveBeenCalledTimes(1))
+  })
+
+  it('shows the year and the spending pace', async () => {
+    render(<SpaceSummary spaceId={7} />)
+
+    expect(await screen.findByTestId('year-expense')).toHaveTextContent(visibleCurrency(1164.15))
+    expect(screen.getByTestId('pace')).toBeInTheDocument()
+    await waitFor(() => expect(getYearSummary).toHaveBeenCalledWith(year, 7))
+  })
+
+  it('compares the month with the previous one', async () => {
+    render(<SpaceSummary spaceId={7} />)
+
+    expect(await screen.findByTestId('expense-change')).toBeInTheDocument()
   })
 
   it('tells an empty month apart from a month with no spending', async () => {

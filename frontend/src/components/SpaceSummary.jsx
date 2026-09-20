@@ -4,8 +4,13 @@
 import { useEffect, useState } from 'react'
 import { getSummary } from '../api/transactions'
 import { listAccounts } from '../api/accounts'
+import { getBudget } from '../api/categories'
 import { formatCurrency, formatMonthLabel } from '../lib/format'
 import { ErrorState } from './ui'
+import CategoryAvailability from './CategoryAvailability'
+import MonthComparison from './MonthComparison'
+import SpendingPace from './SpendingPace'
+import YearOverview from './YearOverview'
 
 function currentYearMonth() {
   const now = new Date()
@@ -33,6 +38,7 @@ export default function SpaceSummary({ spaceId }) {
   const [{ year, month }, setYearMonth] = useState(currentYearMonth)
   const [summary, setSummary] = useState(null)
   const [balance, setBalance] = useState(null)
+  const [budget, setBudget] = useState(null)
   const [error, setError] = useState(null)
 
   useEffect(() => {
@@ -51,6 +57,22 @@ export default function SpaceSummary({ spaceId }) {
       cancelled = true
     }
   }, [spaceId, year, month])
+
+  // Fetched here rather than inside CategoryAvailability because the pace block
+  // needs the assigned total from the same payload.
+  useEffect(() => {
+    let cancelled = false
+    getBudget(spaceId)
+      .then((data) => {
+        if (!cancelled) setBudget(data)
+      })
+      .catch(() => {
+        // The envelope blocks drop out; the month figures still stand
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [spaceId])
 
   useEffect(() => {
     let cancelled = false
@@ -167,6 +189,21 @@ export default function SpaceSummary({ spaceId }) {
           </ul>
         )}
       </section>
+
+      {budget && (
+        <SpendingPace
+          spent={totalExpense}
+          assigned={budget.totalAssigned}
+          year={year}
+          month={month}
+        />
+      )}
+
+      <MonthComparison year={year} month={month} spaceId={spaceId} />
+
+      {budget && <CategoryAvailability spaceId={spaceId} budget={budget} />}
+
+      <YearOverview year={year} spaceId={spaceId} />
     </div>
   )
 }

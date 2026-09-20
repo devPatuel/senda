@@ -21,6 +21,9 @@ function sum(lines) {
 // -------------------------------------------------------------------------
 
 function PlanEditor({ envelopes, onSaved }) {
+  // Envelope figures are read straight from the server data, never from the
+  // form state: editing a percentage must not look like it moved money.
+  const byId = new Map(envelopes.map((e) => [e.id, e]))
   // One row per expense category; percentage is the target share (blank = 0).
   const [lines, setLines] = useState(() =>
     envelopes.map((e) => ({
@@ -81,6 +84,19 @@ function PlanEditor({ envelopes, onSaved }) {
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
               {line.name}
             </span>
+            {byId.get(line.id)?.available != null && (
+              <span
+                data-testid={`envelope-available-${line.id}`}
+                data-negative={String(Number(byId.get(line.id).available) < 0)}
+                title={`${formatCurrency(byId.get(line.id).spent)} gastado de ${formatCurrency(byId.get(line.id).balance)}`}
+                className={[
+                  'shrink-0 text-xs tabular-nums',
+                  Number(byId.get(line.id).available) < 0 ? 'text-red-600' : 'text-slate-400',
+                ].join(' ')}
+              >
+                {formatCurrency(byId.get(line.id).available)}
+              </span>
+            )}
             <div className="w-24">
               <Field
                 label={undefined}

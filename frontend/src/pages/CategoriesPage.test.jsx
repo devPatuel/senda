@@ -17,7 +17,7 @@ vi.mock('../api/categories', () => ({
 const COMIDA = { id: 1, name: 'Comida', type: 'EXPENSE', color: '#ef4444', emoji: '🍔', active: true }
 const NOMINA = { id: 2, name: 'Nómina', type: 'INCOME', color: '#10b981', active: true }
 
-// Comida has a 300 target with a 150 balance (50% funded).
+// Comida has a 300 target with a 150 balance (50% funded) and 40 spent.
 const BUDGET = {
   totalAccounts: 1000,
   totalAssigned: 200,
@@ -29,6 +29,8 @@ const BUDGET = {
       color: '#ef4444',
       balance: 150,
       spentThisMonth: 40,
+      spent: 40,
+      available: 110,
       targetPercentage: null,
       targetAmount: 300,
     },
@@ -193,6 +195,27 @@ describe('CategoriesPage', () => {
     expect(screen.queryByText(/No se ha podido eliminar/)).not.toBeInTheDocument()
     // The keyed reload (not a manual set) refreshes the list
     await waitFor(() => expect(screen.queryByText('Comida')).not.toBeInTheDocument())
+  })
+
+  it('leads with what is left in the category, not with what was assigned', async () => {
+    render(<CategoriesPage />)
+
+    const row = await screen.findByTestId('category-envelope-1')
+    // 150 assigned minus 40 spent: 110 is the figure that answers "can I spend?"
+    expect(row).toHaveTextContent('110')
+    expect(row).toHaveTextContent('40')
+    expect(row).toHaveTextContent('150')
+  })
+
+  it('marks an overspent category in red', async () => {
+    getBudget.mockResolvedValue({
+      ...BUDGET,
+      categories: [{ ...BUDGET.categories[0], balance: 10, spent: 120, available: -110 }],
+    })
+    render(<CategoriesPage />)
+
+    const row = await screen.findByTestId('category-envelope-1')
+    expect(row).toHaveAttribute('data-negative', 'true')
   })
 
   it('scopes the list and the shared budget to a couple space when spaceId is set', async () => {

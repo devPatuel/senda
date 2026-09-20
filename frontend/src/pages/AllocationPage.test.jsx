@@ -10,8 +10,8 @@ vi.mock('../api/allocation', () => ({
   distribute: vi.fn(),
 }))
 
-const AHORRO = { id: 1, name: 'Ahorro', color: '#10b981', percentage: 60 }
-const OCIO = { id: 2, name: 'Ocio', color: '#f59e0b', percentage: 40 }
+const AHORRO = { id: 1, name: 'Ahorro', color: '#10b981', percentage: 60, balance: 400, spent: 120, available: 280 }
+const OCIO = { id: 2, name: 'Ocio', color: '#f59e0b', percentage: 40, balance: 10, spent: 120, available: -110 }
 
 describe('AllocationPage', () => {
   beforeEach(() => {
@@ -29,6 +29,16 @@ describe('AllocationPage', () => {
     // The plan editor pre-fills each category's target percentage
     expect(screen.getByDisplayValue('60')).toBeInTheDocument()
     expect(screen.getByDisplayValue('40')).toBeInTheDocument()
+  })
+
+  it('shows what is left in each envelope next to its share', async () => {
+    render(<AllocationPage />)
+
+    const ahorro = await screen.findByTestId('envelope-available-1')
+    expect(ahorro).toHaveTextContent('280')
+    expect(ahorro).toHaveAttribute('data-negative', 'false')
+
+    expect(screen.getByTestId('envelope-available-2')).toHaveAttribute('data-negative', 'true')
   })
 
   it('shows total-indicator in green when percentages sum to 100', async () => {
