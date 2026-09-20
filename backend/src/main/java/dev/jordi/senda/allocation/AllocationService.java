@@ -7,6 +7,8 @@ import dev.jordi.senda.category.CategoryRepository;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.NotFoundException;
 import dev.jordi.senda.common.TransactionType;
+import dev.jordi.senda.transaction.CategorySpent;
+import dev.jordi.senda.transaction.TransactionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,11 +35,14 @@ public class AllocationService {
 
     private final CategoryRepository categoryRepository;
     private final CategoryBalanceRepository balanceRepository;
+    private final TransactionRepository transactionRepository;
 
     public AllocationService(CategoryRepository categoryRepository,
-                             CategoryBalanceRepository balanceRepository) {
+                             CategoryBalanceRepository balanceRepository,
+                             TransactionRepository transactionRepository) {
         this.categoryRepository = categoryRepository;
         this.balanceRepository = balanceRepository;
+        this.transactionRepository = transactionRepository;
     }
 
     // -------------------------------------------------------------------------
@@ -46,13 +51,15 @@ public class AllocationService {
 
     /**
      * All active expense categories with their target percentage (0 when not in
-     * the plan) and current envelope balance, ordered by name.
+     * the plan), envelope balance and what is left after spending, ordered by name.
      */
     @Transactional(readOnly = true)
     public List<EnvelopeResponse> list(Long userId) {
         Map<Long, BigDecimal> balances = balanceByCategory(userId);
+        Map<Long, BigDecimal> spent = transactionRepository.sumExpenseByCategoryAllTime(userId).stream()
+                .collect(Collectors.toMap(CategorySpent::categoryId, CategorySpent::spent));
         return activeExpenseCategories(userId).stream()
-                .map(c -> toResponse(c, balances))
+                .map(c -> toResponse(c, balances, spent))
                 .toList();
     }
 
@@ -194,13 +201,18 @@ public class AllocationService {
                 .collect(Collectors.toMap(CategoryBalance::getCategoryId, CategoryBalance::getBalance));
     }
 
-    private static EnvelopeResponse toResponse(Category c, Map<Long, BigDecimal> balances) {
+    private static EnvelopeResponse toResponse(Category c, Map<Long, BigDecimal> balances,
+                                               Map<Long, BigDecimal> spent) {
+        BigDecimal assigned = balances.getOrDefault(c.getId(), ZERO);
+        BigDecimal everSpent = spent.getOrDefault(c.getId(), ZERO);
         return new EnvelopeResponse(
                 c.getId(),
                 c.getName(),
                 c.getColor(),
                 c.getTargetPercentage() != null ? c.getTargetPercentage() : ZERO,
-                balances.getOrDefault(c.getId(), ZERO));
+                assigned,
+                everSpent,
+                assigned.subtract(everSpent));
     }
 
     private static void validateSum(List<BigDecimal> percentages) {

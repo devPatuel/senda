@@ -137,6 +137,7 @@ public class CategoryService {
         List<Category> expenseCategories;
         Map<Long, CategoryBalance> balances;
         Map<Long, BigDecimal> spent;
+        Map<Long, BigDecimal> spentAllTime;
         BigDecimal totalAccounts;
 
         if (spaceId == null) {
@@ -153,6 +154,8 @@ public class CategoryService {
                     .collect(Collectors.toMap(CategoryBalance::getCategoryId, b -> b));
             spent = transactionRepository.sumExpenseByCategory(userId, from, to).stream()
                     .collect(Collectors.toMap(CategorySpent::categoryId, CategorySpent::spent));
+            spentAllTime = transactionRepository.sumExpenseByCategoryAllTime(userId).stream()
+                    .collect(Collectors.toMap(CategorySpent::categoryId, CategorySpent::spent));
             totalAccounts = accountRepository.sumActiveBalance(userId);
         } else {
             spaceAccess.assertActiveMember(userId, spaceId);
@@ -167,6 +170,8 @@ public class CategoryService {
                     .collect(Collectors.toMap(CategoryBalance::getCategoryId, b -> b));
             spent = transactionRepository.sumExpenseByCategoryForSpace(spaceId, from, to).stream()
                     .collect(Collectors.toMap(CategorySpent::categoryId, CategorySpent::spent));
+            spentAllTime = transactionRepository.sumExpenseByCategoryAllTimeForSpace(spaceId).stream()
+                    .collect(Collectors.toMap(CategorySpent::categoryId, CategorySpent::spent));
             totalAccounts = accountRepository.sumActiveBalanceBySpaceIds(List.of(spaceId));
         }
         if (totalAccounts == null) {
@@ -178,12 +183,16 @@ public class CategoryService {
                         .thenComparing(Category::getId, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(c -> {
                     CategoryBalance b = balances.get(c.getId());
+                    BigDecimal assigned = b != null ? b.getBalance() : ZERO;
+                    BigDecimal everSpent = spentAllTime.getOrDefault(c.getId(), ZERO);
                     return new CategoryBudgetLine(
                             c.getId(),
                             c.getName(),
                             c.getColor(),
-                            b != null ? b.getBalance() : ZERO,
+                            assigned,
                             spent.getOrDefault(c.getId(), ZERO),
+                            everSpent,
+                            assigned.subtract(everSpent),
                             c.getTargetPercentage(),
                             b != null ? b.getTargetAmount() : null);
                 })

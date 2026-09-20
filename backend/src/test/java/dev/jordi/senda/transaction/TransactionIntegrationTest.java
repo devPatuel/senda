@@ -298,6 +298,45 @@ class TransactionIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    // --- year summary ---
+
+    @Test
+    void yearSummaryAggregatesTheWholeYearMonthByMonth() throws Exception {
+        createTransaction(tokenA, incomeA.getId(), TransactionType.INCOME, "1500.00", "2026-01-31");
+        createTransaction(tokenA, expenseA.getId(), TransactionType.EXPENSE, "100.00", "2026-01-15");
+        createTransaction(tokenA, expenseA.getId(), TransactionType.EXPENSE, "50.00", "2026-06-10");
+        createTransaction(tokenA, expenseA2.getId(), TransactionType.EXPENSE, "25.50", "2026-12-31");
+        // Other years and other users must not leak in
+        createTransaction(tokenA, expenseA.getId(), TransactionType.EXPENSE, "999.99", "2025-12-31");
+        createTransaction(tokenB, expenseB.getId(), TransactionType.EXPENSE, "77.77", "2026-06-15");
+
+        mockMvc.perform(get("/api/transactions/summary/year")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .param("year", "2026"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.year").value(2026))
+                .andExpect(jsonPath("$.totalIncome").value(1500.00))
+                .andExpect(jsonPath("$.totalExpense").value(175.50))
+                .andExpect(jsonPath("$.balance").value(1324.50))
+                // Always twelve rows, so the chart never has to guess at gaps
+                .andExpect(jsonPath("$.months.length()").value(12))
+                .andExpect(jsonPath("$.months[0].expense").value(100.00))
+                .andExpect(jsonPath("$.months[0].income").value(1500.00))
+                .andExpect(jsonPath("$.months[1].expense").value(0))
+                .andExpect(jsonPath("$.months[5].expense").value(50.00))
+                .andExpect(jsonPath("$.months[11].expense").value(25.50))
+                .andExpect(jsonPath("$.byCategory[?(@.categoryId == %d)].total"
+                        .formatted(expenseA.getId())).value(150.00));
+    }
+
+    @Test
+    void yearSummaryWithInvalidYearReturns400() throws Exception {
+        mockMvc.perform(get("/api/transactions/summary/year")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .param("year", "0"))
+                .andExpect(status().isBadRequest());
+    }
+
     // --- summary ---
 
     @Test

@@ -183,6 +183,53 @@ public class TransactionService {
     }
 
     /**
+     * A calendar year aggregated: totals, the twelve months in order and the
+     * per-category breakdown. Transfers are excluded everywhere, as in
+     * {@link #summary}.
+     */
+    @Transactional(readOnly = true)
+    public YearSummaryResponse yearSummary(Long userId, Long spaceId, int year) {
+        if (year < 1 || year > 9999) {
+            throw new InvalidTransactionException("year must be between 1 and 9999");
+        }
+        LocalDate from = LocalDate.of(year, 1, 1);
+        LocalDate to = LocalDate.of(year, 12, 31);
+
+        List<CategorySummary> byCategory;
+        List<MonthlyTotal> monthlyTotals;
+        if (spaceId == null) {
+            byCategory = transactionRepository.summarizeByCategory(userId, from, to);
+            monthlyTotals = transactionRepository.monthlyTotalsBetween(userId, from, to);
+        } else {
+            spaceAccess.assertActiveMember(userId, spaceId);
+            byCategory = transactionRepository.summarizeByCategoryForSpace(spaceId, from, to);
+            monthlyTotals = transactionRepository.monthlyTotalsBetweenForSpace(spaceId, from, to);
+        }
+
+        List<CategorySummary> real = byCategory.stream()
+                .filter(summary -> !summary.transfer())
+                .toList();
+        BigDecimal totalIncome = sumByType(real, TransactionType.INCOME);
+        BigDecimal totalExpense = sumByType(real, TransactionType.EXPENSE);
+
+        Map<Integer, Map<TransactionType, BigDecimal>> byMonth = monthlyTotals.stream()
+                .collect(Collectors.groupingBy(MonthlyTotal::month,
+                        Collectors.toMap(MonthlyTotal::type, MonthlyTotal::total)));
+        List<MonthlyTrend> months = new ArrayList<>(12);
+        for (int m = 1; m <= 12; m++) {
+            Map<TransactionType, BigDecimal> totals = byMonth.getOrDefault(m, Map.of());
+            BigDecimal income = totals.getOrDefault(TransactionType.INCOME, ZERO).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal expense = totals.getOrDefault(TransactionType.EXPENSE, ZERO).setScale(2, RoundingMode.HALF_UP);
+            months.add(new MonthlyTrend(year, m, income, expense, income.subtract(expense)));
+        }
+
+        BigDecimal monthlyAverageExpense = totalExpense.divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
+
+        return new YearSummaryResponse(year, totalIncome, totalExpense,
+                totalIncome.subtract(totalExpense), monthlyAverageExpense, months, real);
+    }
+
+    /**
      * Dense income/expense/balance series for the last {@code months} months
      * (current month included). Months with no transactions appear as zeros, so
      * the caller always gets exactly {@code months} ordered rows.

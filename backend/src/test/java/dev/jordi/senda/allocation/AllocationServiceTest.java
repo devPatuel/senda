@@ -37,11 +37,14 @@ class AllocationServiceTest {
     @Mock
     private CategoryBalanceRepository balanceRepository;
 
+    @Mock
+    private dev.jordi.senda.transaction.TransactionRepository transactionRepository;
+
     private AllocationService service;
 
     @BeforeEach
     void setUp() {
-        service = new AllocationService(categoryRepository, balanceRepository);
+        service = new AllocationService(categoryRepository, balanceRepository, transactionRepository);
     }
 
     // -------------------------------------------------------------------------

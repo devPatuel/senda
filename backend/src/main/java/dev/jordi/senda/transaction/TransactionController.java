@@ -50,6 +50,12 @@ public class TransactionController {
         return transactionService.summary(CurrentUser.id(), spaceId, year, month);
     }
 
+    @GetMapping("/summary/year")
+    public YearSummaryResponse yearSummary(@RequestParam(required = false) Long spaceId,
+                                           @RequestParam int year) {
+        return transactionService.yearSummary(CurrentUser.id(), spaceId, year);
+    }
+
     @GetMapping("/trends")
     public List<MonthlyTrend> trends(@RequestParam(defaultValue = "6") int months) {
         return transactionService.trends(CurrentUser.id(), months);

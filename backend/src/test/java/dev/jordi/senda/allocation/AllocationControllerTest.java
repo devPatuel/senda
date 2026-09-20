@@ -53,7 +53,8 @@ class AllocationControllerTest {
     }
 
     private static final EnvelopeResponse SAMPLE_ENVELOPE =
-            new EnvelopeResponse(1L, "Ahorro", "#10b981", new BigDecimal("50.00"), new BigDecimal("0.00"));
+            new EnvelopeResponse(1L, "Ahorro", "#10b981", new BigDecimal("50.00"), new BigDecimal("0.00"),
+                    new BigDecimal("0.00"), new BigDecimal("0.00"));
 
     private static final String VALID_PLAN_BODY = """
             {

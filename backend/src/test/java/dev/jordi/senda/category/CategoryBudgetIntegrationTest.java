@@ -111,6 +111,28 @@ class CategoryBudgetIntegrationTest {
         return vals.isEmpty() ? null : vals.get(0);
     }
 
+    private void expense(long categoryId, String amount, LocalDate date) throws Exception {
+        mockMvc.perform(post("/api/transactions")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"categoryId": %d, "type": "EXPENSE", "amount": %s, "date": "%s", "description": "Compra"}
+                                """.formatted(categoryId, amount, date)))
+                .andExpect(status().isCreated());
+    }
+
+    private long createTransferCategory(String name) throws Exception {
+        String body = mockMvc.perform(post("/api/categories")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "%s", "type": "EXPENSE", "color": "#334155", "transfer": true}
+                                """.formatted(name)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return ((Number) JsonPath.read(body, "$.id")).longValue();
+    }
+
     // -------------------------------------------------------------------------
     // Tests
     // -------------------------------------------------------------------------
@@ -184,6 +206,58 @@ class CategoryBudgetIntegrationTest {
 
         String body = budgetJson();
         assertThat(categoryField(body, "Comida", "spentThisMonth")).isEqualTo(40.0);
+    }
+
+    @Test
+    void availableIsAssignedMinusSpending() throws Exception {
+        long comida = categoryId("EXPENSE", "Comida");
+        assign(comida, "400.00");
+
+        expense(comida, "120.00", LocalDate.now());
+
+        String body = budgetJson();
+        assertThat(categoryField(body, "Comida", "balance")).isEqualTo(400.0);
+        assertThat(categoryField(body, "Comida", "spent")).isEqualTo(120.0);
+        assertThat(categoryField(body, "Comida", "available")).isEqualTo(280.0);
+    }
+
+    @Test
+    void availableGoesNegativeWhenSpendingExceedsAssigned() throws Exception {
+        long comida = categoryId("EXPENSE", "Comida");
+        assign(comida, "10.00");
+
+        expense(comida, "120.00", LocalDate.now());
+
+        assertThat(categoryField(budgetJson(), "Comida", "available")).isEqualTo(-110.0);
+    }
+
+    @Test
+    void availableCountsSpendingFromEarlierMonths() throws Exception {
+        long comida = categoryId("EXPENSE", "Comida");
+        assign(comida, "400.00");
+
+        expense(comida, "50.00", LocalDate.now().minusMonths(3));
+
+        String body = budgetJson();
+        // The envelope carries over: older spending still reduces what is available,
+        // even though it falls outside this month's "spentThisMonth".
+        assertThat(categoryField(body, "Comida", "spentThisMonth")).isZero();
+        assertThat(categoryField(body, "Comida", "spent")).isEqualTo(50.0);
+        assertThat(categoryField(body, "Comida", "available")).isEqualTo(350.0);
+    }
+
+    @Test
+    void transfersDoNotReduceAvailable() throws Exception {
+        long traspaso = createTransferCategory("Traspaso a conjunta");
+        assign(traspaso, "400.00");
+
+        expense(traspaso, "120.00", LocalDate.now());
+
+        String body = budgetJson();
+        // Moving your own money between accounts is not spending: it must not eat
+        // the envelope, or every transfer would look like a purchase.
+        assertThat(categoryField(body, "Traspaso a conjunta", "spent")).isZero();
+        assertThat(categoryField(body, "Traspaso a conjunta", "available")).isEqualTo(400.0);
     }
 
     @Test

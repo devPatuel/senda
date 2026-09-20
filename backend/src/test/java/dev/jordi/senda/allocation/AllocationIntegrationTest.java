@@ -73,6 +73,36 @@ class AllocationIntegrationTest {
     }
 
     // -------------------------------------------------------------------------
+    // Envelopes carry what is left, not just what was put in
+    // -------------------------------------------------------------------------
+
+    @Test
+    void envelopeShowsWhatIsLeftAfterSpending() throws Exception {
+        long comida = expenseCategoryId(tokenA, "Comida");
+
+        mockMvc.perform(post("/api/categories/" + comida + "/assign")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\": 400.00}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/transactions")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"categoryId": %d, "type": "EXPENSE", "amount": 120.00, "date": "%s", "description": "Súper"}
+                                """.formatted(comida, java.time.LocalDate.now())))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/allocation/envelopes")
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("Comida"))
+                .andExpect(jsonPath("$[0].balance").value(400.00))
+                .andExpect(jsonPath("$[0].spent").value(120.00))
+                .andExpect(jsonPath("$[0].available").value(280.00));
+    }
+
+    // -------------------------------------------------------------------------
     // Save a valid plan and verify the response (over seeded expense categories)
     // -------------------------------------------------------------------------
 
