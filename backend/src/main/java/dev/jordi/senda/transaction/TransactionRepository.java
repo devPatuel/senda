@@ -155,6 +155,27 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
                                             @Param("from") LocalDate from,
                                             @Param("to") LocalDate to);
 
+    /**
+     * Per-month totals of money moved IN by transfers, for a user or a space.
+     * Kept apart from {@link #monthlyTotalsBetween}, which excludes transfers:
+     * the year view needs both figures side by side.
+     */
+    @Query("""
+            select new dev.jordi.senda.transaction.MonthlyTotal(
+                year(t.date), month(t.date), t.type, sum(t.amount))
+            from Transaction t
+            where (:spaceId is null and t.userId = :userId and t.spaceId is null
+                   or t.spaceId = :spaceId)
+              and t.category.transfer = true
+              and t.type = dev.jordi.senda.common.TransactionType.INCOME
+              and t.date between :from and :to
+            group by year(t.date), month(t.date), t.type
+            """)
+    List<MonthlyTotal> monthlyTransfersIn(@Param("userId") Long userId,
+                                          @Param("spaceId") Long spaceId,
+                                          @Param("from") LocalDate from,
+                                          @Param("to") LocalDate to);
+
     /** Space counterpart of {@link #monthlyTotalsBetween}; membership is checked in the service. */
     @Query("""
             select new dev.jordi.senda.transaction.MonthlyTotal(

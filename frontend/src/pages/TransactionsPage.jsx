@@ -15,6 +15,19 @@ import TransactionForm from '../components/TransactionForm'
 
 const EMPTY_FILTERS = { from: '', to: '', categoryId: '', type: '' }
 
+/**
+ * A category colour washed down to a row background. The colour itself would
+ * fight the text; at 8% it groups the list by category without shouting.
+ * Returns undefined for anything that is not a #RRGGBB colour, so the row
+ * simply stays white.
+ */
+function tint(hex) {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex || '')
+  if (!match) return undefined
+  const value = parseInt(match[1], 16)
+  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, 0.08)`
+}
+
 export default function TransactionsPage({ spaceId }) {
   const [categories, setCategories] = useState([])
   const [filters, setFilters] = useState(EMPTY_FILTERS)
@@ -278,7 +291,12 @@ export default function TransactionsPage({ spaceId }) {
             ].join(' ')}
           >
             {data.content.map((t) => (
-              <li key={t.id} className="flex items-center gap-3 px-4 py-3">
+              <li
+                key={t.id}
+                data-testid={`transaction-row-${t.id}`}
+                className="flex items-center gap-3 px-4 py-3"
+                style={{ backgroundColor: tint(t.categoryColor) }}
+              >
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-full"
                   style={{ backgroundColor: t.categoryColor }}

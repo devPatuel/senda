@@ -318,6 +318,10 @@ function AssignForm({ category, currentBalance, spaceId, onClose, onSaved }) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           error={fieldError}
+          // The dialog exists to type an amount: land in the field, and select
+          // whatever is there so a preset can be overwritten without deleting.
+          autoFocus
+          onFocus={(e) => e.target.select()}
         />
         <div className="flex flex-wrap gap-2">
           {['10', '50', '100', '-10'].map((preset) => (

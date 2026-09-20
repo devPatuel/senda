@@ -301,6 +301,29 @@ class TransactionIntegrationTest {
     // --- year summary ---
 
     @Test
+    void yearSummaryReportsTransfersInApartFromSpending() throws Exception {
+        // Money moved into the account, not earned: the couple's contributions
+        incomeA.setTransfer(true);
+        categoryRepository.saveAndFlush(incomeA);
+
+        createTransaction(tokenA, incomeA.getId(), TransactionType.INCOME, "800.00", "2026-03-01");
+        createTransaction(tokenA, incomeA.getId(), TransactionType.INCOME, "700.00", "2026-04-01");
+        createTransaction(tokenA, expenseA.getId(), TransactionType.EXPENSE, "100.00", "2026-03-15");
+
+        mockMvc.perform(get("/api/transactions/summary/year")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .param("year", "2026"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalTransfersIn").value(1500.00))
+                // A transfer is money moved in, never spending
+                .andExpect(jsonPath("$.totalExpense").value(100.00))
+                .andExpect(jsonPath("$.months[2].transfersIn").value(800.00))
+                .andExpect(jsonPath("$.months[2].expense").value(100.00))
+                .andExpect(jsonPath("$.months[3].transfersIn").value(700.00))
+                .andExpect(jsonPath("$.months[0].transfersIn").value(0));
+    }
+
+    @Test
     void yearSummaryAggregatesTheWholeYearMonthByMonth() throws Exception {
         createTransaction(tokenA, incomeA.getId(), TransactionType.INCOME, "1500.00", "2026-01-31");
         createTransaction(tokenA, expenseA.getId(), TransactionType.EXPENSE, "100.00", "2026-01-15");
@@ -315,18 +338,13 @@ class TransactionIntegrationTest {
                         .param("year", "2026"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.year").value(2026))
-                .andExpect(jsonPath("$.totalIncome").value(1500.00))
                 .andExpect(jsonPath("$.totalExpense").value(175.50))
-                .andExpect(jsonPath("$.balance").value(1324.50))
                 // Always twelve rows, so the chart never has to guess at gaps
                 .andExpect(jsonPath("$.months.length()").value(12))
                 .andExpect(jsonPath("$.months[0].expense").value(100.00))
-                .andExpect(jsonPath("$.months[0].income").value(1500.00))
                 .andExpect(jsonPath("$.months[1].expense").value(0))
                 .andExpect(jsonPath("$.months[5].expense").value(50.00))
-                .andExpect(jsonPath("$.months[11].expense").value(25.50))
-                .andExpect(jsonPath("$.byCategory[?(@.categoryId == %d)].total"
-                        .formatted(expenseA.getId())).value(150.00));
+                .andExpect(jsonPath("$.months[11].expense").value(25.50));
     }
 
     @Test

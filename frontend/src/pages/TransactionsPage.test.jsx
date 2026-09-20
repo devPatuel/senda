@@ -73,6 +73,16 @@ describe('TransactionsPage', () => {
     listTransactions.mockResolvedValue(EMPTY_PAGE)
   })
 
+  it('tints each row with the colour of its category', async () => {
+    listTransactions.mockResolvedValue(PAGE_WITH_ONE)
+    render(<TransactionsPage />)
+
+    const row = await screen.findByTestId('transaction-row-7')
+    // A faint wash of the category colour, not the colour itself: the row still
+    // has to read as text on white.
+    expect(row).toHaveStyle({ backgroundColor: 'rgba(239, 68, 68, 0.08)' })
+  })
+
   it('renders the category emoji in the movements list', async () => {
     listTransactions.mockResolvedValue({
       content: [{

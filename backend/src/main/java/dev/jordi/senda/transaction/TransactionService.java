@@ -183,9 +183,8 @@ public class TransactionService {
     }
 
     /**
-     * A calendar year aggregated: totals, the twelve months in order and the
-     * per-category breakdown. Transfers are excluded everywhere, as in
-     * {@link #summary}.
+     * A calendar year aggregated: what was spent, what came in as transfers and
+     * the twelve months in order.
      */
     @Transactional(readOnly = true)
     public YearSummaryResponse yearSummary(Long userId, Long spaceId, int year) {
@@ -195,38 +194,34 @@ public class TransactionService {
         LocalDate from = LocalDate.of(year, 1, 1);
         LocalDate to = LocalDate.of(year, 12, 31);
 
-        List<CategorySummary> byCategory;
         List<MonthlyTotal> monthlyTotals;
         if (spaceId == null) {
-            byCategory = transactionRepository.summarizeByCategory(userId, from, to);
             monthlyTotals = transactionRepository.monthlyTotalsBetween(userId, from, to);
         } else {
             spaceAccess.assertActiveMember(userId, spaceId);
-            byCategory = transactionRepository.summarizeByCategoryForSpace(spaceId, from, to);
             monthlyTotals = transactionRepository.monthlyTotalsBetweenForSpace(spaceId, from, to);
         }
+        List<MonthlyTotal> transferTotals =
+                transactionRepository.monthlyTransfersIn(userId, spaceId, from, to);
 
-        List<CategorySummary> real = byCategory.stream()
-                .filter(summary -> !summary.transfer())
-                .toList();
-        BigDecimal totalIncome = sumByType(real, TransactionType.INCOME);
-        BigDecimal totalExpense = sumByType(real, TransactionType.EXPENSE);
+        Map<Integer, BigDecimal> expenseByMonth = monthlyTotals.stream()
+                .filter(t -> t.type() == TransactionType.EXPENSE)
+                .collect(Collectors.toMap(MonthlyTotal::month, MonthlyTotal::total));
+        Map<Integer, BigDecimal> transfersByMonth = transferTotals.stream()
+                .collect(Collectors.toMap(MonthlyTotal::month, MonthlyTotal::total));
 
-        Map<Integer, Map<TransactionType, BigDecimal>> byMonth = monthlyTotals.stream()
-                .collect(Collectors.groupingBy(MonthlyTotal::month,
-                        Collectors.toMap(MonthlyTotal::type, MonthlyTotal::total)));
-        List<MonthlyTrend> months = new ArrayList<>(12);
+        List<YearMonthTotals> months = new ArrayList<>(12);
+        BigDecimal totalExpense = ZERO;
+        BigDecimal totalTransfersIn = ZERO;
         for (int m = 1; m <= 12; m++) {
-            Map<TransactionType, BigDecimal> totals = byMonth.getOrDefault(m, Map.of());
-            BigDecimal income = totals.getOrDefault(TransactionType.INCOME, ZERO).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal expense = totals.getOrDefault(TransactionType.EXPENSE, ZERO).setScale(2, RoundingMode.HALF_UP);
-            months.add(new MonthlyTrend(year, m, income, expense, income.subtract(expense)));
+            BigDecimal expense = expenseByMonth.getOrDefault(m, ZERO).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal transfersIn = transfersByMonth.getOrDefault(m, ZERO).setScale(2, RoundingMode.HALF_UP);
+            totalExpense = totalExpense.add(expense);
+            totalTransfersIn = totalTransfersIn.add(transfersIn);
+            months.add(new YearMonthTotals(year, m, expense, transfersIn));
         }
 
-        BigDecimal monthlyAverageExpense = totalExpense.divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
-
-        return new YearSummaryResponse(year, totalIncome, totalExpense,
-                totalIncome.subtract(totalExpense), monthlyAverageExpense, months, real);
+        return new YearSummaryResponse(year, totalExpense, totalTransfersIn, months);
     }
 
     /**

@@ -261,6 +261,22 @@ describe('CategoriesPage', () => {
     )
   })
 
+  it('puts the cursor in the amount so you can type straight away', async () => {
+    const user = userEvent.setup()
+    render(<CategoriesPage />)
+
+    await screen.findByText('Comida')
+    await user.click(screen.getByRole('button', { name: 'Asignar' }))
+
+    const dialog = screen.getByRole('dialog')
+    const amount = within(dialog).getByLabelText('Importe a asignar')
+    expect(amount).toHaveFocus()
+
+    // Typing lands in the field without clicking it first
+    await user.keyboard('25')
+    expect(amount).toHaveValue('25')
+  })
+
   it('assigns to a shared envelope carrying the spaceId', async () => {
     assignToCategory.mockResolvedValue({ ...BUDGET, totalAssigned: 250, toAssign: 750 })
     const user = userEvent.setup()
