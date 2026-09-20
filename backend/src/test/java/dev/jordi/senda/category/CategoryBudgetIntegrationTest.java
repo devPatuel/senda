@@ -209,6 +209,38 @@ class CategoryBudgetIntegrationTest {
     }
 
     @Test
+    void toAssignCountsWhatIsLeftInEnvelopes_notWhatWasPutIn() throws Exception {
+        createAccount("Banco", "1000.00");
+        long comida = categoryId("EXPENSE", "Comida");
+        assign(comida, "400.00");
+
+        expense(comida, "120.00", LocalDate.now());
+
+        String body = budgetJson();
+        // Spent money is gone from the envelope, so it is not held there any more:
+        // accounts (1000) = what is still in envelopes (280) + what is free (720).
+        assertThat(num(body, "$.totalAssigned")).isEqualTo(400.0);
+        assertThat(num(body, "$.totalAvailable")).isEqualTo(280.0);
+        assertThat(num(body, "$.toAssign")).isEqualTo(720.0);
+    }
+
+    @Test
+    void overspendingIsReportedApartFromWhatIsFreeToAssign() throws Exception {
+        createAccount("Banco", "1000.00");
+        long comida = categoryId("EXPENSE", "Comida");
+
+        // Spending with nothing assigned: the category owes 120
+        expense(comida, "120.00", LocalDate.now());
+
+        String body = budgetJson();
+        assertThat(num(body, "$.overspent")).isEqualTo(120.0);
+        assertThat(num(body, "$.totalAvailable")).isEqualTo(-120.0);
+        // The 120 has to be assigned to cover the red category, so it is still
+        // pending assignment even though the money already left the account.
+        assertThat(num(body, "$.toAssign")).isEqualTo(1120.0);
+    }
+
+    @Test
     void availableIsAssignedMinusSpending() throws Exception {
         long comida = categoryId("EXPENSE", "Comida");
         assign(comida, "400.00");

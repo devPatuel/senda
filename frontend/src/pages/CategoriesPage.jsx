@@ -556,31 +556,53 @@ export default function CategoriesPage({ spaceId }) {
       )}
 
       {!error && budget && (
-        <section className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200">
-          <div className="bg-white px-4 py-3 text-center">
-            <p className="text-xs text-slate-500">Total en cuentas</p>
-            <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900">
-              {formatCurrency(budget.totalAccounts)}
-            </p>
-          </div>
-          <div className="bg-white px-4 py-3 text-center">
-            <p className="text-xs text-slate-500">Asignado</p>
-            <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900">
-              {formatCurrency(budget.totalAssigned)}
-            </p>
-          </div>
-          <div className="bg-white px-4 py-3 text-center">
-            <p className="text-xs text-slate-500">Por asignar</p>
+        <div className="space-y-2">
+          {/* The three figures add up on purpose: what is in the accounts is what
+              is still left in the categories plus what has not been assigned. */}
+          <section
+            data-testid="budget-header"
+            className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200"
+          >
+            <div className="bg-white px-4 py-3 text-center">
+              <p className="text-xs text-slate-500">Total en cuentas</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900">
+                {formatCurrency(budget.totalAccounts)}
+              </p>
+            </div>
+            <div className="bg-white px-4 py-3 text-center">
+              <p className="text-xs text-slate-500">En categorías</p>
+              <p
+                className={[
+                  'mt-1 text-lg font-semibold tabular-nums',
+                  Number(budget.totalAvailable) < 0 ? 'text-red-600' : 'text-slate-900',
+                ].join(' ')}
+              >
+                {formatCurrency(budget.totalAvailable)}
+              </p>
+            </div>
+            <div className="bg-white px-4 py-3 text-center">
+              <p className="text-xs text-slate-500">Por asignar</p>
+              <p
+                className={[
+                  'mt-1 text-lg font-semibold tabular-nums',
+                  Number(budget.toAssign) < 0 ? 'text-red-600' : 'text-emerald-600',
+                ].join(' ')}
+              >
+                {formatCurrency(budget.toAssign)}
+              </p>
+            </div>
+          </section>
+
+          {Number(budget.overspent) > 0 && (
             <p
-              className={[
-                'mt-1 text-lg font-semibold tabular-nums',
-                Number(budget.toAssign) < 0 ? 'text-red-600' : 'text-emerald-600',
-              ].join(' ')}
+              data-testid="overspent-total"
+              className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2 text-sm text-red-700"
             >
-              {formatCurrency(budget.toAssign)}
+              {formatCurrency(budget.overspent)} en descubierto: de lo que tienes por asignar,
+              esa parte va a tapar las categorías en rojo.
             </p>
-          </div>
-        </section>
+          )}
+        </div>
       )}
 
       {!error && categories && (

@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -202,9 +203,27 @@ public class CategoryService {
                 .map(CategoryBalance::getBalance)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2);
-        BigDecimal toAssign = totalAccounts.subtract(totalAssigned);
 
-        return new CategoryBudgetResponse(totalAccounts, totalAssigned, toAssign, lines);
+        // Every category that holds money or has been spent on, including
+        // inactive ones and those spent on without ever being assigned to.
+        Set<Long> withMovement = new HashSet<>(balances.keySet());
+        withMovement.addAll(spentAllTime.keySet());
+        BigDecimal totalAvailable = ZERO;
+        BigDecimal overspent = ZERO;
+        for (Long categoryId : withMovement) {
+            CategoryBalance b = balances.get(categoryId);
+            BigDecimal assigned = b != null ? b.getBalance() : ZERO;
+            BigDecimal available = assigned.subtract(spentAllTime.getOrDefault(categoryId, ZERO));
+            totalAvailable = totalAvailable.add(available);
+            if (available.signum() < 0) {
+                overspent = overspent.add(available.negate());
+            }
+        }
+
+        BigDecimal toAssign = totalAccounts.subtract(totalAvailable);
+
+        return new CategoryBudgetResponse(totalAccounts, totalAssigned, totalAvailable,
+                overspent, toAssign, lines);
     }
 
     /**

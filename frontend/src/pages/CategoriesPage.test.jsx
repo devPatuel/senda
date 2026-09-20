@@ -197,6 +197,29 @@ describe('CategoriesPage', () => {
     await waitFor(() => expect(screen.queryByText('Comida')).not.toBeInTheDocument())
   })
 
+  it('makes the header add up: accounts = available + to assign', async () => {
+    getBudget.mockResolvedValue({
+      ...BUDGET, totalAccounts: 1000, totalAssigned: 150, totalAvailable: 110,
+      overspent: 0, toAssign: 890,
+    })
+    render(<CategoriesPage />)
+
+    const header = await screen.findByTestId('budget-header')
+    expect(header).toHaveTextContent('1000')
+    expect(header).toHaveTextContent('110')
+    expect(header).toHaveTextContent('890')
+  })
+
+  it('calls out how much is overspent', async () => {
+    getBudget.mockResolvedValue({
+      ...BUDGET, totalAccounts: 1412.35, totalAssigned: 0, totalAvailable: -523.4,
+      overspent: 523.4, toAssign: 1935.75,
+    })
+    render(<CategoriesPage />)
+
+    expect(await screen.findByTestId('overspent-total')).toHaveTextContent('523,40')
+  })
+
   it('leads with what is left in the category, not with what was assigned', async () => {
     render(<CategoriesPage />)
 
