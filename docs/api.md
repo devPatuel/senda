@@ -351,10 +351,13 @@ precio a mano). Al registrarse se siembran por defecto: Cripto, Fondos, Oro, Pla
 { "id": 1, "assetClassId": 1, "assetClassName": "Cripto", "pricingSource": "CRYPTO",
   "symbol": "BTC", "name": "Bitcoin", "quantity": 0.50000000, "avgCost": 50000.00000000,
   "currentPrice": 58000.00000000, "lastPricedAt": "2026-06-16T10:00:00Z",
-  "cost": 25000.00, "marketValue": 29000.00, "pnl": 4000.00 }
+  "cost": 25000.00, "marketValue": 29000.00, "pnl": 4000.00,
+  "pnlPct": 16.00, "rewardsCost": 12.50 }
 ```
 
-`marketValue` y `pnl` son `null` cuando no hay `currentPrice`. `symbol` debe ser
+`marketValue`, `pnl` y `pnlPct` son `null` cuando no hay `currentPrice` (`pnlPct` también
+si `cost` es 0). `pnlPct` = `pnl / cost × 100` con 2 decimales. `rewardsCost` es la parte
+de `cost` que viene de lotes `REWARD` (0 si no hay). `symbol` debe ser
 alfanumérico.
 
 | Método | Ruta | Descripción |
@@ -362,8 +365,8 @@ alfanumérico.
 | GET | `/api/investments/holdings?assetClassId=` | Lista las posiciones (filtro opcional por clase) |
 | POST | `/api/investments/holdings` | Crea (`201`). `400` si `quantity` 0 con `avgCost` ≠ 0 |
 | GET | `/api/investments/holdings/{id}` | Una posición |
-| POST | `/api/investments/holdings/{id}/buys` | Registra una compra (`201`): recalcula cantidad y coste medio y guarda un lote. Body: `quantity`, `unitPrice`, `date` |
-| GET | `/api/investments/holdings/{id}/lots` | Histórico de compras |
+| POST | `/api/investments/holdings/{id}/buys` | Registra una compra (`201`): recalcula cantidad y coste medio y guarda un lote. Body: `quantity`, `unitPrice`, `date` y `kind` opcional (`BUY` \| `REWARD`, por defecto `BUY`; otro valor → `400`) |
+| GET | `/api/investments/holdings/{id}/lots` | Histórico de lotes, del más reciente al más antiguo; cada uno con `kind` |
 | PUT | `/api/investments/holdings/{id}/price` | Fija el precio a mano (MANUAL/FUND/METAL). Body: `price` |
 | DELETE | `/api/investments/holdings/{id}` | Borra la posición y sus lotes (`204`) |
 | POST | `/api/investments/refresh-prices` | Refresca los precios CRYPTO de las posiciones y devuelve la lista actualizada |

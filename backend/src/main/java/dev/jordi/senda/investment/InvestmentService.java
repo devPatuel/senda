@@ -9,9 +9,11 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -20,6 +22,7 @@ public class InvestmentService {
     // Quantities and prices are NUMERIC(20,8): the weighted-average cost is kept
     // at scale 8 with HALF_UP, matching the column definition.
     private static final int MONEY_SCALE = 8;
+    private static final BigDecimal ONE_HUNDRED = BigDecimal.valueOf(100);
 
     private final AssetClassRepository assetClassRepository;
     private final HoldingRepository holdingRepository;
@@ -95,16 +98,15 @@ public class InvestmentService {
         List<Holding> holdings = assetClassId != null
                 ? holdingRepository.findByUserIdAndAssetClassId(userId, assetClassId)
                 : holdingRepository.findByUserId(userId);
-        return holdings.stream()
+        return toResponses(userId, holdings.stream()
                 .sorted(Comparator.comparing(Holding::getSymbol, String.CASE_INSENSITIVE_ORDER)
                         .thenComparing(Holding::getId, Comparator.nullsLast(Comparator.naturalOrder())))
-                .map(InvestmentService::toResponse)
-                .toList();
+                .toList());
     }
 
     @Transactional(readOnly = true)
     public HoldingResponse getHolding(Long userId, Long id) {
-        return toResponse(findOwnedHolding(userId, id));
+        return toResponse(userId, findOwnedHolding(userId, id));
     }
 
     @Transactional
@@ -117,7 +119,7 @@ public class InvestmentService {
         }
         Holding holding = new Holding(userId, assetClass, request.symbol(), request.name(),
                 request.quantity(), request.avgCost());
-        return toResponse(holdingRepository.save(holding));
+        return toResponse(userId, holdingRepository.save(holding));
     }
 
     @Transactional
@@ -143,7 +145,7 @@ public class InvestmentService {
         LotKind kind = request.kind() != null ? request.kind() : LotKind.BUY;
         holdingLotRepository.save(new HoldingLot(holding.getId(), holding.getUserId(), buyQty, unitPrice,
                 request.date(), kind));
-        return toResponse(holding);
+        return toResponse(userId, holding);
     }
 
     @Transactional(readOnly = true)
@@ -160,7 +162,7 @@ public class InvestmentService {
         Holding holding = findOwnedHolding(userId, holdingId);
         holding.setCurrentPrice(request.currentPrice());
         holding.setLastPricedAt(Instant.now());
-        return toResponse(holding);
+        return toResponse(userId, holding);
     }
 
     @Transactional
@@ -193,11 +195,10 @@ public class InvestmentService {
                 holding.setLastPricedAt(now);
             }
         }
-        return holdings.stream()
+        return toResponses(userId, holdings.stream()
                 .sorted(Comparator.comparing(Holding::getSymbol, String.CASE_INSENSITIVE_ORDER)
                         .thenComparing(Holding::getId, Comparator.nullsLast(Comparator.naturalOrder())))
-                .map(InvestmentService::toResponse)
-                .toList();
+                .toList());
     }
 
     // --- NFTs ---
@@ -254,7 +255,25 @@ public class InvestmentService {
                 .orElseThrow(() -> new NotFoundException("NFT not found"));
     }
 
-    private static HoldingResponse toResponse(Holding holding) {
+    private HoldingResponse toResponse(Long userId, Holding holding) {
+        return toResponses(userId, List.of(holding)).get(0);
+    }
+
+    /** Maps holdings to responses, fetching every holding's rewards cost in one query. */
+    private List<HoldingResponse> toResponses(Long userId, List<Holding> holdings) {
+        List<Long> ids = holdings.stream().map(Holding::getId).filter(Objects::nonNull).toList();
+        Map<Long, BigDecimal> rewardsByHolding = new HashMap<>();
+        if (!ids.isEmpty()) {
+            for (Object[] row : holdingLotRepository.sumRewardCostByHoldingIds(userId, ids)) {
+                rewardsByHolding.put((Long) row[0], (BigDecimal) row[1]);
+            }
+        }
+        return holdings.stream()
+                .map(h -> toResponse(h, rewardsByHolding.getOrDefault(h.getId(), BigDecimal.ZERO)))
+                .toList();
+    }
+
+    private static HoldingResponse toResponse(Holding holding, BigDecimal rewardsCost) {
         BigDecimal quantity = holding.getQuantity();
         BigDecimal avgCost = holding.getAvgCost();
         BigDecimal currentPrice = holding.getCurrentPrice();
@@ -262,6 +281,9 @@ public class InvestmentService {
         BigDecimal cost = quantity.multiply(avgCost);
         BigDecimal marketValue = currentPrice != null ? quantity.multiply(currentPrice) : null;
         BigDecimal pnl = marketValue != null ? marketValue.subtract(cost) : null;
+        BigDecimal pnlPct = pnl != null && cost.signum() != 0
+                ? pnl.multiply(ONE_HUNDRED).divide(cost, 2, RoundingMode.HALF_UP)
+                : null;
 
         AssetClass assetClass = holding.getAssetClass();
         return new HoldingResponse(
@@ -277,7 +299,9 @@ public class InvestmentService {
                 holding.getLastPricedAt(),
                 marketValue,
                 pnl,
-                cost);
+                cost,
+                pnlPct,
+                rewardsCost.setScale(2, RoundingMode.HALF_UP));
     }
 
     private NftResponse toResponse(Nft nft) {

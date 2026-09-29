@@ -290,6 +290,40 @@ class InvestmentServiceTest {
         verify(pricingService).pricesInEur(PricingSource.CRYPTO, List.of("BTC", "CRO"));
     }
 
+    // --- derived figures: pnl % and rewards cost ---
+
+    @Test
+    void responseIncludesPnlPercentAndRewardsCost() {
+        AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
+        Holding btc = holding(10L, crypto, "2", "10000");
+        btc.setCurrentPrice(new BigDecimal("15000"));
+        when(holdingRepository.findByUserId(USER_ID)).thenReturn(List.of(btc));
+        List<Object[]> rewardRows = List.<Object[]>of(new Object[] {10L, new BigDecimal("123.456")});
+        when(holdingLotRepository.sumRewardCostByHoldingIds(USER_ID, List.of(10L))).thenReturn(rewardRows);
+
+        HoldingResponse response = service.listHoldings(USER_ID, null).get(0);
+
+        // cost 20000, value 30000 -> pnl 10000 = 50 %
+        assertThat(response.pnlPct()).isEqualByComparingTo("50.00");
+        assertThat(response.rewardsCost()).isEqualByComparingTo("123.46");
+    }
+
+    @Test
+    void pnlPercentIsNullWhenUnpricedOrCostIsZero() {
+        AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
+        Holding unpriced = holding(10L, crypto, "2", "10");
+        Holding empty = holding(11L, crypto, "0", "0");
+        empty.setCurrentPrice(new BigDecimal("100"));
+        when(holdingRepository.findByUserId(USER_ID)).thenReturn(List.of(unpriced, empty));
+
+        List<HoldingResponse> responses = service.listHoldings(USER_ID, null);
+
+        assertThat(responses).allSatisfy(r -> {
+            assertThat(r.pnlPct()).isNull();
+            assertThat(r.rewardsCost()).isEqualByComparingTo("0");
+        });
+    }
+
     // --- NFT computed value ---
 
     @Test

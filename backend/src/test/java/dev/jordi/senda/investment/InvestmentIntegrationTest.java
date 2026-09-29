@@ -190,6 +190,31 @@ class InvestmentIntegrationTest {
                 .andExpect(jsonPath("$[1].kind").value("BUY"));
     }
 
+    @Test
+    void holdingsReportRewardsCostPerUserOnly() throws Exception {
+        long solA = createHolding(tokenA, firstAssetClassId(tokenA, "Cripto"), "SOL", "Solana", "0", "0");
+        long solB = createHolding(tokenB, firstAssetClassId(tokenB, "Cripto"), "SOL", "Solana", "0", "0");
+        buy(tokenA, solA, "1", "100", "BUY");
+        buy(tokenA, solA, "0.1", "100", "REWARD");
+        buy(tokenB, solB, "1", "100", "REWARD");
+
+        mockMvc.perform(get("/api/investments/holdings").header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].rewardsCost").value(10.0));
+        mockMvc.perform(get("/api/investments/holdings").header("Authorization", "Bearer " + tokenB))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].rewardsCost").value(100.0));
+    }
+
+    private void buy(String token, long holdingId, String quantity, String unitPrice, String kind) throws Exception {
+        mockMvc.perform(post("/api/investments/holdings/" + holdingId + "/buys")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"quantity\": " + quantity + ", \"unitPrice\": " + unitPrice
+                                + ", \"date\": \"2026-09-01\", \"kind\": \"" + kind + "\"}"))
+                .andExpect(status().isCreated());
+    }
+
     // --- refresh prices uses the (mocked) crypto provider, never the network ---
 
     @Test
