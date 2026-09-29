@@ -4,7 +4,7 @@ import { previewImport, commitImport } from '../api/imports'
 import { listSpaces } from '../api/spaces'
 import { parseCsv, parseDate, parseAmount } from '../lib/csv'
 import { formatCurrency, formatDate } from '../lib/format'
-import { FormError, SubmitButton } from '../components/form'
+import { FormError } from '../components/form'
 import { ErrorState, Notice, SelectField } from '../components/ui'
 
 // Best-effort guess of which column holds each field, by header name.

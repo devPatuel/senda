@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AllocationPage from './AllocationPage'
-import { getEnvelopes, savePlan, distribute } from '../api/allocation'
+import { getEnvelopes, distribute } from '../api/allocation'
 
 vi.mock('../api/allocation', () => ({
   getEnvelopes: vi.fn(),

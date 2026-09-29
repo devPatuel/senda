@@ -112,23 +112,38 @@ function WishCard({ item, onEdit, onDelete }) {
 
 export default function WishlistPage() {
   const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  // Bumping reloadKey re-fetches; loading is derived so the effect never sets
+  // state synchronously (which would trigger a cascading render)
+  const [reloadKey, setReloadKey] = useState(0)
+  const [loadedKey, setLoadedKey] = useState(null)
+  const loading = loadedKey !== reloadKey
   const [notice, setNotice] = useState(null)
   const [editing, setEditing] = useState(null) // item | 'new' | null
   const [deleting, setDeleting] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    setError(null)
+  useEffect(() => {
+    let cancelled = false
     getWishlist()
-      .then((res) => setData(res))
-      .catch((err) => setError(err?.message ?? 'Error al cargar la lista de deseos'))
-      .finally(() => setLoading(false))
-  }, [])
+      .then((res) => {
+        if (!cancelled) {
+          setData(res)
+          setError(null)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err?.message ?? 'Error al cargar la lista de deseos')
+      })
+      .finally(() => {
+        if (!cancelled) setLoadedKey(reloadKey)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [reloadKey])
 
-  useEffect(() => { load() }, [load])
+  const load = useCallback(() => setReloadKey((k) => k + 1), [])
 
   function handleSaved() {
     setEditing(null)

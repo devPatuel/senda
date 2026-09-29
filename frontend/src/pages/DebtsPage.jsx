@@ -16,7 +16,6 @@ import {
   LoadingState,
   Modal,
   Notice,
-  SelectField,
 } from '../components/ui'
 
 // ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ import { formatCurrency } from '../lib/format'
 vi.mock('../api/categories', () => ({ getBudget: vi.fn() }))
 
 function visibleCurrency(value) {
-  return formatCurrency(value).replace(/ /g, ' ')
+  return formatCurrency(value).replace(/\u00a0/g, ' ')
 }
 
 const BUDGET = {

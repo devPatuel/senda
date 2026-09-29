@@ -12,7 +12,7 @@ vi.mock('../api/networth', () => ({
 // Testing Library normalizes whitespace in the DOM, so the non-breaking
 // space Intl puts before "€" must be normalized in the expected string too.
 function visibleCurrency(value) {
-  return formatCurrency(value).replace(/[  ]/g, ' ')
+  return formatCurrency(value).replace(/[\u00a0\u202f]/g, ' ')
 }
 
 // In the vitest jsdom environment Intl does not add a thousands separator,
