@@ -6,3 +6,8 @@ senda:
     registration-enabled: true
   jwt:
     secret: ${SENDA_JWT_SECRET:senda-local-profile-secret-Zp4xN8vQ1tR6yW3mK9jB2cF7gD5sH0aL}
+spring:
+  flyway:
+    # The local database is shared by every git worktree, so it may hold migrations
+    # from branches not merged into this one. Tolerate them instead of refusing to start.
+    ignore-migration-patterns: "*:missing"

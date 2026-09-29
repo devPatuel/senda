@@ -49,7 +49,7 @@ pnl         = marketValue - cost          (null si no hay precio)
 
 ## Actualización 2026-09-29 — tipo de lote
 
-Cada lote lleva `kind` (`BUY` | `REWARD`, migración `V29`, por defecto `BUY`). Las
+Cada lote lleva `kind` (`BUY` | `REWARD`, migración `V30`, por defecto `BUY`). Las
 recompensas (staking, intereses) se registran al **precio de mercado del momento en que
 se reciben** y entran en la media ponderada igual que una compra: es el criterio fiscal
 (rendimiento del capital mobiliario, cuyo valor pasa a ser el coste de adquisición) y
