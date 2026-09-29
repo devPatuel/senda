@@ -5,7 +5,6 @@ import DebtsPage from './DebtsPage'
 import {
   listDebts,
   createDebt,
-  removeDebt,
   addPayment,
   listPayments,
   removePayment,

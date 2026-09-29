@@ -30,7 +30,7 @@ const TRENDS = [
 // Testing Library normalizes whitespace in the DOM, so the non-breaking
 // space Intl puts before "€" must be normalized in the expected string too.
 function visibleCurrency(value) {
-  return formatCurrency(value).replace(/[  ]/g, ' ')
+  return formatCurrency(value).replace(/[\u00a0\u202f]/g, ' ')
 }
 
 const now = new Date()
@@ -266,6 +266,17 @@ describe('DashboardPage', () => {
     await screen.findByText(visibleCurrency(1800))
     expect(screen.getByText('Pareja (50%)')).toBeInTheDocument()
     expect(screen.getByText(visibleCurrency(800))).toBeInTheDocument()
+  })
+
+  it('headlines the money without investments and shows the total with them in small', async () => {
+    getNetWorth.mockResolvedValue({ ...NET_WORTH, liquid: 1000, investments: 1360, net: 2360 })
+    renderDashboard()
+
+    const headline = await screen.findByText('Patrimonio sin inversiones')
+    expect(headline.parentElement).toHaveTextContent(visibleCurrency(1000))
+    expect(screen.getByText(/Con inversiones/).parentElement).toHaveTextContent(visibleCurrency(2360))
+    // The breakdown no longer repeats investments: its figures add up to the headline
+    expect(screen.queryByText('Inversiones')).not.toBeInTheDocument()
   })
 
   it('omits the couple share when the user has no couple space', async () => {

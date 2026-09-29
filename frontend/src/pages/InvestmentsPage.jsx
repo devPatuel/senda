@@ -12,7 +12,9 @@ import {
   updateNft,
   removeNft,
 } from '../api/investments'
-import { formatCurrency, todayISO } from '../lib/format'
+import { formatCurrency, formatPercent, formatPrice, formatQuantity, todayISO } from '../lib/format'
+import { allocation, summarize } from './investments/summary'
+import LotHistory from './investments/LotHistory'
 import { Field, FormError, SubmitButton } from '../components/form'
 import { ConfirmDialog, EmptyState, ErrorState, LoadingState, Modal, Notice, SelectField } from '../components/ui'
 
@@ -26,11 +28,6 @@ const SOURCE_LABELS = {
 // Only CRYPTO holdings get a live price from the refresh; the rest are manual.
 function isManualSource(source) {
   return source !== 'CRYPTO'
-}
-
-// Quantities/prices can carry up to 8 decimals: format without forcing currency.
-function formatQuantity(value) {
-  return new Intl.NumberFormat('es-ES', { maximumFractionDigits: 8 }).format(Number(value))
 }
 
 function parseDecimal(raw) {
@@ -169,7 +166,7 @@ function HoldingForm({ assetClasses, defaultAssetClassId, onClose, onSaved }) {
 // --- Add buy ---
 
 function BuyForm({ holding, onClose, onSaved }) {
-  const [form, setForm] = useState({ quantity: '', unitPrice: '', date: todayISO() })
+  const [form, setForm] = useState({ kind: 'BUY', quantity: '', unitPrice: '', date: todayISO() })
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -206,6 +203,7 @@ function BuyForm({ holding, onClose, onSaved }) {
         quantity: parseDecimal(form.quantity),
         unitPrice: parseDecimal(form.unitPrice),
         date: form.date,
+        kind: form.kind,
       })
       onSaved()
     } catch (err) {
@@ -221,8 +219,14 @@ function BuyForm({ holding, onClose, onSaved }) {
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <FormError message={error} />
         <p className="text-sm text-slate-500">
-          Se recalculará la cantidad y el coste medio de la posición.
+          Se recalculará la cantidad y el coste medio de la posición. Una recompensa (staking,
+          intereses) se registra a su precio de mercado del día.
         </p>
+
+        <SelectField label="Tipo" name="kind" value={form.kind} onChange={handleChange}>
+          <option value="BUY">Compra</option>
+          <option value="REWARD">Recompensa</option>
+        </SelectField>
 
         <div className="grid grid-cols-2 gap-3">
           <Field
@@ -484,79 +488,197 @@ function NftForm({ nft, onClose, onSaved }) {
   )
 }
 
-// --- Holding row ---
+// --- Summary, allocation and rows ---
 
-function HoldingRow({ holding, onBuy, onPrice, onDelete }) {
-  const hasPnl = holding.pnl != null
-  const pnlPositive = hasPnl && Number(holding.pnl) >= 0
+const ALLOCATION_COLORS = ['bg-emerald-500', 'bg-sky-500', 'bg-amber-500', 'bg-violet-500', 'bg-rose-500', 'bg-slate-400']
+
+function pnlClass(value) {
+  return Number(value) >= 0 ? 'text-emerald-600' : 'text-red-600'
+}
+
+function signedCurrency(value) {
+  return `${Number(value) > 0 ? '+' : ''}${formatCurrency(value)}`
+}
+
+function SummaryCard({ summary }) {
+  const { value, invested, pnl, pnlPct, rewards, unpriced } = summary
   return (
-    <li className="flex flex-wrap items-center gap-3 px-4 py-3">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-slate-900">
-          {holding.symbol} <span className="font-normal text-slate-500">· {holding.name}</span>
-        </p>
-        <p className="truncate text-xs text-slate-500">
-          {formatQuantity(holding.quantity)} · coste medio {formatCurrency(holding.avgCost)}
-        </p>
+    <section className="rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <p className="text-sm text-slate-500">Valor actual</p>
+          <p className="mt-1 text-3xl font-bold tracking-tight text-slate-900 tabular-nums">{formatCurrency(value)}</p>
+        </div>
+        <div>
+          <p className="text-sm text-slate-500">Invertido</p>
+          <p className="mt-1 text-xl font-semibold text-slate-900 tabular-nums">{formatCurrency(invested)}</p>
+          {rewards > 0 && (
+            <p className="text-xs text-slate-500">de ello {formatCurrency(rewards)} en recompensas</p>
+          )}
+        </div>
+        <div>
+          <p className="text-sm text-slate-500">Ganancia / pérdida</p>
+          {pnlPct == null ? (
+            <p className="mt-1 text-xl font-semibold text-slate-400">—</p>
+          ) : (
+            <p className={['mt-1 text-xl font-semibold tabular-nums', pnlClass(pnl)].join(' ')}>
+              {signedCurrency(pnl)} <span className="text-base">({formatPercent(pnlPct.toFixed(2))})</span>
+            </p>
+          )}
+        </div>
       </div>
-
-      <div className="text-right">
-        <p className="text-sm font-semibold tabular-nums text-slate-900">
-          {holding.marketValue != null ? formatCurrency(holding.marketValue) : 'Sin valorar'}
+      {unpriced > 0 && (
+        <p className="mt-3 text-xs text-amber-700">
+          {unpriced === 1
+            ? '1 posición sin precio, no incluida en el valor'
+            : `${unpriced} posiciones sin precio, no incluidas en el valor`}
         </p>
-        {hasPnl ? (
-          <p
-            className={[
-              'text-xs font-medium tabular-nums',
-              pnlPositive ? 'text-emerald-600' : 'text-red-600',
-            ].join(' ')}
-          >
-            {pnlPositive ? '+' : ''}
-            {formatCurrency(holding.pnl)}
-          </p>
-        ) : (
-          <p className="text-xs text-slate-400">
-            {holding.currentPrice != null ? formatCurrency(holding.currentPrice) : 'Sin precio'}
-          </p>
-        )}
-      </div>
+      )}
+    </section>
+  )
+}
 
-      <div className="flex shrink-0 items-center gap-0.5">
-        <button
-          type="button"
-          onClick={() => onBuy(holding)}
-          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-emerald-300 hover:text-emerald-700"
-        >
-          Compra
-        </button>
-        {isManualSource(holding.pricingSource) && (
+function AllocationBar({ items }) {
+  if (items.length === 0) return null
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4" aria-label="Reparto">
+      <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
+        {items.map((item, i) => (
+          <div
+            key={item.key}
+            className={ALLOCATION_COLORS[i % ALLOCATION_COLORS.length]}
+            style={{ width: `${item.pct}%` }}
+            title={`${item.label} ${formatPercent(item.pct.toFixed(1))}`}
+          />
+        ))}
+      </div>
+      <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+        {items.map((item, i) => (
+          <li key={item.key} className="flex items-center gap-1.5">
+            <span className={['h-2 w-2 rounded-full', ALLOCATION_COLORS[i % ALLOCATION_COLORS.length]].join(' ')} />
+            {item.label} <span className="tabular-nums text-slate-400">{item.pct.toFixed(1).replace('.', ',')} %</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function HoldingRow({ holding, weightPct, onBuy, onPrice, onDelete }) {
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const hasPrice = holding.marketValue != null
+  const buttonClass =
+    'rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-emerald-300 hover:text-emerald-700'
+  return (
+    <li>
+      <div className="flex flex-wrap items-start gap-3 px-4 py-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-base font-semibold text-slate-900 tabular-nums">
+            {holding.symbol} · <span title={String(holding.quantity)}>{formatQuantity(holding.quantity)}</span>
+          </p>
+          <p className="text-xs text-slate-500 tabular-nums">
+            {holding.name}
+            {holding.currentPrice != null && <> · precio {formatPrice(holding.currentPrice)}</>}
+            {' '}· coste medio {formatPrice(holding.avgCost)}
+          </p>
+          <p className="text-xs text-slate-500 tabular-nums">
+            Invertido {formatCurrency(holding.cost)}
+            {Number(holding.rewardsCost) > 0 && <> (recompensas {formatCurrency(holding.rewardsCost)})</>}
+            {holding.pnlPct != null && (
+              <>
+                {' '}·{' '}
+                <span className={['font-medium', pnlClass(holding.pnl)].join(' ')}>
+                  {formatPercent(holding.pnlPct)} {signedCurrency(holding.pnl)}
+                </span>
+              </>
+            )}
+          </p>
+        </div>
+
+        <div className="text-right">
+          <p className="text-sm font-semibold tabular-nums text-slate-900">
+            {hasPrice ? formatCurrency(holding.marketValue) : 'Sin precio'}
+          </p>
+          {hasPrice && weightPct != null && (
+            <p className="text-xs tabular-nums text-slate-400">{weightPct.toFixed(1).replace('.', ',')} %</p>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-0.5">
+          <button type="button" onClick={() => onBuy(holding)} className={buttonClass}>
+            Compra
+          </button>
           <button
             type="button"
-            onClick={() => onPrice(holding)}
-            className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-emerald-300 hover:text-emerald-700"
+            onClick={() => setHistoryOpen((open) => !open)}
+            aria-expanded={historyOpen}
+            className={buttonClass}
           >
-            Precio
+            Historial
           </button>
-        )}
-        <button
-          type="button"
-          onClick={() => onDelete(holding)}
-          aria-label={`Eliminar ${holding.symbol}`}
-          className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
-            <path d="M3 6h18" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-          </svg>
-        </button>
+          {isManualSource(holding.pricingSource) && (
+            <button type="button" onClick={() => onPrice(holding)} className={buttonClass}>
+              Precio
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onDelete(holding)}
+            aria-label={`Eliminar ${holding.symbol}`}
+            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+              <path d="M3 6h18" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+          </button>
+        </div>
       </div>
+      {historyOpen && <LotHistory holdingId={holding.id} />}
     </li>
   )
 }
 
+// Most valuable first; unpriced positions at the end.
+function byMarketValueDesc(a, b) {
+  return (b.marketValue ?? -Infinity) - (a.marketValue ?? -Infinity)
+}
+
+function HoldingList({ holdings, totalValue, onBuy, onPrice, onDelete }) {
+  return (
+    <ul className="divide-y divide-slate-100">
+      {[...holdings].sort(byMarketValueDesc).map((h) => (
+        <HoldingRow
+          key={h.id}
+          holding={h}
+          weightPct={totalValue > 0 && h.marketValue != null ? (Number(h.marketValue) / totalValue) * 100 : null}
+          onBuy={onBuy}
+          onPrice={onPrice}
+          onDelete={onDelete}
+        />
+      ))}
+    </ul>
+  )
+}
+
+const relativeTime = new Intl.RelativeTimeFormat('es', { numeric: 'auto' })
+
+function pricedAgo(holdings) {
+  const latest = holdings
+    .filter((h) => h.pricingSource === 'CRYPTO' && h.lastPricedAt)
+    .reduce((max, h) => Math.max(max, Date.parse(h.lastPricedAt)), 0)
+  if (!latest) return null
+  const minutes = Math.round((latest - Date.now()) / 60000)
+  if (Math.abs(minutes) < 60) return relativeTime.format(minutes, 'minute')
+  const hours = Math.round(minutes / 60)
+  if (Math.abs(hours) < 24) return relativeTime.format(hours, 'hour')
+  return relativeTime.format(Math.round(hours / 24), 'day')
+}
+
 export default function InvestmentsPage() {
-  const [tab, setTab] = useState('holdings')
+  // 'total', 'nfts' or an asset class id
+  const [tab, setTab] = useState('total')
 
   const [assetClasses, setAssetClasses] = useState(null)
   const [holdings, setHoldings] = useState(null)
@@ -648,21 +770,47 @@ export default function InvestmentsPage() {
     }
   }
 
-  const totalMarketValue = (holdings ?? [])
-    .filter((h) => h.marketValue != null)
-    .reduce((sum, h) => sum + Number(h.marketValue), 0)
+  const allHoldings = holdings ?? []
+  const allNfts = nfts ?? []
+  const selectedClass = typeof tab === 'number' ? (assetClasses ?? []).find((ac) => ac.id === tab) : null
+  const tabHoldings = selectedClass ? allHoldings.filter((h) => h.assetClassId === selectedClass.id) : allHoldings
+  const summary = tab === 'total' ? summarize(allHoldings, allNfts) : summarize(tabHoldings)
+  const allocationItems =
+    tab === 'total'
+      ? allocation(
+          [
+            ...allHoldings,
+            ...allNfts.map((nft) => ({ assetClassId: 'nfts', assetClassName: 'NFTs', marketValue: nft.ourCurrentValue })),
+          ],
+          (h) => h.assetClassId,
+          (h) => h.assetClassName,
+        )
+      : allocation(tabHoldings, (h) => h.id, (h) => h.symbol)
+  // Row weights compare holdings with holdings only: NFTs are valued by hand and
+  // would dilute every position's share
+  const holdingsValue = summarize(tabHoldings).value
+  const lastPriced = pricedAgo(allHoldings)
 
-  // Group holdings under their asset class for display
-  const holdingsByClass = (assetClasses ?? []).map((ac) => ({
-    assetClass: ac,
-    items: (holdings ?? []).filter((h) => h.assetClassId === ac.id),
-  }))
+  // Group holdings under their asset class for the Total tab
+  const holdingsByClass = (assetClasses ?? [])
+    .map((ac) => ({ assetClass: ac, items: allHoldings.filter((h) => h.assetClassId === ac.id) }))
+    .filter(({ items }) => items.length > 0)
+
+  const tabs = [
+    { id: 'total', label: 'Total', empty: false },
+    ...(assetClasses ?? []).map((ac) => ({
+      id: ac.id,
+      label: ac.name,
+      empty: !allHoldings.some((h) => h.assetClassId === ac.id),
+    })),
+    { id: 'nfts', label: 'NFTs', empty: allNfts.length === 0 },
+  ]
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Inversiones</h1>
-        {tab === 'holdings' ? (
+        {tab !== 'nfts' ? (
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -695,28 +843,29 @@ export default function InvestmentsPage() {
         )}
       </div>
 
+      {lastPriced && <p className="-mt-2 text-xs text-slate-400">Precios {lastPriced}</p>}
+
       {/* Tabs */}
-      <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 text-sm">
-        <button
-          type="button"
-          onClick={() => setTab('holdings')}
-          className={[
-            'flex-1 rounded-md px-3 py-1.5 font-medium transition-colors',
-            tab === 'holdings' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900',
-          ].join(' ')}
-        >
-          Posiciones
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('nfts')}
-          className={[
-            'flex-1 rounded-md px-3 py-1.5 font-medium transition-colors',
-            tab === 'nfts' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900',
-          ].join(' ')}
-        >
-          NFTs
-        </button>
+      <div role="tablist" className="flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1 text-sm">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className={[
+              'shrink-0 rounded-md px-3 py-1.5 font-medium transition-colors',
+              tab === t.id
+                ? 'bg-emerald-600 text-white'
+                : t.empty
+                  ? 'text-slate-400 hover:text-slate-600'
+                  : 'text-slate-600 hover:text-slate-900',
+            ].join(' ')}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {actionError && (
@@ -730,14 +879,11 @@ export default function InvestmentsPage() {
       {error && !loading && <ErrorState message={error} onRetry={reload} />}
 
       {/* Holdings tab */}
-      {!error && assetClasses && tab === 'holdings' && (
+      {/* Total tab */}
+      {!error && assetClasses && tab === 'total' && (
         <>
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
-            <p className="text-sm text-slate-500">Valor de mercado</p>
-            <p className="mt-1 text-4xl font-bold tracking-tight text-emerald-600">
-              {formatCurrency(totalMarketValue)}
-            </p>
-          </section>
+          <SummaryCard summary={summary} />
+          <AllocationBar items={allocationItems} />
 
           {holdingsByClass.map(({ assetClass, items }) => (
             <section key={assetClass.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -747,21 +893,13 @@ export default function InvestmentsPage() {
                   {SOURCE_LABELS[assetClass.pricingSource]}
                 </span>
               </div>
-              {items.length === 0 ? (
-                <p className="px-4 py-4 text-sm text-slate-400">Sin posiciones en esta clase.</p>
-              ) : (
-                <ul className="divide-y divide-slate-100">
-                  {items.map((h) => (
-                    <HoldingRow
-                      key={h.id}
-                      holding={h}
-                      onBuy={setBuying}
-                      onPrice={setPricing}
-                      onDelete={setHoldingToDelete}
-                    />
-                  ))}
-                </ul>
-              )}
+              <HoldingList
+                holdings={items}
+                totalValue={holdingsValue}
+                onBuy={setBuying}
+                onPrice={setPricing}
+                onDelete={setHoldingToDelete}
+              />
             </section>
           ))}
 
@@ -770,6 +908,29 @@ export default function InvestmentsPage() {
               title="Aún no hay clases de activo"
               message="Las clases por defecto se crean al registrarte."
             />
+          )}
+        </>
+      )}
+
+      {/* Asset class tab */}
+      {!error && selectedClass && (
+        <>
+          {tabHoldings.length === 0 ? (
+            <EmptyState title={selectedClass.name} message="Sin posiciones en esta clase." />
+          ) : (
+            <>
+              <SummaryCard summary={summary} />
+              <AllocationBar items={allocationItems} />
+              <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <HoldingList
+                  holdings={tabHoldings}
+                  totalValue={holdingsValue}
+                  onBuy={setBuying}
+                  onPrice={setPricing}
+                  onDelete={setHoldingToDelete}
+                />
+              </section>
+            </>
           )}
         </>
       )}
@@ -837,6 +998,7 @@ export default function InvestmentsPage() {
       {holdingFormOpen && assetClasses && (
         <HoldingForm
           assetClasses={assetClasses}
+          defaultAssetClassId={selectedClass?.id}
           onClose={() => setHoldingFormOpen(false)}
           onSaved={() => {
             setHoldingFormOpen(false)

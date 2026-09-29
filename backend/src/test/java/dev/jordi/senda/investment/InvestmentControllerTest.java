@@ -57,7 +57,7 @@ class InvestmentControllerTest {
             10L, 5L, "Cripto", PricingSource.CRYPTO, "BTC", "Bitcoin",
             new BigDecimal("2"), new BigDecimal("10000"), new BigDecimal("15000"),
             Instant.parse("2026-06-10T12:00:00Z"), new BigDecimal("30000"),
-            new BigDecimal("10000"), new BigDecimal("20000"));
+            new BigDecimal("10000"), new BigDecimal("20000"), new BigDecimal("50.00"), BigDecimal.ZERO);
 
     private static final AssetClassResponse SAMPLE_ASSET_CLASS = new AssetClassResponse(
             5L, "Cripto", PricingSource.CRYPTO, Instant.parse("2026-06-10T12:00:00Z"));

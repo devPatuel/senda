@@ -5,8 +5,14 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -46,20 +52,52 @@ public class PricingService {
      * source is user-maintained (METAL/FUND/MANUAL) or no price is available.
      */
     public Optional<BigDecimal> priceInEur(PricingSource source, String symbol) {
-        if (source != PricingSource.CRYPTO || symbol == null || symbol.isBlank()) {
-            // METAL/FUND/MANUAL are not auto-priced: the stored manual price wins
+        if (symbol == null || symbol.isBlank()) {
             return Optional.empty();
         }
-        String key = cacheKey(source, symbol);
-        CachedPrice cached = cache.get(key);
-        if (cached != null && !isExpired(cached)) {
-            return Optional.ofNullable(cached.price());
+        return Optional.ofNullable(pricesInEur(source, List.of(symbol)).get(symbol.toUpperCase(Locale.ROOT)));
+    }
+
+    /**
+     * Current EUR prices for {@code symbols}, keyed by upper-case symbol; symbols
+     * without a price are absent. Cached symbols are served locally and all the
+     * others go upstream in a single provider call.
+     */
+    public Map<String, BigDecimal> pricesInEur(PricingSource source, Collection<String> symbols) {
+        if (source != PricingSource.CRYPTO || symbols == null) {
+            // METAL/FUND/MANUAL are not auto-priced: the stored manual price wins
+            return Map.of();
         }
-        Optional<BigDecimal> fresh = cryptoPriceProvider.priceInEur(symbol);
-        // Cache hits for TTL and misses for the shorter NEGATIVE_TTL, so a junk or
-        // unmapped symbol cannot trigger an upstream call on every single refresh.
-        cache.put(key, new CachedPrice(fresh.orElse(null), Instant.now()));
-        return fresh;
+        Map<String, BigDecimal> result = new HashMap<>();
+        Set<String> toFetch = new HashSet<>();
+        for (String symbol : symbols) {
+            if (symbol == null || symbol.isBlank()) {
+                continue;
+            }
+            String normalized = symbol.toUpperCase(Locale.ROOT);
+            CachedPrice cached = cache.get(cacheKey(source, normalized));
+            if (cached != null && !isExpired(cached)) {
+                if (cached.price() != null) {
+                    result.put(normalized, cached.price());
+                }
+            } else {
+                toFetch.add(normalized);
+            }
+        }
+        if (!toFetch.isEmpty()) {
+            Map<String, BigDecimal> fresh = cryptoPriceProvider.pricesInEur(Set.copyOf(toFetch));
+            Instant now = Instant.now();
+            for (String symbol : toFetch) {
+                BigDecimal price = fresh.get(symbol);
+                // Cache hits for TTL and misses for the shorter NEGATIVE_TTL, so a junk or
+                // unmapped symbol cannot trigger an upstream call on every single refresh.
+                cache.put(cacheKey(source, symbol), new CachedPrice(price, now));
+                if (price != null) {
+                    result.put(symbol, price);
+                }
+            }
+        }
+        return result;
     }
 
     private boolean isExpired(CachedPrice cached) {

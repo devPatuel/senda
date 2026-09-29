@@ -15,10 +15,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.Optional;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.hasItem;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -152,11 +152,74 @@ class InvestmentIntegrationTest {
                 .andExpect(status().isConflict());
     }
 
+    // --- lot kind: rewards are tagged, unknown kinds rejected, old clients default to BUY ---
+
+    @Test
+    void rewardLotIsListedWithItsKindAndBuyWithoutKindDefaultsToBuy() throws Exception {
+        long cripto = firstAssetClassId(tokenA, "Cripto");
+        long holding = createHolding(tokenA, cripto, "SOL", "Solana", "0", "0");
+
+        mockMvc.perform(post("/api/investments/holdings/" + holding + "/buys")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"quantity": 1, "unitPrice": 100, "date": "2026-09-01"}
+                                """))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/investments/holdings/" + holding + "/buys")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"quantity": 0.01, "unitPrice": 105, "date": "2026-09-28", "kind": "REWARD"}
+                                """))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/investments/holdings/" + holding + "/buys")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"quantity": 1, "unitPrice": 1, "date": "2026-09-28", "kind": "GIFT"}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        // Newest first: the reward (28/09) before the buy (01/09)
+        mockMvc.perform(get("/api/investments/holdings/" + holding + "/lots")
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].kind").value("REWARD"))
+                .andExpect(jsonPath("$[1].kind").value("BUY"));
+    }
+
+    @Test
+    void holdingsReportRewardsCostPerUserOnly() throws Exception {
+        long solA = createHolding(tokenA, firstAssetClassId(tokenA, "Cripto"), "SOL", "Solana", "0", "0");
+        long solB = createHolding(tokenB, firstAssetClassId(tokenB, "Cripto"), "SOL", "Solana", "0", "0");
+        buy(tokenA, solA, "1", "100", "BUY");
+        buy(tokenA, solA, "0.1", "100", "REWARD");
+        buy(tokenB, solB, "1", "100", "REWARD");
+
+        mockMvc.perform(get("/api/investments/holdings").header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].rewardsCost").value(10.0));
+        mockMvc.perform(get("/api/investments/holdings").header("Authorization", "Bearer " + tokenB))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].rewardsCost").value(100.0));
+    }
+
+    private void buy(String token, long holdingId, String quantity, String unitPrice, String kind) throws Exception {
+        mockMvc.perform(post("/api/investments/holdings/" + holdingId + "/buys")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"quantity\": " + quantity + ", \"unitPrice\": " + unitPrice
+                                + ", \"date\": \"2026-09-01\", \"kind\": \"" + kind + "\"}"))
+                .andExpect(status().isCreated());
+    }
+
     // --- refresh prices uses the (mocked) crypto provider, never the network ---
 
     @Test
     void refreshPricesUpdatesCryptoHoldingFromProvider() throws Exception {
-        when(cryptoPriceProvider.priceInEur(eq("BTC"))).thenReturn(Optional.of(new BigDecimal("20000")));
+        when(cryptoPriceProvider.pricesInEur(Set.of("BTC"))).thenReturn(Map.of("BTC", new BigDecimal("20000")));
 
         long cripto = firstAssetClassId(tokenA, "Cripto");
         createHolding(tokenA, cripto, "BTC", "Bitcoin", "2", "10000");
@@ -172,7 +235,7 @@ class InvestmentIntegrationTest {
 
     @Test
     void nftReportsCurrentPurchaseValueFromCryptoPrice() throws Exception {
-        when(cryptoPriceProvider.priceInEur(eq("ETH"))).thenReturn(Optional.of(new BigDecimal("3000")));
+        when(cryptoPriceProvider.pricesInEur(Set.of("ETH"))).thenReturn(Map.of("ETH", new BigDecimal("3000")));
 
         mockMvc.perform(post("/api/investments/nfts")
                         .header("Authorization", "Bearer " + tokenA)

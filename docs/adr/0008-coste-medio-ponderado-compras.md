@@ -46,3 +46,13 @@ pnl         = marketValue - cost          (null si no hay precio)
   necesita, habrá que ampliar el modelo de lotes.
 - (−) Un holding sin precio (`current_price` nulo) deja `marketValue` y `pnl` en `null`,
   que el frontend debe saber representar.
+
+## Actualización 2026-09-29 — tipo de lote
+
+Cada lote lleva `kind` (`BUY` | `REWARD`, migración `V30`, por defecto `BUY`). Las
+recompensas (staking, intereses) se registran al **precio de mercado del momento en que
+se reciben** y entran en la media ponderada igual que una compra: es el criterio fiscal
+(rendimiento del capital mobiliario, cuyo valor pasa a ser el coste de adquisición) y
+evita inflar la rentabilidad con unidades a coste 0. La fórmula no cambia; `kind` solo
+etiqueta el lote para mostrar qué parte del invertido vino de recompensas.
+`POST /holdings/{id}/buys` acepta `kind` opcional (omitido → `BUY`).

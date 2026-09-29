@@ -4,6 +4,8 @@ import { http } from './http'
 
 /** @typedef {'CRYPTO'|'METAL'|'FUND'|'MANUAL'} PricingSource */
 
+/** @typedef {'BUY'|'REWARD'} LotKind */
+
 /**
  * @typedef {Object} AssetClass
  * @property {number} id
@@ -27,6 +29,8 @@ import { http } from './http'
  * @property {number|null} marketValue
  * @property {number|null} pnl
  * @property {number} cost
+ * @property {number|null} pnlPct pnl / cost * 100; null when unpriced or cost is 0
+ * @property {number} rewardsCost part of cost that came from REWARD lots
  */
 
 /**
@@ -35,6 +39,7 @@ import { http } from './http'
  * @property {number} quantity
  * @property {number} unitPrice
  * @property {string} date
+ * @property {LotKind} kind
  * @property {string} createdAt
  */
 
@@ -115,7 +120,7 @@ export function createHolding(data) {
  * Adds a buy ("lot") to an existing holding; the backend recomputes quantity and
  * weighted-average cost.
  * @param {number} id
- * @param {{quantity: number, unitPrice: number, date: string}} data
+ * @param {{quantity: number, unitPrice: number, date: string, kind?: LotKind}} data
  * @returns {Promise<Holding>}
  */
 export function addBuy(id, data) {

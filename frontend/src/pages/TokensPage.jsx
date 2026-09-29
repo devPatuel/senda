@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { listTokens, createToken, revokeToken } from '../api/tokens'
-import { Field, FormError, SubmitButton } from '../components/form'
+import { Field, SubmitButton } from '../components/form'
 import { ConfirmDialog, EmptyState, ErrorState, LoadingState, Notice } from '../components/ui'
 
 function formatDate(value) {

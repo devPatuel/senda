@@ -13,6 +13,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,7 +71,7 @@ class InvestmentServiceTest {
         when(holdingRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
 
         HoldingResponse response = service.addBuy(USER_ID, 10L,
-                new BuyRequest(new BigDecimal("1"), new BigDecimal("16000"), LocalDate.of(2026, 6, 1)));
+                new BuyRequest(new BigDecimal("1"), new BigDecimal("16000"), LocalDate.of(2026, 6, 1), null));
 
         assertThat(response.quantity()).isEqualByComparingTo("3");
         assertThat(response.avgCost()).isEqualByComparingTo("12000");
@@ -93,7 +94,7 @@ class InvestmentServiceTest {
         when(holdingRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(empty));
 
         HoldingResponse response = service.addBuy(USER_ID, 10L,
-                new BuyRequest(new BigDecimal("0.5"), new BigDecimal("20000"), LocalDate.of(2026, 6, 1)));
+                new BuyRequest(new BigDecimal("0.5"), new BigDecimal("20000"), LocalDate.of(2026, 6, 1), null));
 
         assertThat(response.quantity()).isEqualByComparingTo("0.5");
         assertThat(response.avgCost()).isEqualByComparingTo("20000");
@@ -104,7 +105,7 @@ class InvestmentServiceTest {
         when(holdingRepository.findByIdAndUserId(99L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.addBuy(USER_ID, 99L,
-                new BuyRequest(BigDecimal.ONE, BigDecimal.TEN, LocalDate.now())))
+                new BuyRequest(BigDecimal.ONE, BigDecimal.TEN, LocalDate.now(), null)))
                 .isInstanceOf(NotFoundException.class);
         verify(holdingLotRepository, never()).save(any());
     }
@@ -207,6 +208,33 @@ class InvestmentServiceTest {
         verify(holdingRepository, never()).save(any());
     }
 
+    @Test
+    void buyWithRewardKindIsStoredAsReward() {
+        AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
+        Holding existing = holding(10L, crypto, "2", "10000");
+        when(holdingRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+
+        service.addBuy(USER_ID, 10L, new BuyRequest(new BigDecimal("0.1"), new BigDecimal("50000"),
+                LocalDate.of(2026, 9, 28), LotKind.REWARD));
+
+        ArgumentCaptor<HoldingLot> lot = ArgumentCaptor.forClass(HoldingLot.class);
+        verify(holdingLotRepository).save(lot.capture());
+        assertThat(lot.getValue().getKind()).isEqualTo(LotKind.REWARD);
+    }
+
+    @Test
+    void buyWithoutKindDefaultsToBuy() {
+        AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
+        Holding existing = holding(10L, crypto, "2", "10000");
+        when(holdingRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+
+        service.addBuy(USER_ID, 10L, new BuyRequest(BigDecimal.ONE, BigDecimal.TEN, LocalDate.of(2026, 9, 1), null));
+
+        ArgumentCaptor<HoldingLot> lot = ArgumentCaptor.forClass(HoldingLot.class);
+        verify(holdingLotRepository).save(lot.capture());
+        assertThat(lot.getValue().getKind()).isEqualTo(LotKind.BUY);
+    }
+
     // --- refresh prices ---
 
     @Test
@@ -214,8 +242,8 @@ class InvestmentServiceTest {
         AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
         Holding btc = holding(10L, crypto, "2", "10000");
         when(holdingRepository.findByUserId(USER_ID)).thenReturn(List.of(btc));
-        when(pricingService.priceInEur(PricingSource.CRYPTO, "BTC"))
-                .thenReturn(Optional.of(new BigDecimal("18000")));
+        when(pricingService.pricesInEur(PricingSource.CRYPTO, List.of("BTC")))
+                .thenReturn(Map.of("BTC", new BigDecimal("18000")));
 
         List<HoldingResponse> result = service.refreshPrices(USER_ID);
 
@@ -231,12 +259,69 @@ class InvestmentServiceTest {
         Holding btc = holding(10L, crypto, "2", "10000");
         btc.setCurrentPrice(new BigDecimal("12000"));
         when(holdingRepository.findByUserId(USER_ID)).thenReturn(List.of(btc));
-        when(pricingService.priceInEur(PricingSource.CRYPTO, "BTC")).thenReturn(Optional.empty());
+        when(pricingService.pricesInEur(PricingSource.CRYPTO, List.of("BTC"))).thenReturn(Map.of());
 
         List<HoldingResponse> result = service.refreshPrices(USER_ID);
 
         // Previous price is kept when no fresh price is available
         assertThat(result.get(0).currentPrice()).isEqualByComparingTo("12000");
+    }
+
+    @Test
+    void refreshPricesAsksForAllCryptoSymbolsInOneBatchAndSkipsManualClasses() {
+        AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
+        AssetClass gold = assetClass(7L, "Oro", PricingSource.METAL);
+        Holding btc = holding(10L, crypto, "2", "10000");
+        Holding cro = holding(11L, crypto, "1000", "0.1");
+        cro.setSymbol("cro");
+        Holding xau = holding(12L, gold, "1", "2000");
+        xau.setSymbol("XAU");
+        xau.setCurrentPrice(new BigDecimal("2500"));
+        when(holdingRepository.findByUserId(USER_ID)).thenReturn(List.of(btc, cro, xau));
+        when(pricingService.pricesInEur(PricingSource.CRYPTO, List.of("BTC", "CRO")))
+                .thenReturn(Map.of("BTC", new BigDecimal("18000"), "CRO", new BigDecimal("0.08")));
+
+        service.refreshPrices(USER_ID);
+
+        // Symbol lookup is case-insensitive: "cro" is priced from the "CRO" entry
+        assertThat(btc.getCurrentPrice()).isEqualByComparingTo("18000");
+        assertThat(cro.getCurrentPrice()).isEqualByComparingTo("0.08");
+        assertThat(xau.getCurrentPrice()).isEqualByComparingTo("2500");
+        verify(pricingService).pricesInEur(PricingSource.CRYPTO, List.of("BTC", "CRO"));
+    }
+
+    // --- derived figures: pnl % and rewards cost ---
+
+    @Test
+    void responseIncludesPnlPercentAndRewardsCost() {
+        AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
+        Holding btc = holding(10L, crypto, "2", "10000");
+        btc.setCurrentPrice(new BigDecimal("15000"));
+        when(holdingRepository.findByUserId(USER_ID)).thenReturn(List.of(btc));
+        List<Object[]> rewardRows = List.<Object[]>of(new Object[] {10L, new BigDecimal("123.456")});
+        when(holdingLotRepository.sumRewardCostByHoldingIds(USER_ID, List.of(10L))).thenReturn(rewardRows);
+
+        HoldingResponse response = service.listHoldings(USER_ID, null).get(0);
+
+        // cost 20000, value 30000 -> pnl 10000 = 50 %
+        assertThat(response.pnlPct()).isEqualByComparingTo("50.00");
+        assertThat(response.rewardsCost()).isEqualByComparingTo("123.46");
+    }
+
+    @Test
+    void pnlPercentIsNullWhenUnpricedOrCostIsZero() {
+        AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
+        Holding unpriced = holding(10L, crypto, "2", "10");
+        Holding empty = holding(11L, crypto, "0", "0");
+        empty.setCurrentPrice(new BigDecimal("100"));
+        when(holdingRepository.findByUserId(USER_ID)).thenReturn(List.of(unpriced, empty));
+
+        List<HoldingResponse> responses = service.listHoldings(USER_ID, null);
+
+        assertThat(responses).allSatisfy(r -> {
+            assertThat(r.pnlPct()).isNull();
+            assertThat(r.rewardsCost()).isEqualByComparingTo("0");
+        });
     }
 
     // --- NFT computed value ---

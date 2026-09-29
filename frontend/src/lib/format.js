@@ -52,3 +52,43 @@ export function todayISO() {
   const day = String(now.getDate()).padStart(2, '0')
   return `${now.getFullYear()}-${month}-${day}`
 }
+
+/**
+ * Quantity with sensible decimals: 4 significant digits below 1, up to 2 decimals
+ * below 100 and up to 1 above (e.g. "0,007756", "97,1", "1951,5").
+ * @param {number|string} value
+ * @returns {string}
+ */
+export function formatQuantity(value) {
+  const n = Number(value)
+  const abs = Math.abs(n)
+  const options =
+    abs > 0 && abs < 1 ? { maximumSignificantDigits: 4 } : { maximumFractionDigits: abs < 100 ? 2 : 1 }
+  return new Intl.NumberFormat('es-ES', options).format(n)
+}
+
+/**
+ * Unit price in EUR: 2 decimals from 1 €, 4 significant digits below (e.g. "0,0633 €").
+ * @param {number|string} value
+ * @returns {string}
+ */
+export function formatPrice(value) {
+  const n = Number(value)
+  if (n === 0 || Math.abs(n) >= 1) return formatCurrency(n)
+  return new Intl.NumberFormat('es-ES', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumSignificantDigits: 4,
+  }).format(n)
+}
+
+/**
+ * Percentage with an explicit sign for gains, e.g. "+12,3 %".
+ * @param {number|string} value
+ * @returns {string}
+ */
+export function formatPercent(value) {
+  const n = Number(value)
+  const text = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 }).format(n)
+  return `${n > 0 ? '+' : ''}${text}\u00a0%`
+}
