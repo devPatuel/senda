@@ -67,7 +67,7 @@ docker compose -f docker-compose.prod.yml ps   # los 3 servicios healthy/running
 
 ## 6. Backup y restore
 
-- Backup manual: `./scripts/backup-db.sh` → crea `backups/senda-<fecha>.sql.gz`.
+- Backup manual: `./scripts/backup-db.sh` → crea `~/Documents/Senda/backups/senda-<fecha>.sql.gz` (fuera del repo: el volcado lleva datos reales).
   Guardar los `.sql.gz` fuera del PC (Proton Drive u otro disco).
 - Backup periódico (Linux, diario a las 03:00) con cron:
   ```
@@ -75,7 +75,7 @@ docker compose -f docker-compose.prod.yml ps   # los 3 servicios healthy/running
   ```
 - Restore (destructivo, pide confirmación):
   ```bash
-  ./scripts/restore-db.sh backups/senda-<fecha>.sql.gz
+  ./scripts/restore-db.sh ~/Documents/Senda/backups/senda-<fecha>.sql.gz
   docker compose -f docker-compose.prod.yml restart backend
   ```
 - **Prueba de restore**: hacer backup → restore → `curl .../api/actuator/health` debe seguir

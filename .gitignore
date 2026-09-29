@@ -1,3 +1,9 @@
 .DS_Store
 .claude/
 .worktrees/
+.superpowers-tmp/
+docs/superpowers/
+
+# Database dumps hold real data: they live in ~/Documents/Senda/backups
+backups/
+*.sql.gz
