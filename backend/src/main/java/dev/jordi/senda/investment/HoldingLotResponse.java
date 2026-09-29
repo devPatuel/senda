@@ -9,10 +9,11 @@ public record HoldingLotResponse(
         BigDecimal quantity,
         BigDecimal unitPrice,
         LocalDate date,
+        LotKind kind,
         Instant createdAt) {
 
     public static HoldingLotResponse from(HoldingLot lot) {
         return new HoldingLotResponse(lot.getId(), lot.getQuantity(), lot.getUnitPrice(),
-                lot.getDate(), lot.getCreatedAt());
+                lot.getDate(), lot.getKind(), lot.getCreatedAt());
     }
 }

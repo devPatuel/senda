@@ -152,6 +152,44 @@ class InvestmentIntegrationTest {
                 .andExpect(status().isConflict());
     }
 
+    // --- lot kind: rewards are tagged, unknown kinds rejected, old clients default to BUY ---
+
+    @Test
+    void rewardLotIsListedWithItsKindAndBuyWithoutKindDefaultsToBuy() throws Exception {
+        long cripto = firstAssetClassId(tokenA, "Cripto");
+        long holding = createHolding(tokenA, cripto, "SOL", "Solana", "0", "0");
+
+        mockMvc.perform(post("/api/investments/holdings/" + holding + "/buys")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"quantity": 1, "unitPrice": 100, "date": "2026-09-01"}
+                                """))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/investments/holdings/" + holding + "/buys")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"quantity": 0.01, "unitPrice": 105, "date": "2026-09-28", "kind": "REWARD"}
+                                """))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/investments/holdings/" + holding + "/buys")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"quantity": 1, "unitPrice": 1, "date": "2026-09-28", "kind": "GIFT"}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        // Newest first: the reward (28/09) before the buy (01/09)
+        mockMvc.perform(get("/api/investments/holdings/" + holding + "/lots")
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].kind").value("REWARD"))
+                .andExpect(jsonPath("$[1].kind").value("BUY"));
+    }
+
     // --- refresh prices uses the (mocked) crypto provider, never the network ---
 
     @Test

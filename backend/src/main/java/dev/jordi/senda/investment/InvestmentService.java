@@ -140,7 +140,9 @@ public class InvestmentService {
 
         // Derive the lot's user_id from the holding (single source of truth), not
         // from the request context, so a lot can never diverge from its holding's owner.
-        holdingLotRepository.save(new HoldingLot(holding.getId(), holding.getUserId(), buyQty, unitPrice, request.date()));
+        LotKind kind = request.kind() != null ? request.kind() : LotKind.BUY;
+        holdingLotRepository.save(new HoldingLot(holding.getId(), holding.getUserId(), buyQty, unitPrice,
+                request.date(), kind));
         return toResponse(holding);
     }
 

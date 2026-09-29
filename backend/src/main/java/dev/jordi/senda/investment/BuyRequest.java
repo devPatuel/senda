@@ -15,5 +15,7 @@ import java.time.LocalDate;
 public record BuyRequest(
         @NotNull @Positive @Digits(integer = 12, fraction = 8) BigDecimal quantity,
         @NotNull @PositiveOrZero @Digits(integer = 12, fraction = 8) BigDecimal unitPrice,
-        @NotNull LocalDate date) {
+        @NotNull LocalDate date,
+        // Optional: omitted means BUY, so existing clients keep working unchanged
+        LotKind kind) {
 }

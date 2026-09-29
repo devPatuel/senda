@@ -2,6 +2,8 @@ package dev.jordi.senda.investment;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -41,6 +43,10 @@ public class HoldingLot {
     @Column(nullable = false)
     private LocalDate date;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private LotKind kind;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -48,12 +54,14 @@ public class HoldingLot {
         // JPA only
     }
 
-    public HoldingLot(Long holdingId, Long userId, BigDecimal quantity, BigDecimal unitPrice, LocalDate date) {
+    public HoldingLot(Long holdingId, Long userId, BigDecimal quantity, BigDecimal unitPrice, LocalDate date,
+                      LotKind kind) {
         this.holdingId = holdingId;
         this.userId = userId;
         this.quantity = quantity;
         this.unitPrice = unitPrice;
         this.date = date;
+        this.kind = kind;
     }
 
     @PrePersist
@@ -85,6 +93,10 @@ public class HoldingLot {
 
     public LocalDate getDate() {
         return date;
+    }
+
+    public LotKind getKind() {
+        return kind;
     }
 
     public Instant getCreatedAt() {

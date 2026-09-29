@@ -71,7 +71,7 @@ class InvestmentServiceTest {
         when(holdingRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
 
         HoldingResponse response = service.addBuy(USER_ID, 10L,
-                new BuyRequest(new BigDecimal("1"), new BigDecimal("16000"), LocalDate.of(2026, 6, 1)));
+                new BuyRequest(new BigDecimal("1"), new BigDecimal("16000"), LocalDate.of(2026, 6, 1), null));
 
         assertThat(response.quantity()).isEqualByComparingTo("3");
         assertThat(response.avgCost()).isEqualByComparingTo("12000");
@@ -94,7 +94,7 @@ class InvestmentServiceTest {
         when(holdingRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(empty));
 
         HoldingResponse response = service.addBuy(USER_ID, 10L,
-                new BuyRequest(new BigDecimal("0.5"), new BigDecimal("20000"), LocalDate.of(2026, 6, 1)));
+                new BuyRequest(new BigDecimal("0.5"), new BigDecimal("20000"), LocalDate.of(2026, 6, 1), null));
 
         assertThat(response.quantity()).isEqualByComparingTo("0.5");
         assertThat(response.avgCost()).isEqualByComparingTo("20000");
@@ -105,7 +105,7 @@ class InvestmentServiceTest {
         when(holdingRepository.findByIdAndUserId(99L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.addBuy(USER_ID, 99L,
-                new BuyRequest(BigDecimal.ONE, BigDecimal.TEN, LocalDate.now())))
+                new BuyRequest(BigDecimal.ONE, BigDecimal.TEN, LocalDate.now(), null)))
                 .isInstanceOf(NotFoundException.class);
         verify(holdingLotRepository, never()).save(any());
     }
@@ -206,6 +206,33 @@ class InvestmentServiceTest {
                 new HoldingRequest(5L, "BTC", "Bitcoin", BigDecimal.ZERO, new BigDecimal("100"))))
                 .isInstanceOf(InvalidInvestmentException.class);
         verify(holdingRepository, never()).save(any());
+    }
+
+    @Test
+    void buyWithRewardKindIsStoredAsReward() {
+        AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
+        Holding existing = holding(10L, crypto, "2", "10000");
+        when(holdingRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+
+        service.addBuy(USER_ID, 10L, new BuyRequest(new BigDecimal("0.1"), new BigDecimal("50000"),
+                LocalDate.of(2026, 9, 28), LotKind.REWARD));
+
+        ArgumentCaptor<HoldingLot> lot = ArgumentCaptor.forClass(HoldingLot.class);
+        verify(holdingLotRepository).save(lot.capture());
+        assertThat(lot.getValue().getKind()).isEqualTo(LotKind.REWARD);
+    }
+
+    @Test
+    void buyWithoutKindDefaultsToBuy() {
+        AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
+        Holding existing = holding(10L, crypto, "2", "10000");
+        when(holdingRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+
+        service.addBuy(USER_ID, 10L, new BuyRequest(BigDecimal.ONE, BigDecimal.TEN, LocalDate.of(2026, 9, 1), null));
+
+        ArgumentCaptor<HoldingLot> lot = ArgumentCaptor.forClass(HoldingLot.class);
+        verify(holdingLotRepository).save(lot.capture());
+        assertThat(lot.getValue().getKind()).isEqualTo(LotKind.BUY);
     }
 
     // --- refresh prices ---
