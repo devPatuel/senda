@@ -50,3 +50,20 @@ disparen una llamada saliente en cada refresco.
 - (−) El mapa `symbol → id` es estático: añadir una moneda nueva exige tocar código.
 - (−) Caché en memoria por instancia: no se comparte entre réplicas (irrelevante con
   un único backend en el NAS).
+
+## Actualización 2026-09-29 — petición única y proveedor de respaldo
+
+- **Una sola petición a CoinGecko** por refresco (`/simple/price?ids=a,b,c`) en lugar de
+  una por posición: seis posiciones seguidas bastaban para el 429 del plan gratuito. La
+  caché sigue siendo por símbolo y solo se piden los que no están frescos.
+- **Coinbase como respaldo.** CoinGecko bloquea por IP algunas conexiones domésticas (403
+  de CloudFront en `/simple/price`, aunque `/ping` responda). Se añade
+  `CoinbasePriceProvider` (`GET /v2/exchange-rates?currency=EUR`, pública y sin clave): una
+  petición trae todas las monedas en EUR como "unidades por 1 EUR", así que el precio es
+  `1 / tasa` (escala 8, `HALF_UP`).
+- `FallbackCryptoPriceProvider` pregunta a CoinGecko por todo y a Coinbase **solo por lo
+  que falte**; si CoinGecko responde completo, Coinbase no se llama. Es el único bean
+  `CryptoPriceProvider` (lo crea `PricingConfig`), de modo que `PricingService` y su caché
+  no cambian y los tests lo sustituyen con `@MockitoBean` sin ambigüedad.
+- (−) Las dos fuentes pueden diferir unas décimas; no se guarda qué proveedor dio cada
+  precio.

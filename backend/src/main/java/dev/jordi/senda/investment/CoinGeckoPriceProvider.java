@@ -6,7 +6,6 @@ import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.ClientHttpRequestFactorySettings;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.client.ClientHttpRequestFactory;
-import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
@@ -30,7 +29,6 @@ import java.util.stream.Collectors;
  * <p>Network/timeout/parse errors never propagate: they are logged and mapped to
  * "no price" so a price refresh degrades gracefully.
  */
-@Component
 public class CoinGeckoPriceProvider implements CryptoPriceProvider {
 
     private static final Logger log = LoggerFactory.getLogger(CoinGeckoPriceProvider.class);
