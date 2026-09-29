@@ -109,6 +109,15 @@ describe('InvestmentsPage', () => {
     expect(screen.getByText('Ganancia / pérdida').parentElement).toHaveTextContent('+11.000,00')
   })
 
+  it('weights each holding against holdings only, leaving NFTs out', async () => {
+    listHoldings.mockResolvedValue([BTC, { ...BTC, id: 12, symbol: 'SOL', name: 'Solana', marketValue: 10000 }])
+    await renderLoaded()
+
+    // 30000 of 40000 in holdings = 75 % (with the 5000 NFT it would be 66,7 %)
+    const row = screen.getByText('Bitcoin', { exact: false }).closest('li')
+    expect(row).toHaveTextContent('75,0 %')
+  })
+
   it('warns about positions without a price', async () => {
     listHoldings.mockResolvedValue([BTC, ETH_UNPRICED])
     await renderLoaded()

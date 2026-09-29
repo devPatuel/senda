@@ -788,6 +788,9 @@ export default function InvestmentsPage() {
           (h) => h.assetClassName,
         )
       : allocation(tabHoldings, (h) => h.id, (h) => h.symbol)
+  // Row weights compare holdings with holdings only: NFTs are valued by hand and
+  // would dilute every position's share
+  const holdingsValue = summarize(tabHoldings).value
   const lastPriced = pricedAgo(allHoldings)
 
   // Group holdings under their asset class for the Total tab
@@ -894,7 +897,7 @@ export default function InvestmentsPage() {
               </div>
               <HoldingList
                 holdings={items}
-                totalValue={summary.value}
+                totalValue={holdingsValue}
                 onBuy={setBuying}
                 onPrice={setPricing}
                 onDelete={setHoldingToDelete}
@@ -923,7 +926,7 @@ export default function InvestmentsPage() {
               <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                 <HoldingList
                   holdings={tabHoldings}
-                  totalValue={summary.value}
+                  totalValue={holdingsValue}
                   onBuy={setBuying}
                   onPrice={setPricing}
                   onDelete={setHoldingToDelete}
