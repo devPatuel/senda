@@ -41,15 +41,18 @@ docker compose ps   # debe mostrar "healthy"
 ```bash
 cd backend
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+export SENDA_JWT_SECRET="$(openssl rand -base64 48)"
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
 API en `http://localhost:8080`. Flyway aplica las migraciones al arrancar.
 
-El perfil `local` aporta el secreto JWT de desarrollo (`application-local.yml`).
-Sin él (o sin la variable `SENDA_JWT_SECRET`) el backend **no arranca a propósito**:
-un secreto por defecto committeado permitiría a cualquiera forjar tokens en
-despliegues reales.
+Sin la variable `SENDA_JWT_SECRET` el backend **no arranca a propósito**, ni
+siquiera con el perfil `local`: un secreto por defecto committeado permitiría a
+cualquiera forjar tokens en una instalación con datos reales. Un secreto nuevo en
+cada arranque sirve para desarrollar (solo obliga a volver a iniciar sesión).
+`start.command` lo guarda en `~/Documents/Senda/jwt-secret` para que la sesión
+sobreviva a los reinicios.
 
 ### 3. Frontend
 
@@ -104,9 +107,10 @@ docker ps                # si es otro contenedor: docker stop <nombre>
 
 ### `Could not resolve placeholder 'SENDA_JWT_SECRET'` al arrancar el backend
 
-Falta el perfil `local` (o la variable de entorno). Arranca con:
+Falta la variable de entorno en esa terminal. Arranca con:
 
 ```bash
+export SENDA_JWT_SECRET="$(openssl rand -base64 48)"
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 

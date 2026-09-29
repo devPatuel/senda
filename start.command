@@ -118,6 +118,15 @@ ok "Postgres listo en :5432"
 if curl -sf "http://localhost:$API_PORT/actuator/health" 2>/dev/null | grep -q UP; then
   ok "La API ya estaba corriendo en :$API_PORT"
 else
+  # The JWT secret lives outside the repo; generate it once, readable only by the owner
+  SECRET_FILE="$HOME/Documents/Senda/jwt-secret"
+  if [ ! -s "$SECRET_FILE" ]; then
+    mkdir -p "$(dirname "$SECRET_FILE")"
+    ( umask 077; openssl rand -base64 48 > "$SECRET_FILE" ) || die "No se pudo generar $SECRET_FILE"
+    ok "Secreto JWT nuevo en $SECRET_FILE"
+  fi
+  export SENDA_JWT_SECRET="$(cat "$SECRET_FILE")"
+
   say "Arrancando la API (compila la primera vez, puede tardar)…"
   : > "$API_LOG"
   ( cd "$ROOT/backend" && exec ./mvnw spring-boot:run -Dspring-boot.run.profiles=local ) >"$API_LOG" 2>&1 &
