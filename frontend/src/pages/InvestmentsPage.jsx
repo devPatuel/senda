@@ -573,13 +573,11 @@ function HoldingRow({ holding, weightPct, onBuy, onPrice, onDelete }) {
     <li>
       <div className="flex flex-wrap items-start gap-3 px-4 py-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-slate-900">
-            {holding.symbol} <span className="font-normal text-slate-500">· {holding.name}</span>
+          <p className="truncate text-base font-semibold text-slate-900 tabular-nums">
+            {holding.symbol} · <span title={String(holding.quantity)}>{formatQuantity(holding.quantity)}</span>
           </p>
           <p className="text-xs text-slate-500 tabular-nums">
-            <span title={String(holding.quantity)}>
-              {formatQuantity(holding.quantity)} {holding.symbol}
-            </span>
+            {holding.name}
             {holding.currentPrice != null && <> · precio {formatPrice(holding.currentPrice)}</>}
             {' '}· coste medio {formatPrice(holding.avgCost)}
           </p>

@@ -118,6 +118,15 @@ describe('InvestmentsPage', () => {
     expect(row).toHaveTextContent('75,0 %')
   })
 
+  it('leads each row with symbol and quantity, details below', async () => {
+    await renderLoaded()
+
+    const title = screen.getByText((_, el) => el.tagName === 'P' && el.textContent === 'BTC · 2')
+    expect(title).toHaveClass('font-semibold')
+    // The name moves to the details line underneath
+    expect(title.nextElementSibling).toHaveTextContent('Bitcoin')
+  })
+
   it('warns about positions without a price', async () => {
     listHoldings.mockResolvedValue([BTC, ETH_UNPRICED])
     await renderLoaded()

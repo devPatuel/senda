@@ -248,6 +248,9 @@ export default function DashboardPage() {
   // Half of the couple accounts' balance is part of the net worth. Hiding it made
   // the breakdown fail to add up to the headline figure.
   const coupleShare = netWorth ? Number(netWorth.coupleShare ?? 0) : 0
+  // The headline is the money you can actually use; investments only appear as a
+  // small "with investments" total so they do not blur how much cash there is.
+  const withoutInvestments = netWorth ? Number(netWorth.net) - Number(netWorth.investments) : 0
 
   return (
     <div className="space-y-5">
@@ -260,23 +263,30 @@ export default function DashboardPage() {
 
       {!nowError && netWorth && (
         <section className="rounded-2xl border border-slate-200 bg-white p-6">
-          <p className="text-center text-sm text-slate-500">Patrimonio neto</p>
-          <p
-            className={[
-              'mt-1 text-center text-4xl font-bold tracking-tight',
-              Number(netWorth.net) >= 0 ? 'text-emerald-600' : 'text-red-600',
-            ].join(' ')}
-          >
-            {formatCurrency(netWorth.net)}
-          </p>
+          <div className="text-center">
+            <p className="text-sm text-slate-500">Patrimonio sin inversiones</p>
+            <p
+              className={[
+                'mt-1 text-4xl font-bold tracking-tight',
+                withoutInvestments >= 0 ? 'text-emerald-600' : 'text-red-600',
+              ].join(' ')}
+            >
+              {formatCurrency(withoutInvestments)}
+            </p>
+          </div>
+          {Number(netWorth.investments) !== 0 && (
+            <p className="mt-1 text-center text-xs text-slate-400">
+              <span>Con inversiones </span>
+              <span className="font-medium tabular-nums text-slate-500">{formatCurrency(netWorth.net)}</span>
+            </p>
+          )}
           <div
             className={[
               'mt-4 grid gap-2 border-t border-slate-100 pt-4',
-              coupleShare !== 0 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3',
+              coupleShare !== 0 ? 'grid-cols-3' : 'grid-cols-2',
             ].join(' ')}
           >
             <NetWorthStat label="Líquido" value={netWorth.liquid} />
-            <NetWorthStat label="Inversiones" value={netWorth.investments} />
             {coupleShare !== 0 && <NetWorthStat label="Pareja (50%)" value={coupleShare} />}
             <NetWorthStat
               label="Deudas"
