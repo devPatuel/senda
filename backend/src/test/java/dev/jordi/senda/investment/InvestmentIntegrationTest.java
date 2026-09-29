@@ -15,10 +15,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.Optional;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.hasItem;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -156,7 +156,7 @@ class InvestmentIntegrationTest {
 
     @Test
     void refreshPricesUpdatesCryptoHoldingFromProvider() throws Exception {
-        when(cryptoPriceProvider.priceInEur(eq("BTC"))).thenReturn(Optional.of(new BigDecimal("20000")));
+        when(cryptoPriceProvider.pricesInEur(Set.of("BTC"))).thenReturn(Map.of("BTC", new BigDecimal("20000")));
 
         long cripto = firstAssetClassId(tokenA, "Cripto");
         createHolding(tokenA, cripto, "BTC", "Bitcoin", "2", "10000");
@@ -172,7 +172,7 @@ class InvestmentIntegrationTest {
 
     @Test
     void nftReportsCurrentPurchaseValueFromCryptoPrice() throws Exception {
-        when(cryptoPriceProvider.priceInEur(eq("ETH"))).thenReturn(Optional.of(new BigDecimal("3000")));
+        when(cryptoPriceProvider.pricesInEur(Set.of("ETH"))).thenReturn(Map.of("ETH", new BigDecimal("3000")));
 
         mockMvc.perform(post("/api/investments/nfts")
                         .header("Authorization", "Bearer " + tokenA)

@@ -7,7 +7,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.times;
@@ -30,7 +33,7 @@ class PricingServiceTest {
 
     @Test
     void cryptoPriceIsFetchedAndReturned() {
-        when(cryptoPriceProvider.priceInEur("BTC")).thenReturn(Optional.of(new BigDecimal("58000")));
+        when(cryptoPriceProvider.pricesInEur(Set.of("BTC"))).thenReturn(Map.of("BTC", new BigDecimal("58000")));
 
         Optional<BigDecimal> price = service.priceInEur(PricingSource.CRYPTO, "BTC");
 
@@ -39,43 +42,68 @@ class PricingServiceTest {
 
     @Test
     void secondLookupHitsCacheAndDoesNotCallProviderAgain() {
-        when(cryptoPriceProvider.priceInEur("BTC")).thenReturn(Optional.of(new BigDecimal("58000")));
+        when(cryptoPriceProvider.pricesInEur(Set.of("BTC"))).thenReturn(Map.of("BTC", new BigDecimal("58000")));
 
         service.priceInEur(PricingSource.CRYPTO, "BTC");
         Optional<BigDecimal> second = service.priceInEur(PricingSource.CRYPTO, "BTC");
 
         assertThat(second).contains(new BigDecimal("58000"));
         // Provider invoked exactly once: the second call is served from cache
-        verify(cryptoPriceProvider, times(1)).priceInEur("BTC");
+        verify(cryptoPriceProvider, times(1)).pricesInEur(Set.of("BTC"));
     }
 
     @Test
     void cacheKeyIsCaseInsensitiveBySymbol() {
-        when(cryptoPriceProvider.priceInEur("BTC")).thenReturn(Optional.of(new BigDecimal("58000")));
+        when(cryptoPriceProvider.pricesInEur(Set.of("BTC"))).thenReturn(Map.of("BTC", new BigDecimal("58000")));
 
         service.priceInEur(PricingSource.CRYPTO, "BTC");
         service.priceInEur(PricingSource.CRYPTO, "btc");
 
-        verify(cryptoPriceProvider, times(1)).priceInEur("BTC");
+        verify(cryptoPriceProvider, times(1)).pricesInEur(Set.of("BTC"));
     }
 
     @Test
     void missIsNegativeCachedSoItIsNotRefetchedImmediately() {
-        when(cryptoPriceProvider.priceInEur("BTC")).thenReturn(Optional.empty());
+        when(cryptoPriceProvider.pricesInEur(Set.of("BTC"))).thenReturn(Map.of());
 
         assertThat(service.priceInEur(PricingSource.CRYPTO, "BTC")).isEmpty();
         // Negative caching: a junk/unmapped symbol (or a briefly-down provider) is
         // not re-queried on the very next call, so a refresh loop cannot hammer the
         // upstream API. The negative entry expires after the shorter NEGATIVE_TTL.
         assertThat(service.priceInEur(PricingSource.CRYPTO, "BTC")).isEmpty();
-        verify(cryptoPriceProvider, times(1)).priceInEur("BTC");
+        verify(cryptoPriceProvider, times(1)).pricesInEur(Set.of("BTC"));
+    }
+
+    @Test
+    void batchLookupFetchesAllUncachedSymbolsInOneProviderCall() {
+        when(cryptoPriceProvider.pricesInEur(Set.of("BTC", "ETH", "CRO")))
+                .thenReturn(Map.of("BTC", new BigDecimal("58000"), "ETH", new BigDecimal("3000")));
+
+        Map<String, BigDecimal> prices = service.pricesInEur(PricingSource.CRYPTO, List.of("btc", "ETH", "CRO", "BTC"));
+
+        assertThat(prices).containsOnly(
+                Map.entry("BTC", new BigDecimal("58000")),
+                Map.entry("ETH", new BigDecimal("3000")));
+        verify(cryptoPriceProvider, times(1)).pricesInEur(Set.of("BTC", "ETH", "CRO"));
+    }
+
+    @Test
+    void batchLookupOnlyAsksProviderForSymbolsNotAlreadyCached() {
+        when(cryptoPriceProvider.pricesInEur(Set.of("BTC"))).thenReturn(Map.of("BTC", new BigDecimal("58000")));
+        when(cryptoPriceProvider.pricesInEur(Set.of("ETH"))).thenReturn(Map.of("ETH", new BigDecimal("3000")));
+        service.priceInEur(PricingSource.CRYPTO, "BTC");
+
+        Map<String, BigDecimal> prices = service.pricesInEur(PricingSource.CRYPTO, List.of("BTC", "ETH"));
+
+        assertThat(prices).containsOnlyKeys("BTC", "ETH");
+        verify(cryptoPriceProvider, times(1)).pricesInEur(Set.of("ETH"));
     }
 
     @Test
     void nonCryptoSourcesNeverCallTheProvider() {
         assertThat(service.priceInEur(PricingSource.METAL, "XAU")).isEmpty();
         assertThat(service.priceInEur(PricingSource.FUND, "IE00B4L5Y983")).isEmpty();
-        assertThat(service.priceInEur(PricingSource.MANUAL, "WHATEVER")).isEmpty();
+        assertThat(service.pricesInEur(PricingSource.MANUAL, List.of("WHATEVER"))).isEmpty();
 
         verifyNoInteractions(cryptoPriceProvider);
     }

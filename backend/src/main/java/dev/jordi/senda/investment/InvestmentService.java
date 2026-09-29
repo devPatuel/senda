@@ -10,6 +10,8 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -173,12 +175,21 @@ public class InvestmentService {
     public List<HoldingResponse> refreshPrices(Long userId) {
         List<Holding> holdings = holdingRepository.findByUserId(userId);
         Instant now = Instant.now();
-        for (Holding holding : holdings) {
-            PricingSource source = holding.getAssetClass().getPricingSource();
-            pricingService.priceInEur(source, holding.getSymbol()).ifPresent(price -> {
+        List<Holding> cryptoHoldings = holdings.stream()
+                .filter(holding -> holding.getAssetClass().getPricingSource() == PricingSource.CRYPTO)
+                .toList();
+        List<String> symbols = cryptoHoldings.stream()
+                .map(holding -> holding.getSymbol().toUpperCase(Locale.ROOT))
+                .distinct()
+                .toList();
+        // One batched lookup for every crypto holding instead of one request each
+        Map<String, BigDecimal> prices = pricingService.pricesInEur(PricingSource.CRYPTO, symbols);
+        for (Holding holding : cryptoHoldings) {
+            BigDecimal price = prices.get(holding.getSymbol().toUpperCase(Locale.ROOT));
+            if (price != null) {
                 holding.setCurrentPrice(price);
                 holding.setLastPricedAt(now);
-            });
+            }
         }
         return holdings.stream()
                 .sorted(Comparator.comparing(Holding::getSymbol, String.CASE_INSENSITIVE_ORDER)

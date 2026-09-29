@@ -13,6 +13,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -214,8 +215,8 @@ class InvestmentServiceTest {
         AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
         Holding btc = holding(10L, crypto, "2", "10000");
         when(holdingRepository.findByUserId(USER_ID)).thenReturn(List.of(btc));
-        when(pricingService.priceInEur(PricingSource.CRYPTO, "BTC"))
-                .thenReturn(Optional.of(new BigDecimal("18000")));
+        when(pricingService.pricesInEur(PricingSource.CRYPTO, List.of("BTC")))
+                .thenReturn(Map.of("BTC", new BigDecimal("18000")));
 
         List<HoldingResponse> result = service.refreshPrices(USER_ID);
 
@@ -231,12 +232,35 @@ class InvestmentServiceTest {
         Holding btc = holding(10L, crypto, "2", "10000");
         btc.setCurrentPrice(new BigDecimal("12000"));
         when(holdingRepository.findByUserId(USER_ID)).thenReturn(List.of(btc));
-        when(pricingService.priceInEur(PricingSource.CRYPTO, "BTC")).thenReturn(Optional.empty());
+        when(pricingService.pricesInEur(PricingSource.CRYPTO, List.of("BTC"))).thenReturn(Map.of());
 
         List<HoldingResponse> result = service.refreshPrices(USER_ID);
 
         // Previous price is kept when no fresh price is available
         assertThat(result.get(0).currentPrice()).isEqualByComparingTo("12000");
+    }
+
+    @Test
+    void refreshPricesAsksForAllCryptoSymbolsInOneBatchAndSkipsManualClasses() {
+        AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
+        AssetClass gold = assetClass(7L, "Oro", PricingSource.METAL);
+        Holding btc = holding(10L, crypto, "2", "10000");
+        Holding cro = holding(11L, crypto, "1000", "0.1");
+        cro.setSymbol("cro");
+        Holding xau = holding(12L, gold, "1", "2000");
+        xau.setSymbol("XAU");
+        xau.setCurrentPrice(new BigDecimal("2500"));
+        when(holdingRepository.findByUserId(USER_ID)).thenReturn(List.of(btc, cro, xau));
+        when(pricingService.pricesInEur(PricingSource.CRYPTO, List.of("BTC", "CRO")))
+                .thenReturn(Map.of("BTC", new BigDecimal("18000"), "CRO", new BigDecimal("0.08")));
+
+        service.refreshPrices(USER_ID);
+
+        // Symbol lookup is case-insensitive: "cro" is priced from the "CRO" entry
+        assertThat(btc.getCurrentPrice()).isEqualByComparingTo("18000");
+        assertThat(cro.getCurrentPrice()).isEqualByComparingTo("0.08");
+        assertThat(xau.getCurrentPrice()).isEqualByComparingTo("2500");
+        verify(pricingService).pricesInEur(PricingSource.CRYPTO, List.of("BTC", "CRO"));
     }
 
     // --- NFT computed value ---
