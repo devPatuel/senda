@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { formatQuantity, formatPrice, formatPercent } from './format'
 
 // Intl uses a non-breaking space before € and %; normalise it for readable expectations
-const plain = (text) => text.replace(/ /g, ' ')
+const plain = (text) => text.replace(/\u00a0/g, ' ')
 
 describe('formatQuantity', () => {
   it.each([

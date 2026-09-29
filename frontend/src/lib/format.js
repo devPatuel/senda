@@ -90,5 +90,5 @@ export function formatPrice(value) {
 export function formatPercent(value) {
   const n = Number(value)
   const text = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 }).format(n)
-  return `${n > 0 ? '+' : ''}${text} %`
+  return `${n > 0 ? '+' : ''}${text}\u00a0%`
 }
