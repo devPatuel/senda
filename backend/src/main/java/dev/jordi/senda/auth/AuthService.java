@@ -1,5 +1,8 @@
 package dev.jordi.senda.auth;
 
+import dev.jordi.senda.common.UnprocessableEntityException;
+import java.util.UUID;
+import java.util.Optional;
 import dev.jordi.senda.category.Category;
 import dev.jordi.senda.category.CategoryRepository;
 import dev.jordi.senda.category.DefaultCategories;
@@ -28,6 +31,9 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final boolean registrationEnabled;
+    // A real hash of a value nobody knows: login compares against it when the email
+    // does not exist, so both outcomes cost one BCrypt check and take the same time.
+    private final String dummyPasswordHash;
 
     public AuthService(UserRepository userRepository, CategoryRepository categoryRepository,
                        AssetClassRepository assetClassRepository,
@@ -39,6 +45,7 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.registrationEnabled = registrationEnabled;
+        this.dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
     }
 
     @Transactional
@@ -55,18 +62,42 @@ public class AuthService {
                 new User(request.email(), passwordEncoder.encode(request.password()), request.name()));
         copyDefaultCategories(user.getId());
         copyDefaultAssetClasses(user.getId());
-        return new AuthResponse(jwtService.generateToken(user.getId()), UserDto.from(user));
+        return sessionFor(user);
     }
 
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
-        // Same exception for unknown email and wrong password: do not reveal which one failed
-        User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
-        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        // Same exception AND same work for unknown email and wrong password: neither
+        // the message nor the response time reveals whether the account exists.
+        Optional<User> found = userRepository.findByEmail(request.email());
+        String hash = found.map(User::getPasswordHash).orElse(dummyPasswordHash);
+        boolean matches = passwordEncoder.matches(request.password(), hash);
+        if (found.isEmpty() || !matches) {
             throw new BadCredentialsException("Invalid credentials");
         }
-        return new AuthResponse(jwtService.generateToken(user.getId()), UserDto.from(user));
+        User user = found.get();
+        return sessionFor(user);
+    }
+
+    /**
+     * Changes the password of the authenticated user. Every session opened before
+     * the change stops working; the response carries a fresh one so the device
+     * that made the change stays logged in.
+     */
+    @Transactional
+    public AuthResponse changePassword(Long userId, ChangePasswordRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
+        // 422, not 401: the client treats a 401 as an expired session and logs out
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new UnprocessableEntityException("Current password is incorrect");
+        }
+        user.changePassword(passwordEncoder.encode(request.newPassword()));
+        return sessionFor(user);
+    }
+
+    private AuthResponse sessionFor(User user) {
+        return new AuthResponse(jwtService.generateToken(user.getId(), user.getTokenVersion()), UserDto.from(user));
     }
 
     private void copyDefaultCategories(Long userId) {

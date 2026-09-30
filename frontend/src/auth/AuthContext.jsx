@@ -58,6 +58,15 @@ export function AuthProvider({ children }) {
     [applySession],
   )
 
+  // The API closes every earlier session and answers with a fresh one for this device
+  const changePassword = useCallback(
+    async (currentPassword, newPassword) => {
+      const data = await http.post('/auth/password', { currentPassword, newPassword })
+      applySession(data)
+    },
+    [applySession],
+  )
+
   const value = useMemo(
     () => ({
       user,
@@ -65,9 +74,10 @@ export function AuthProvider({ children }) {
       isAuthenticated: Boolean(token),
       login,
       register,
+      changePassword,
       logout,
     }),
-    [user, token, login, register, logout],
+    [user, token, login, register, changePassword, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

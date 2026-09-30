@@ -37,6 +37,16 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${SENDA_DB_PASSWORD:?SENDA_DB_PASSWORD is required in production}
       # Must be provided via environment; no default in production
       SENDA_JWT_SECRET: ${SENDA_JWT_SECRET:?SENDA_JWT_SECRET is required in production}
+      # Every URL the app is opened from, comma separated and with its port. The
+      # browser sends an Origin header on writes and the backend rejects (403) any
+      # origin missing here, so a remote name (Tailscale, NAS hostname) must be added.
+      SENDA_CORS_ORIGINS: ${SENDA_CORS_ORIGINS:-http://localhost:8088}
+      # nginx overwrites X-Real-IP with the peer address, and the backend port is not
+      # published, so the login rate limit can count per real client instead of
+      # putting everyone in nginx's single bucket.
+      SENDA_CLIENT_IP_HEADER: X-Real-IP
+      # Sign-up stays closed; set to true only to create the first account(s)
+      SENDA_REGISTRATION_ENABLED: ${SENDA_REGISTRATION_ENABLED:-false}
     depends_on:
       postgres:
         condition: service_healthy

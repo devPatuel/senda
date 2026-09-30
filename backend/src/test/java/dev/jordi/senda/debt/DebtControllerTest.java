@@ -1,5 +1,6 @@
 package dev.jordi.senda.debt;
 
+import dev.jordi.senda.user.UserRepository;
 import dev.jordi.senda.common.GlobalExceptionHandler;
 import dev.jordi.senda.common.JwtAuthFilter;
 import dev.jordi.senda.apitoken.ApiTokenService;
@@ -18,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Optional;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -39,6 +41,9 @@ class DebtControllerTest {
     @MockitoBean
     private ApiTokenService apiTokenService;
 
+    @MockitoBean
+    private UserRepository userRepository;
+
     private static final Long USER_ID = 1L;
 
     @Autowired
@@ -53,6 +58,8 @@ class DebtControllerTest {
 
     @BeforeEach
     void setUp() {
+        // The filter checks the token version against the stored one
+        when(userRepository.findTokenVersionById(USER_ID)).thenReturn(Optional.of(0));
         bearer = "Bearer " + jwtService.generateToken(USER_ID);
     }
 

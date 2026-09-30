@@ -8,7 +8,9 @@ services:
       POSTGRES_USER: senda
       POSTGRES_PASSWORD: senda
     ports:
-      - "5432:5432"
+      # Loopback only: "5432:5432" publishes on every interface, and with the
+      # well-known dev password anyone on the same network could read the database
+      - "127.0.0.1:5432:5432"
     volumes:
       - senda_pgdata:/var/lib/postgresql/data
     healthcheck:

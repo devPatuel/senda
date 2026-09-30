@@ -28,13 +28,44 @@ class TokenAuthIntegrationTest {
     ObjectMapper mapper;
 
     @Test
-    void personalTokenAuthenticatesProtectedRequest() throws Exception {
+    void personalTokenCanCaptureAnExpense() throws Exception {
         String jwt = registerAndGetToken("pat-a@test.dev");
         String pat = createPersonalToken(jwt);
 
-        // Use the personal token on a normal endpoint -> 200
+        // What a shortcut needs: read the categories and create the movement
+        String categories = mvc.perform(get("/api/categories").param("type", "EXPENSE")
+                        .header("Authorization", "Bearer " + pat))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        long categoryId = mapper.readTree(categories).get(0).get("id").asLong();
+
+        mvc.perform(post("/api/transactions/quick")
+                        .header("Authorization", "Bearer " + pat)
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"amount\":3.20,\"description\":\"Cafe\",\"categoryId\":" + categoryId + "}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void personalTokenCannotReadOrManageAnythingElse() throws Exception {
+        String jwt = registerAndGetToken("pat-c@test.dev");
+        String pat = createPersonalToken(jwt);
+
+        // A token that leaks from a phone must not hand over the finances...
         mvc.perform(get("/api/transactions").header("Authorization", "Bearer " + pat))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/networth").header("Authorization", "Bearer " + pat))
+                .andExpect(status().isForbidden());
+        // ...nor mint more tokens or change the password
+        mvc.perform(post("/api/tokens")
+                        .header("Authorization", "Bearer " + pat)
+                        .contentType(APPLICATION_JSON).content("{\"name\":\"otro\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/auth/password")
+                        .header("Authorization", "Bearer " + pat)
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"password123\",\"newPassword\":\"another-pass-1\"}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -48,7 +79,7 @@ class TokenAuthIntegrationTest {
         String pat = mapper.readTree(created).get("value").asText();
         mvc.perform(delete("/api/tokens/" + id).header("Authorization", "Bearer " + jwt));
 
-        mvc.perform(get("/api/transactions").header("Authorization", "Bearer " + pat))
+        mvc.perform(get("/api/categories").header("Authorization", "Bearer " + pat))
                 .andExpect(status().isUnauthorized());
     }
 

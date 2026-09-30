@@ -28,7 +28,7 @@ class AuthRateLimitFilterTest {
     @BeforeEach
     void setUp() {
         clock = new MutableClock(Instant.parse("2026-06-12T10:00:00Z"));
-        filter = new AuthRateLimitFilter(new ObjectMapper(), MAX_ATTEMPTS, WINDOW_SECONDS, clock);
+        filter = new AuthRateLimitFilter(new ObjectMapper(), MAX_ATTEMPTS, WINDOW_SECONDS, "", clock);
     }
 
     private MockHttpServletResponse perform(String method, String uri, String ip)
@@ -70,6 +70,40 @@ class AuthRateLimitFilterTest {
         perform("POST", "/api/auth/login", "10.0.0.1");
 
         assertThat(perform("POST", "/api/auth/register", "10.0.0.1").getStatus()).isEqualTo(429);
+    }
+
+    private MockHttpServletResponse performBehindProxy(AuthRateLimitFilter target, String realIp)
+            throws ServletException, IOException {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/login");
+        // Every request reaches the backend from the proxy's own address
+        request.setRemoteAddr("172.18.0.4");
+        request.addHeader("X-Real-IP", realIp);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        target.doFilter(request, response, new MockFilterChain());
+        return response;
+    }
+
+    @Test
+    void behindAProxyEachRealClientGetsItsOwnLimit() throws Exception {
+        AuthRateLimitFilter proxied =
+                new AuthRateLimitFilter(new ObjectMapper(), MAX_ATTEMPTS, WINDOW_SECONDS, "X-Real-IP", clock);
+        for (int i = 0; i <= MAX_ATTEMPTS; i++) {
+            performBehindProxy(proxied, "192.168.1.50");
+        }
+
+        assertThat(performBehindProxy(proxied, "192.168.1.50").getStatus()).isEqualTo(429);
+        // One client burning its attempts must not lock everybody else out
+        assertThat(performBehindProxy(proxied, "192.168.1.51").getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void withoutAProxyTheHeaderIsIgnored() throws Exception {
+        for (int i = 0; i < MAX_ATTEMPTS; i++) {
+            performBehindProxy(filter, "10.0.0." + i);
+        }
+
+        // Rotating a client-supplied header must not reset the limit
+        assertThat(performBehindProxy(filter, "10.0.0.99").getStatus()).isEqualTo(429);
     }
 
     @Test

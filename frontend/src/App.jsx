@@ -15,6 +15,7 @@ import RecurringPage from './pages/RecurringPage'
 import ImportPage from './pages/ImportPage'
 import SpacePage from './pages/SpacePage'
 import TokensPage from './pages/TokensPage'
+import PasswordPage from './pages/PasswordPage'
 import WishlistPage from './pages/WishlistPage'
 
 export default function App() {
@@ -34,11 +35,11 @@ export default function App() {
           <Route path="/reparto" element={<AllocationPage />} />
           <Route path="/recurrentes" element={<RecurringPage />} />
           <Route path="/importar" element={<ImportPage />} />
-          {/* Patrimonio no longer has a menu entry; reachable by direct URL */}
           <Route path="/patrimonio" element={<NetWorthPage />} />
           <Route path="/deseos" element={<WishlistPage />} />
           <Route path="/pareja" element={<SpacePage />} />
           <Route path="/tokens" element={<TokensPage />} />
+          <Route path="/contrasena" element={<PasswordPage />} />
         </Route>
       </Route>
 

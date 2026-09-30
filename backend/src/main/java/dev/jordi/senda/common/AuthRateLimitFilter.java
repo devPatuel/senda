@@ -37,6 +37,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     private final ObjectMapper objectMapper;
     private final int maxAttempts;
     private final long windowMillis;
+    private final String clientIpHeader;
     private final Clock clock;
     private final ConcurrentHashMap<String, Window> windows = new ConcurrentHashMap<>();
 
@@ -44,14 +45,17 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     @Autowired
     public AuthRateLimitFilter(ObjectMapper objectMapper,
                                @Value("${senda.auth.rate-limit.max-attempts:10}") int maxAttempts,
-                               @Value("${senda.auth.rate-limit.window-seconds:60}") long windowSeconds) {
-        this(objectMapper, maxAttempts, windowSeconds, Clock.systemUTC());
+                               @Value("${senda.auth.rate-limit.window-seconds:60}") long windowSeconds,
+                               @Value("${senda.auth.rate-limit.client-ip-header:}") String clientIpHeader) {
+        this(objectMapper, maxAttempts, windowSeconds, clientIpHeader, Clock.systemUTC());
     }
 
-    AuthRateLimitFilter(ObjectMapper objectMapper, int maxAttempts, long windowSeconds, Clock clock) {
+    AuthRateLimitFilter(ObjectMapper objectMapper, int maxAttempts, long windowSeconds,
+                        String clientIpHeader, Clock clock) {
         this.objectMapper = objectMapper;
         this.maxAttempts = maxAttempts;
         this.windowMillis = windowSeconds * 1_000;
+        this.clientIpHeader = clientIpHeader == null ? "" : clientIpHeader.trim();
         this.clock = clock;
     }
 
@@ -67,15 +71,32 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         long now = clock.millis();
         purgeExpiredIfNeeded(now);
-        // getRemoteAddr, not X-Forwarded-For: the header is client-controlled and
-        // trusting it here would let an attacker reset their own limit at will
-        Window window = windows.compute(request.getRemoteAddr(), (ip, current) ->
+        Window window = windows.compute(clientKey(request), (ip, current) ->
                 current == null || current.isExpired(now, windowMillis) ? new Window(now) : current);
         if (window.incrementAndGet() > maxAttempts) {
             writeTooManyRequests(response);
             return;
         }
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Who to count the attempt against. By default the socket address: a header is
+     * client-controlled, and trusting it would let an attacker reset their own
+     * limit at will. Behind a reverse proxy, though, every request arrives from
+     * the proxy's address and the limit becomes one shared bucket that anyone can
+     * exhaust for everybody. Such a deployment names the header its proxy
+     * OVERWRITES with the real peer address (nginx: X-Real-IP $remote_addr), and
+     * must keep the backend unreachable except through that proxy.
+     */
+    private String clientKey(HttpServletRequest request) {
+        if (!clientIpHeader.isEmpty()) {
+            String forwarded = request.getHeader(clientIpHeader);
+            if (forwarded != null && !forwarded.isBlank()) {
+                return forwarded.trim();
+            }
+        }
+        return request.getRemoteAddr();
     }
 
     private void writeTooManyRequests(HttpServletResponse response) throws IOException {

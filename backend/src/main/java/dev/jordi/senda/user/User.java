@@ -30,6 +30,9 @@ public class User {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion;
+
     protected User() {
         // JPA only
     }
@@ -65,5 +68,18 @@ public class User {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public int getTokenVersion() {
+        return tokenVersion;
+    }
+
+    /**
+     * Replaces the password and bumps the token version, which invalidates every
+     * JWT issued before the change (see JwtAuthFilter).
+     */
+    public void changePassword(String newPasswordHash) {
+        this.passwordHash = newPasswordHash;
+        this.tokenVersion++;
     }
 }

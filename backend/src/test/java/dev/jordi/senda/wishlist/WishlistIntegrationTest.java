@@ -1,5 +1,6 @@
 package dev.jordi.senda.wishlist;
 
+import java.util.List;
 import com.jayway.jsonpath.JsonPath;
 import dev.jordi.senda.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,6 +50,22 @@ class WishlistIntegrationTest {
                         .content("{\"name\":\"" + name + "\",\"price\":" + price + "}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         return ((Number) JsonPath.read(body, "$.id")).longValue();
+    }
+
+    @Test
+    void rejectsLinksThatAreNotWebAddresses() throws Exception {
+        for (String field : List.of("productUrl", "imageUrl")) {
+            mockMvc.perform(post("/api/wishlist")
+                            .header("Authorization", "Bearer " + tokenA)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"NAS\",\"" + field + "\":\"javascript:alert(1)\"}"))
+                    .andExpect(status().isBadRequest());
+        }
+        mockMvc.perform(post("/api/wishlist")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"NAS\",\"productUrl\":\"https://example.com/nas\"}"))
+                .andExpect(status().isCreated());
     }
 
     @Test

@@ -1,5 +1,6 @@
 package dev.jordi.senda.auth;
 
+import dev.jordi.senda.common.CurrentUser;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,5 +28,11 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    /** Under /api/auth so it shares the rate limit: every attempt costs a BCrypt check. */
+    @PostMapping("/password")
+    public AuthResponse changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        return authService.changePassword(CurrentUser.id(), request);
     }
 }

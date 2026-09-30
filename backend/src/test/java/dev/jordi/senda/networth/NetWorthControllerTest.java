@@ -1,6 +1,8 @@
 package dev.jordi.senda.networth;
 
+import dev.jordi.senda.user.UserRepository;
 import dev.jordi.senda.common.GlobalExceptionHandler;
+import java.util.Optional;
 import dev.jordi.senda.common.JwtAuthFilter;
 import dev.jordi.senda.apitoken.ApiTokenService;
 import dev.jordi.senda.common.JwtService;
@@ -28,6 +30,9 @@ class NetWorthControllerTest {
     @MockitoBean
     private ApiTokenService apiTokenService;
 
+    @MockitoBean
+    private UserRepository userRepository;
+
     private static final Long USER_ID = 1L;
 
     @Autowired
@@ -42,6 +47,8 @@ class NetWorthControllerTest {
 
     @BeforeEach
     void setUp() {
+        // The filter checks the token version against the stored one
+        when(userRepository.findTokenVersionById(USER_ID)).thenReturn(Optional.of(0));
         bearer = "Bearer " + jwtService.generateToken(USER_ID);
     }
 
