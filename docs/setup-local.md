@@ -21,6 +21,13 @@ Consejo: añádelo a `~/.zshrc` para no repetirlo en cada terminal.
 
 ## Arrancar la app
 
+**En macOS, lo rápido**: doble clic en `start.command` (o `./start.command`). Comprueba
+Java y Docker, levanta Postgres, la API y el frontend, y abre el navegador.
+`stop.command` lo apaga. `scripts/make-desktop-launchers.command` deja los dos accesos
+en el Escritorio.
+
+A mano, o en otro sistema, son tres pasos:
+
 ### 1. Base de datos
 
 Desde la raíz del repo:
@@ -67,6 +74,18 @@ npm run dev
 ### 4. Abrir la app
 
 http://localhost:5173 — registrarse, hacer login y empezar a crear movimientos.
+
+El perfil `local` trae el registro abierto. Sin ese perfil está cerrado y el alta
+responde 403 (se abre con `SENDA_REGISTRATION_ENABLED=true`).
+
+## Copia de seguridad de los datos locales
+
+```bash
+./scripts/backup-db.sh --local                 # crea ~/Documents/Senda/backups/senda-<fecha>.sql.gz
+./scripts/restore-db.sh --local <archivo>      # sobrescribe la base; pide confirmación
+```
+
+Tras un restore, reiniciar la API para que Flyway valide el esquema.
 
 ## Tests
 
@@ -132,6 +151,9 @@ kill <PID>
 Testcontainers necesita Docker corriendo. Arranca Docker Desktop y reintenta.
 
 ### Resetear la base de datos de desarrollo
+
+Borra **todos** los datos. Si la instalación local tiene datos reales, hacer antes
+`./scripts/backup-db.sh --local`.
 
 ```bash
 docker compose down -v   # borra también el volumen

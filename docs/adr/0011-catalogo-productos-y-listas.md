@@ -1,7 +1,13 @@
 # 0011 — Catálogo de productos y listas (deseos + compra)
 
 - **Fecha**: 2026-07-11
-- **Estado**: Aceptado
+- **Estado**: Obsoleto desde 2026-09-19
+
+> **Obsoleto.** El catálogo de productos y la lista de la compra se retiraron al acotar
+> Senda a finanzas: el código se borró y la migración `V27` elimina sus tablas
+> (`products`, `price_entries`, `shopping_list_items`). De este ADR solo sigue vigente la
+> lista de deseos (`wishlist_items`, migración `V22`). Se conserva como registro de por
+> qué existió el módulo.
 
 ## Contexto
 
