@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCsv, detectSeparator, parseDate, parseAmount } from './csv'
+import { parseCsv, detectSeparator, parseDate, parseAmount, dropPreamble } from './csv'
 
 describe('csv parsing', () => {
   it('detects the separator and splits rows', () => {
@@ -57,10 +57,32 @@ describe('parseAmount', () => {
     expect(parseAmount('-20,50')).toBeCloseTo(-20.5)
     expect(parseAmount('(20.50)')).toBeCloseTo(-20.5)
   })
+  it('reads the typographic minus sign banks use in Excel exports', () => {
+    expect(parseAmount('\u22129,03')).toBeCloseTo(-9.03)
+  })
   it('strips currency symbols', () => {
     expect(parseAmount('1.500,00 €')).toBeCloseTo(1500)
   })
   it('returns NaN for non-numbers', () => {
     expect(Number.isNaN(parseAmount('abc'))).toBe(true)
+  })
+})
+
+describe('dropPreamble', () => {
+  it('drops the account details a bank puts above the table', () => {
+    const rows = [
+      ['', '', 'CUENTA ONLINE', 'FECHA'],
+      ['', '', 'ES00 0000', '01/06/2026'],
+      ['Movimientos'],
+      ['Fecha operación', 'Fecha valor', 'Concepto', 'Importe'],
+      ['01/06/2026', '01/06/2026', 'Compra', '-20,50'],
+    ]
+    expect(dropPreamble(rows)).toEqual(rows.slice(3))
+  })
+  it('leaves the rows untouched when the header is already first or missing', () => {
+    const withHeader = [['fecha', 'concepto', 'importe'], ['2026-06-01', 'Compra', '-5']]
+    const noHeader = [['2026-06-01', 'Compra', '-5']]
+    expect(dropPreamble(withHeader)).toBe(withHeader)
+    expect(dropPreamble(noHeader)).toBe(noHeader)
   })
 })

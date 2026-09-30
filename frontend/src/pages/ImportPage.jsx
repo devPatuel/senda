@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { listCategories } from '../api/categories'
 import { previewImport, commitImport } from '../api/imports'
 import { listSpaces } from '../api/spaces'
-import { parseCsv, parseDate, parseAmount } from '../lib/csv'
+import { parseCsv, parseDate, parseAmount, dropPreamble, HEADER_PATTERNS } from '../lib/csv'
+import { readXlsx } from '../lib/xlsx'
 import { formatCurrency, formatDate } from '../lib/format'
 import { FormError } from '../components/form'
 import { ErrorState, Notice, SelectField } from '../components/ui'
@@ -14,10 +15,15 @@ function guessColumns(header) {
     return i === -1 ? null : i
   }
   return {
-    date: find(/fecha|date/i) ?? 0,
-    description: find(/concepto|descrip|detalle|description|movimiento/i) ?? 1,
-    amount: find(/importe|amount|cantidad|monto|cargo/i) ?? 2,
+    date: find(HEADER_PATTERNS.date) ?? 0,
+    description: find(HEADER_PATTERNS.description) ?? 1,
+    amount: find(HEADER_PATTERNS.amount) ?? 2,
   }
+}
+
+async function readRows(file) {
+  const rows = /\.xlsx$/i.test(file.name) ? await readXlsx(file) : parseCsv(await file.text())
+  return dropPreamble(rows)
 }
 
 export default function ImportPage() {
@@ -90,8 +96,14 @@ export default function ImportPage() {
     setResult(null)
     setPreview(null)
     setFileName(file.name)
-    const text = await file.text()
-    const parsed = parseCsv(text)
+    let parsed
+    try {
+      parsed = await readRows(file)
+    } catch {
+      setError('No se ha podido leer el archivo. Comprueba que sea un CSV o un Excel (.xlsx).')
+      setRows(null)
+      return
+    }
     if (parsed.length === 0) {
       setError('El archivo está vacío o no se ha podido leer.')
       setRows(null)
@@ -144,6 +156,12 @@ export default function ImportPage() {
     setPreview((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)))
   }
 
+  function setAllIncluded(include) {
+    setPreview((prev) => prev.map((r) => ({ ...r, include })))
+  }
+
+  const includedCount = (preview ?? []).filter((r) => r.include).length
+  const allIncluded = preview !== null && preview.length > 0 && includedCount === preview.length
   const importable = (preview ?? []).filter((r) => r.include && r.categoryId)
   const includedWithoutCategory = (preview ?? []).some((r) => r.include && !r.categoryId)
 
@@ -197,11 +215,11 @@ export default function ImportPage() {
             </SelectField>
           </div>
         )}
-        <label className="block text-sm font-medium text-slate-700">Archivo CSV</label>
+        <label className="block text-sm font-medium text-slate-700">Archivo CSV o Excel</label>
         <input
           type="file"
-          accept=".csv,text/csv"
-          aria-label="Archivo CSV"
+          accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          aria-label="Archivo CSV o Excel"
           onChange={handleFile}
           className="mt-2 block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-emerald-700"
         />
@@ -275,6 +293,24 @@ export default function ImportPage() {
           ) : (
             <>
               <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <li className="flex items-center justify-between gap-3 bg-slate-50 px-4 py-2">
+                  <label className="flex cursor-pointer items-center gap-3 text-sm font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={allIncluded}
+                      // Partial selection shows as a dash; the DOM only exposes it as a property
+                      ref={(el) => {
+                        if (el) el.indeterminate = includedCount > 0 && !allIncluded
+                      }}
+                      onChange={(e) => setAllIncluded(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
+                    />
+                    Seleccionar todo
+                  </label>
+                  <span className="text-xs text-slate-500">
+                    {includedCount} de {preview.length} seleccionados
+                  </span>
+                </li>
                 {preview.map((r, i) => {
                   const options = categories.filter((c) => c.type === r.type)
                   return (

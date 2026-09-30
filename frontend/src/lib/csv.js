@@ -4,6 +4,29 @@
 // - Dates: ISO (YYYY-MM-DD) or dd/mm/yyyy
 // - Amounts: dot or comma decimals, thousands separators, minus or (parentheses)
 
+// How banks title the columns we need, shared by column guessing and header detection.
+export const HEADER_PATTERNS = {
+  date: /fecha|date/i,
+  description: /concepto|descrip|detalle|description|movimiento/i,
+  amount: /importe|amount|cantidad|monto|cargo/i,
+}
+
+/**
+ * Bank exports often put account details (IBAN, holder, balance) above the
+ * table. Returns the rows starting at the header: the first row naming both a
+ * date and an amount column. Rows are returned untouched if there is none.
+ * @param {string[][]} rows
+ * @returns {string[][]}
+ */
+export function dropPreamble(rows) {
+  const start = rows.findIndex(
+    (cells) =>
+      cells.some((c) => HEADER_PATTERNS.date.test(c)) &&
+      cells.some((c) => HEADER_PATTERNS.amount.test(c)),
+  )
+  return start > 0 ? rows.slice(start) : rows
+}
+
 export function detectSeparator(line) {
   const semis = (line.match(/;/g) || []).length
   const commas = (line.match(/,/g) || []).length
@@ -97,7 +120,9 @@ export function parseAmount(raw) {
     neg = true
     s = s.slice(1, -1)
   }
-  s = s.replace(/[€$\s]/g, '')
+  // Excel exports write negatives with the typographic minus (U+2212), which
+  // Number() rejects: without this every expense row would be silently skipped.
+  s = s.replace(/[€$\s]/g, '').replace(/−/g, '-')
   if (s.startsWith('-')) {
     neg = true
     s = s.slice(1)
