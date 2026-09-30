@@ -81,9 +81,8 @@ public class TransactionService {
     }
 
     /**
-     * Quick capture (Apple Shortcut): always a personal EXPENSE dated today. When
-     * no category is given, it is resolved from the user's category rules against
-     * the description; if none match, a 400 asks for an explicit category or rule.
+     * Quick capture (Apple Shortcut): always a personal EXPENSE dated today, filed
+     * under the category the caller names (one of the user's personal categories).
      */
     @Transactional
     public TransactionResponse quickCreate(Long userId, QuickTransactionRequest request) {
@@ -95,8 +94,18 @@ public class TransactionService {
     }
 
     private Category resolveQuickCategory(Long userId, QuickTransactionRequest request) {
-        return categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(request.categoryId(), userId)
+        Category category = categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(request.categoryId(), userId)
                 .orElseThrow(() -> new NotFoundException("Category not found"));
+        // Same rules as a regular create: the request carries no type to compare,
+        // so the fixed EXPENSE type is what the category must match.
+        if (!category.isActive()) {
+            throw new ConflictException("Category is inactive");
+        }
+        if (category.getType() != TransactionType.EXPENSE) {
+            throw new InvalidTransactionException("Quick capture is always an expense; category type is "
+                    + category.getType());
+        }
+        return category;
     }
 
     @Transactional(readOnly = true)
