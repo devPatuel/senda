@@ -206,6 +206,28 @@ describe('ImportPage', () => {
     )
   })
 
+  it('says how many rows of the file it could not read', async () => {
+    previewImport.mockResolvedValue([
+      { date: '2026-06-01', description: 'Compra', amount: 20.5, type: 'EXPENSE', duplicate: false },
+    ])
+    const user = userEvent.setup()
+    renderPage()
+
+    const csv = [
+      'fecha;concepto;importe',
+      '2026-06-01;Compra;-20,50',
+      '1 jun 2026;Fecha ilegible;-5,00',
+      '2026-06-02;Importe ilegible;pendiente',
+      ';;',
+    ].join('\n')
+    await user.upload(screen.getByLabelText('Archivo CSV o Excel'), new File([csv], 'extracto.csv'))
+    await screen.findByText('Asigna las columnas')
+    await user.click(screen.getByRole('button', { name: 'Previsualizar' }))
+
+    // The empty row is not a movement, so it does not count as unread
+    expect(await screen.findByText(/2 fila\(s\) del archivo no se han podido leer/)).toBeInTheDocument()
+  })
+
   it('explains that a file it cannot read is not imported', async () => {
     readXlsx.mockRejectedValue(new Error('not a spreadsheet'))
     const user = userEvent.setup()

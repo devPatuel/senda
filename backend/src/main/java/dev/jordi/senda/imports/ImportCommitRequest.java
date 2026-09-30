@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-public record ImportCommitRequest(Long spaceId, @NotEmpty @Valid List<Row> rows) {
+public record ImportCommitRequest(Long spaceId, @NotEmpty @Size(max = ImportService.MAX_ROWS) @Valid List<Row> rows) {
 
     /**
      * One confirmed row to import: a positive amount, an explicit type and the

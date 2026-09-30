@@ -26,10 +26,9 @@ export function cellsToStrings(rows) {
  */
 export async function readXlsx(file) {
   // Loaded on demand: only users who import an Excel file pay for the parser.
-  // Known limit: sheets whose XML exceeds ~320 KB (well over a thousand rows)
-  // are unzipped in a worker created from a blob: URL, which the production CSP
-  // (script-src 'self') blocks. Statements that large fail to read until the CSP
-  // gains `worker-src 'self' blob:`; ordinary monthly statements stay far below.
+  // Sheets whose XML exceeds ~320 KB (well over a thousand rows) are unzipped in
+  // a worker created from a blob: URL; the production CSP allows it with
+  // `worker-src 'self' blob:` (frontend/nginx.conf).
   const { readSheet } = await import('read-excel-file/browser')
   // Numeric cells stay as the text stored in the file, so parseAmount reads
   // them exactly as it would read a CSV cell.
