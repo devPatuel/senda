@@ -352,7 +352,7 @@ React + Vite + Tailwind con componentes propios, en JavaScript sin TypeScript
 | [0003](adr/0003-flyway-desde-dia-1.md) | Flyway desde el día 1 |
 | [0004](adr/0004-paginacion-en-servidor.md) | Paginación en servidor desde el día 1 |
 | [0005](adr/0005-javascript-sin-typescript.md) | JavaScript sin TypeScript en el frontend |
-| [0006](adr/0006-spring-boot-3.md) | Spring Boot 3.5.15 y no 4.x |
+| [0006](adr/0006-spring-boot-3.md) | Spring Boot 3.5.x y no 4.x |
 | [0007](adr/0007-precios-inversion-cripto-auto-resto-manual.md) | Precios: cripto automática (CoinGecko), metales y fondos manuales |
 | [0008](adr/0008-coste-medio-ponderado-compras.md) | Coste medio ponderado en las compras de inversiones |
 | [0009](adr/0009-reparto-sobres-suma-100.md) | Reparto de sueldo: los sobres suman exactamente 100% |
