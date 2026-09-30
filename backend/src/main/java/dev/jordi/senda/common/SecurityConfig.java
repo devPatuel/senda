@@ -7,7 +7,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -48,13 +50,22 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // Listed before the public /api/auth/** rule: it needs a session
+                        .requestMatchers("/api/auth/password").hasRole("USER")
                         .requestMatchers("/api/auth/**").permitAll()
                         // Unauthenticated on purpose: Docker healthchecks have no JWT.
                         // It only leaks UP/DOWN (details require authorization), and the
                         // backend port is not published to the host in production.
                         .requestMatchers("/actuator/health").permitAll()
-                        .anyRequest().authenticated())
-                .exceptionHandling(handling -> handling.authenticationEntryPoint(this::writeUnauthorized))
+                        // A personal access token lives in a shortcut or a script, so it
+                        // only gets what capturing an expense needs: picking a category
+                        // and creating the movement. Anything else requires logging in.
+                        .requestMatchers(HttpMethod.POST, "/api/transactions/quick").hasAnyRole("USER", "TOKEN")
+                        .requestMatchers(HttpMethod.GET, "/api/categories").hasAnyRole("USER", "TOKEN")
+                        .anyRequest().hasRole("USER"))
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(this::writeUnauthorized)
+                        .accessDeniedHandler(this::writeForbidden))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
@@ -66,6 +77,15 @@ public class SecurityConfig {
         response.setCharacterEncoding("UTF-8");
         objectMapper.writeValue(response.getWriter(),
                 ErrorResponse.of(401, "Unauthorized", "Authentication required"));
+    }
+
+    private void writeForbidden(HttpServletRequest request, HttpServletResponse response,
+                                AccessDeniedException exception) throws IOException {
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding("UTF-8");
+        objectMapper.writeValue(response.getWriter(),
+                ErrorResponse.of(403, "Forbidden", "This credential cannot access this resource"));
     }
 
     @Bean

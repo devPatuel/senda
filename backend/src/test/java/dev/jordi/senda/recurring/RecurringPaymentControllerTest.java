@@ -1,5 +1,7 @@
 package dev.jordi.senda.recurring;
 
+import dev.jordi.senda.user.UserRepository;
+import java.util.Optional;
 import dev.jordi.senda.common.GlobalExceptionHandler;
 import dev.jordi.senda.common.JwtAuthFilter;
 import dev.jordi.senda.apitoken.ApiTokenService;
@@ -37,6 +39,9 @@ class RecurringPaymentControllerTest {
     @MockitoBean
     private ApiTokenService apiTokenService;
 
+    @MockitoBean
+    private UserRepository userRepository;
+
     private static final Long USER_ID = 1L;
 
     @Autowired
@@ -52,6 +57,8 @@ class RecurringPaymentControllerTest {
 
     @BeforeEach
     void setUp() {
+        // The filter checks the token version against the stored one
+        when(userRepository.findTokenVersionById(USER_ID)).thenReturn(Optional.of(0));
         bearer = "Bearer " + jwtService.generateToken(USER_ID);
     }
 

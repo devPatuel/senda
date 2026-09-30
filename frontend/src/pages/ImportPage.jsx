@@ -21,6 +21,9 @@ function guessColumns(header) {
   }
 }
 
+// Same cap as the API (ImportService.MAX_ROWS)
+const MAX_ROWS = 5000
+
 async function readRows(file) {
   const rows = /\.xlsx$/i.test(file.name) ? await readXlsx(file) : parseCsv(await file.text())
   return dropPreamble(rows)
@@ -36,6 +39,7 @@ export default function ImportPage() {
   const [hasHeader, setHasHeader] = useState(true)
   const [mapping, setMapping] = useState({ date: 0, description: 1, amount: 2 })
   const [preview, setPreview] = useState(null) // [{...row, categoryId, include}]
+  const [unreadCount, setUnreadCount] = useState(0)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState(null)
@@ -116,22 +120,36 @@ export default function ImportPage() {
   function buildInputs() {
     const dataRows = hasHeader ? rows.slice(1) : rows
     const inputs = []
+    let unread = 0
     for (const cells of dataRows) {
       const date = parseDate(cells[mapping.date] ?? '')
       const amount = parseAmount(cells[mapping.amount] ?? '')
       const description = (cells[mapping.description] ?? '').trim() || null
-      // Skip rows we cannot read or that net to zero
-      if (!date || Number.isNaN(amount) || amount === 0) continue
+      if (!date || Number.isNaN(amount)) {
+        // Counted so the user learns the statement was not fully read; empty
+        // rows (separators, trailing blanks) are not movements and stay silent
+        if (cells.some((c) => String(c ?? '').trim() !== '')) unread++
+        continue
+      }
+      // A row that nets to zero moves no money
+      if (amount === 0) continue
       inputs.push({ date, description, amount })
     }
-    return inputs
+    return { inputs, unread }
   }
 
   async function handlePreview() {
     setError(null)
-    const inputs = buildInputs()
+    const { inputs, unread } = buildInputs()
+    setUnreadCount(unread)
     if (inputs.length === 0) {
       setError('No se han podido leer filas con la asignación de columnas elegida.')
+      return
+    }
+    if (inputs.length > MAX_ROWS) {
+      setError(
+        `El archivo tiene ${inputs.length} movimientos y el máximo por importación es ${MAX_ROWS}. Divídelo en varios archivos.`,
+      )
       return
     }
     setBusy(true)
@@ -292,6 +310,12 @@ export default function ImportPage() {
             <ErrorState message="No hay filas para importar." />
           ) : (
             <>
+              {unreadCount > 0 && (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+                  {unreadCount} fila(s) del archivo no se han podido leer y no aparecen aquí: revisa
+                  que la fecha y el importe estén en las columnas elegidas.
+                </p>
+              )}
               <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
                 <li className="flex items-center justify-between gap-3 bg-slate-50 px-4 py-2">
                   <label className="flex cursor-pointer items-center gap-3 text-sm font-medium text-slate-700">

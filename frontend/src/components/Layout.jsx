@@ -35,6 +35,12 @@ const ICONS = {
   cuentas: svg('M3 21h18', 'M5 21V9l7-5 7 5v12', 'M9 21v-6h6v6'),
   inversiones: svg('M3 17l6-6 4 4 8-8', 'M17 7h4v4'),
   deudas: svg('M16 8a6 6 0 1 0-8 5.66', 'M12 6v6l3 2', 'M16 16h6', 'M19 13v6'),
+  contrasena: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
+  ),
   tokens: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
       <circle cx="12" cy="12" r="3" />
@@ -79,6 +85,7 @@ const NAV_GROUPS = [
 ]
 
 const TOKENS_ITEM = { to: '/tokens', label: 'Tokens', icon: ICONS.tokens }
+const PASSWORD_ITEM = { to: '/contrasena', label: 'Contraseña', icon: ICONS.contrasena }
 
 const STORAGE_KEY = 'senda_sidebar_collapsed'
 
@@ -148,6 +155,7 @@ function SidebarFooter({ collapsed, user, logout, onNavigate }) {
   return (
     <div className="border-t border-slate-200 px-2 py-2">
       <SidebarLink item={TOKENS_ITEM} collapsed={collapsed} onNavigate={onNavigate} />
+      <SidebarLink item={PASSWORD_ITEM} collapsed={collapsed} onNavigate={onNavigate} />
       <div className={`flex items-center gap-2 px-3 py-2 ${collapsed ? 'justify-center' : 'justify-between'}`}>
         {!collapsed && <span className="truncate text-sm text-slate-500">{user?.name}</span>}
         <button

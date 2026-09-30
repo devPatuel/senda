@@ -6,6 +6,14 @@ import { Field, FormError, SubmitButton } from '../components/form'
 import { ConfirmDialog, EmptyState, ErrorState, LoadingState, Modal, Notice } from '../components/ui'
 import { formatCurrency } from '../lib/format'
 
+// The API only stores http(s) links; an address pasted without the scheme
+// ("tienda.com/silla") is assumed to be https rather than rejected.
+function webAddress(raw) {
+  const value = raw.trim()
+  if (!value) return null
+  return /^https?:\/\//i.test(value) ? value : `https://${value}`
+}
+
 function WishModal({ item, onClose, onSaved }) {
   const [form, setForm] = useState({
     name: item?.name ?? '',
@@ -30,8 +38,8 @@ function WishModal({ item, onClose, onSaved }) {
     try {
       const payload = {
         name: form.name.trim(),
-        imageUrl: form.imageUrl.trim() || null,
-        productUrl: form.productUrl.trim() || null,
+        imageUrl: webAddress(form.imageUrl),
+        productUrl: webAddress(form.productUrl),
         comment: form.comment.trim() || null,
         price: form.price === '' ? null : Number(form.price),
         priority: form.priority === '' ? null : Number(form.priority),

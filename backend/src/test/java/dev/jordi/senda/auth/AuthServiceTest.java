@@ -27,6 +27,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -70,7 +71,7 @@ class AuthServiceTest {
         when(userRepository.existsByEmail("jordi@example.com")).thenReturn(false);
         when(passwordEncoder.encode("password123")).thenReturn("hashed");
         when(userRepository.save(any(User.class))).thenReturn(savedUser());
-        when(jwtService.generateToken(7L)).thenReturn("jwt-token");
+        when(jwtService.generateToken(7L, 0)).thenReturn("jwt-token");
 
         AuthResponse response = authService.register(request);
 
@@ -134,7 +135,7 @@ class AuthServiceTest {
     void loginWithValidCredentialsReturnsTokenAndUser() {
         when(userRepository.findByEmail("jordi@example.com")).thenReturn(Optional.of(savedUser()));
         when(passwordEncoder.matches("password123", "hashed")).thenReturn(true);
-        when(jwtService.generateToken(7L)).thenReturn("jwt-token");
+        when(jwtService.generateToken(7L, 0)).thenReturn("jwt-token");
 
         AuthResponse response = authService.login(new LoginRequest("jordi@example.com", "password123"));
 
@@ -157,5 +158,16 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> authService.login(new LoginRequest("nobody@example.com", "password123")))
                 .isInstanceOf(BadCredentialsException.class);
+    }
+
+    @Test
+    void loginWithUnknownEmailStillPaysForAPasswordCheck() {
+        when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest("nobody@example.com", "password123")))
+                .isInstanceOf(BadCredentialsException.class);
+
+        // Without this the response time tells an attacker which emails have an account
+        verify(passwordEncoder).matches(eq("password123"), any());
     }
 }

@@ -44,6 +44,11 @@ describe('Layout sidebar', () => {
     }
   })
 
+  it('enlaza el cambio de contraseña en el pie', () => {
+    renderLayout()
+    expect(screen.getAllByRole('link', { name: /Contraseña/i })[0]).toHaveAttribute('href', '/contrasena')
+  })
+
   it('enlaza la pantalla de Tokens en el pie', () => {
     renderLayout()
     expect(screen.getAllByRole('link', { name: /Tokens/i })[0]).toHaveAttribute('href', '/tokens')

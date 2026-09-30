@@ -126,7 +126,8 @@ public class CategoryService {
     /**
      * Budget overview: each active expense category with its envelope balance and
      * this month's spend, plus the summary. "To assign" is derived as
-     * {@code totalAccounts - totalAssigned}, so the total-vs-categories invariant
+     * {@code totalAccounts - totalAvailable} (see {@link CategoryBudgetResponse}
+     * for why not {@code totalAssigned}), so the total-vs-categories invariant
      * always holds. {@code totalAssigned} sums ALL of the user's category balances
      * (including inactive ones, whose money is still assigned).
      */

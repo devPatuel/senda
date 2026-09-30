@@ -123,7 +123,8 @@ export default function TokensPage() {
       <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Tokens</h1>
       <p className="text-sm text-slate-500">
         Genera un token personal para capturar gastos desde el iPhone (Apple Shortcut) sin abrir la
-        app. Trátalo como una contraseña: si pierdes el móvil, revócalo aquí.
+        app. Solo sirve para eso: con él se pueden leer tus categorías y apuntar un gasto, pero no
+        ver tus movimientos ni tocar nada más. Aun así, si pierdes el móvil, revócalo aquí.
       </p>
 
       {actionError && (

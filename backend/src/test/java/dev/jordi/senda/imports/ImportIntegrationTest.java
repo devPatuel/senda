@@ -76,6 +76,14 @@ class ImportIntegrationTest {
                 .content(json));
     }
 
+    @Test
+    void rejectsMoreRowsThanTheLimit() throws Exception {
+        String row = "{\"date\":\"" + today + "\",\"description\":\"x\",\"amount\":-1.00}";
+        String tooMany = "{\"rows\":[" + String.join(",", java.util.Collections.nCopies(5_001, row)) + "]}";
+
+        preview(tooMany).andExpect(status().isBadRequest());
+    }
+
     // Cross-tenant: user B cannot commit an import that references user A's category.
     @Test
     void commitCannotUseAnotherUsersCategory() throws Exception {

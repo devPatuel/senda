@@ -17,6 +17,13 @@ import java.util.List;
 @Service
 public class ImportService {
 
+    /**
+     * Rows accepted per request. Each row costs a duplicate lookup, so an unbounded
+     * list would let one request keep the database busy; several years of a
+     * personal statement fit well below this.
+     */
+    static final int MAX_ROWS = 5_000;
+
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
     private final SpaceAccess spaceAccess;

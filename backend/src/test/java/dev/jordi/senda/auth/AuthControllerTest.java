@@ -1,5 +1,6 @@
 package dev.jordi.senda.auth;
 
+import dev.jordi.senda.user.UserRepository;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.ForbiddenException;
 import dev.jordi.senda.common.GlobalExceptionHandler;
@@ -30,6 +31,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private ApiTokenService apiTokenService;
+
+    @MockitoBean
+    private UserRepository userRepository;
 
     @Autowired
     private MockMvc mockMvc;

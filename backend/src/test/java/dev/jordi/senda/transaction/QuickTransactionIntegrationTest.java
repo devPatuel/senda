@@ -64,13 +64,30 @@ class QuickTransactionIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void quickAddWithAnIncomeCategoryReturns400() throws Exception {
+        String token = registerAndGetToken("quick-income@test.dev");
+        long incomeCategory = createCategory(token, "Nomina quick", "INCOME");
+
+        // A quick capture is always an expense: it must not be filed under income
+        mvc.perform(post("/api/transactions/quick")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"amount\":10,\"description\":\"x\",\"categoryId\":" + incomeCategory + "}"))
+                .andExpect(status().isBadRequest());
+    }
+
     private long createCategory(String token, String name) throws Exception {
+        return createCategory(token, name, "EXPENSE");
+    }
+
+    private long createCategory(String token, String name, String type) throws Exception {
         String body = mvc.perform(post("/api/categories")
                         .header("Authorization", "Bearer " + token)
                         .contentType(APPLICATION_JSON)
                         .content("""
-                                {"name": "%s", "type": "EXPENSE", "color": "#FF8800"}
-                                """.formatted(name)))
+                                {"name": "%s", "type": "%s", "color": "#FF8800"}
+                                """.formatted(name, type)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return mapper.readTree(body).get("id").asLong();

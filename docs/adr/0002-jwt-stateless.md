@@ -20,5 +20,9 @@ El frontend guarda el token en `localStorage` y lo adjunta como `Authorization: 
 - (+) El backend no guarda estado de sesión: simple, escalable y natural para una API REST + SPA.
 - (+) El `user_id` viaja firmado en el token; toda consulta filtra por él, nunca por parámetros del cliente.
 - (−) Un JWT no se puede revocar antes de expirar; mitigado con expiración corta (24 h).
+  **Actualización 2026-09-30:** el token lleva una versión (`ver`) que el filtro compara con
+  `users.token_version`; cambiar la contraseña la sube y cierra todas las sesiones
+  anteriores. Cuesta una consulta por petición, así que la autenticación ya no es
+  estrictamente sin estado. Sigue sin haber revocación de una sesión suelta.
 - (−) `localStorage` es accesible desde JS (riesgo si hubiera XSS); asumido en Fase 1, revisable (cookie httpOnly) más adelante.
 - (−) Sin refresh tokens, el usuario vuelve a hacer login cada 24 h (aceptable para uso personal).

@@ -7,6 +7,10 @@ senda:
     # No default on purpose: a committed secret would let anyone forge tokens for a local
     # install holding real data. start.command reads it from ~/Documents/Senda/jwt-secret.
     secret: ${SENDA_JWT_SECRET}
+server:
+  # Loopback only: this profile runs on a laptop with open sign-up, and binding to
+  # every interface would offer the API to the whole network it is connected to.
+  address: 127.0.0.1
 spring:
   flyway:
     # The local database is shared by every git worktree, so it may hold migrations
