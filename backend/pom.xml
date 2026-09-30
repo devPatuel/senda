@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.15</version>
+		<version>3.5.16</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>dev.jordi</groupId>
@@ -29,6 +29,13 @@
 	<properties>
 		<java.version>21</java.version>
 		<jjwt.version>0.12.6</jjwt.version>
+		<!-- Security overrides: newer than what Spring Boot 3.5.16 manages, to pick up
+		     fixes it has not adopted yet (checked against OSV on 2026-09-30). Remove each
+		     line once the Boot release in use manages that version or a later one. -->
+		<tomcat.version>10.1.60</tomcat.version>
+		<jackson-bom.version>2.21.7</jackson-bom.version>
+		<postgresql.version>42.7.13</postgresql.version>
+		<log4j2.version>2.25.5</log4j2.version>
 	</properties>
 	<dependencies>
 		<dependency>

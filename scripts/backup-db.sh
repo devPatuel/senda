@@ -25,6 +25,9 @@ DEST_DIR="${1:-$HOME/Documents/Senda/backups}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 OUT="$DEST_DIR/senda-$STAMP.sql.gz"
 
+# A dump holds every account, movement and password hash: owner-only, both the
+# folder and the files created from here on
+umask 077
 mkdir -p "$DEST_DIR"
 
 echo "Volcando la base 'senda' a $OUT ..."
