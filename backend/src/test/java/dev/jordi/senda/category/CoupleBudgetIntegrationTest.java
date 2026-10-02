@@ -85,6 +85,19 @@ class CoupleBudgetIntegrationTest {
                 .andExpect(status().isCreated());
     }
 
+    // Money reaches a space through its movements (a contribution here), not
+    // through the hand-edited balance of its account.
+    private void contribute(String token, long spaceId, String amount) throws Exception {
+        long income = categoryId(token, spaceId, "Otros ingresos");
+        mockMvc.perform(post("/api/transactions")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"categoryId": %d, "type": "INCOME", "amount": %s, "date": "%s", "spaceId": %d}
+                                """.formatted(income, amount, java.time.LocalDate.now(), spaceId)))
+                .andExpect(status().isCreated());
+    }
+
     private long categoryId(String token, Long spaceId, String name) throws Exception {
         String url = "/api/categories" + (spaceId == null ? "" : "?spaceId=" + spaceId);
         String body = mockMvc.perform(get(url).header("Authorization", "Bearer " + token))
@@ -141,7 +154,7 @@ class CoupleBudgetIntegrationTest {
     void assignToCoupleCategoryFundedByCoupleAccounts() throws Exception {
         String tokenA = register("a@example.com", "User A");
         long spaceId = createSpace(tokenA, "Pareja");
-        createAccount(tokenA, "Común", "300.00", spaceId);
+        contribute(tokenA, spaceId, "300.00");
         long comida = categoryId(tokenA, spaceId, "Comida");
 
         String initial = budget(tokenA, spaceId);
@@ -165,7 +178,7 @@ class CoupleBudgetIntegrationTest {
         invite(tokenA, spaceId, "b@example.com");
         accept(tokenB, spaceId);
 
-        createAccount(tokenA, "Común", "300.00", spaceId);
+        contribute(tokenA, spaceId, "300.00");
         long comidaA = categoryId(tokenA, spaceId, "Comida");
         assign(tokenA, comidaA, "120.00", spaceId);
 
@@ -186,7 +199,7 @@ class CoupleBudgetIntegrationTest {
         String tokenA = register("a@example.com", "User A");
         long spaceId = createSpace(tokenA, "Pareja");
         createAccount(tokenA, "Personal", "1000.00", null);
-        createAccount(tokenA, "Común", "300.00", spaceId);
+        contribute(tokenA, spaceId, "300.00");
         long coupleComida = categoryId(tokenA, spaceId, "Comida");
         assign(tokenA, coupleComida, "120.00", spaceId);
 

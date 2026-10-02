@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -123,6 +124,19 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             group by t.category.id
             """)
     List<CategorySpent> sumExpenseByCategoryAllTimeForSpace(@Param("spaceId") Long spaceId);
+
+    /**
+     * Money left in a space according to its movements: everything that came in
+     * (contributions included) minus everything that went out. Null when the space
+     * has no movements.
+     */
+    @Query("""
+            select sum(case when t.type = dev.jordi.senda.common.TransactionType.INCOME
+                            then t.amount else -t.amount end)
+            from Transaction t
+            where t.spaceId = :spaceId
+            """)
+    BigDecimal netBalanceForSpace(@Param("spaceId") Long spaceId);
 
     /**
      * Per-(year, month, type) totals from {@code from} onward, aggregated in the

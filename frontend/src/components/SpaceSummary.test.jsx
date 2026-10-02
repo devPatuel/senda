@@ -152,4 +152,22 @@ describe('SpaceSummary', () => {
 
     expect(await screen.findByText(/Sin gastos este mes/i)).toBeInTheDocument()
   })
+
+  it('shows the contributed money still waiting for an envelope and leads to assign it', async () => {
+    const onAssign = vi.fn()
+    render(<SpaceSummary spaceId={7} onAssign={onAssign} />)
+
+    const toAssign = await screen.findByTestId('to-assign')
+    expect(within(toAssign).getByText(visibleCurrency(1002.35))).toBeInTheDocument()
+    await userEvent.click(within(toAssign).getByRole('button', { name: /repartir/i }))
+    expect(onAssign).toHaveBeenCalled()
+  })
+
+  it('hides the to-assign notice when every euro already has an envelope', async () => {
+    getBudget.mockResolvedValue({ ...BUDGET, toAssign: 0 })
+    render(<SpaceSummary spaceId={7} />)
+
+    await screen.findAllByTestId('category-bar')
+    expect(screen.queryByTestId('to-assign')).not.toBeInTheDocument()
+  })
 })

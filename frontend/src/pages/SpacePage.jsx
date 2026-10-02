@@ -306,7 +306,7 @@ function SpaceResources({ spaceId }) {
         ))}
       </div>
 
-      {activeTab === 'resumen' && <SpaceSummary spaceId={spaceId} />}
+      {activeTab === 'resumen' && <SpaceSummary spaceId={spaceId} onAssign={() => setActiveTab('categorias')} />}
       {activeTab === 'cuentas' && <AccountsPage spaceId={spaceId} />}
       {activeTab === 'categorias' && <CategoriesPage spaceId={spaceId} />}
       {activeTab === 'movimientos' && <TransactionsPage spaceId={spaceId} />}

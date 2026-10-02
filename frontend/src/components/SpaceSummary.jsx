@@ -34,7 +34,7 @@ function Stat({ label, value, hint, tone = 'neutral' }) {
   )
 }
 
-export default function SpaceSummary({ spaceId }) {
+export default function SpaceSummary({ spaceId, onAssign }) {
   const [{ year, month }, setYearMonth] = useState(currentYearMonth)
   const [summary, setSummary] = useState(null)
   const [balance, setBalance] = useState(null)
@@ -202,9 +202,56 @@ export default function SpaceSummary({ spaceId }) {
 
       <MonthComparison year={year} month={month} spaceId={spaceId} />
 
+      {budget && Number(budget.toAssign) !== 0 && (
+        <ToAssignNotice amount={Number(budget.toAssign)} onAssign={onAssign} />
+      )}
+
       {budget && <CategoryAvailability spaceId={spaceId} budget={budget} />}
 
       <YearOverview year={year} spaceId={spaceId} />
     </div>
+  )
+}
+
+// Contributions land here first: money that is in the space but in no envelope
+// yet. Negative means the envelopes promise more than was ever contributed.
+function ToAssignNotice({ amount, onAssign }) {
+  const negative = amount < 0
+  return (
+    <section
+      data-testid="to-assign"
+      className={[
+        'flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-5',
+        negative ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50',
+      ].join(' ')}
+    >
+      <div>
+        <p className={['text-xs', negative ? 'text-red-700' : 'text-emerald-700'].join(' ')}>
+          {negative ? 'Asignado de más' : 'Por asignar'}
+        </p>
+        <p
+          className={[
+            'mt-1 text-xl font-semibold tabular-nums',
+            negative ? 'text-red-600' : 'text-emerald-700',
+          ].join(' ')}
+        >
+          {formatCurrency(amount)}
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          {negative
+            ? 'Los sobres guardan más de lo que habéis aportado: saca dinero de alguno.'
+            : 'Aportado que todavía no está en ninguna categoría.'}
+        </p>
+      </div>
+      {onAssign && (
+        <button
+          type="button"
+          onClick={onAssign}
+          className="rounded-lg bg-emerald-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
+        >
+          Repartir en categorías
+        </button>
+      )}
+    </section>
   )
 }

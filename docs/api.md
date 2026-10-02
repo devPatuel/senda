@@ -222,7 +222,12 @@ Los tres devuelven el presupuesto completo, para refrescar la pantalla de una ve
   esos negativos es `overspent`.
 - `toAssign = totalAccounts − totalAvailable`: el dinero de las cuentas que aún no está
   en ningún sobre. Puede ser negativo si los sobres guardan más de lo que hay.
-- Los traspasos no cuentan en ninguna de estas cifras.
+- En un espacio, `totalAccounts` no es el saldo de sus cuentas (que solo se edita a mano)
+  sino lo que dejan sus movimientos: todo lo que entra, aportaciones incluidas, menos todo
+  lo que sale. Así cada aportación aparece sola en `toAssign`. Supone que la cuenta común
+  empezó a cero con el espacio.
+- Los traspasos no cuentan como gasto de ningún sobre. En un espacio sí entran en
+  `totalAccounts`: una aportación es dinero que llega a la cuenta común.
 
 ---
 

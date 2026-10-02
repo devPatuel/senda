@@ -4,6 +4,7 @@ import dev.jordi.senda.account.AccountRepository;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.NotFoundException;
 import dev.jordi.senda.common.TransactionType;
+import dev.jordi.senda.transaction.CategorySpent;
 import dev.jordi.senda.space.SpaceAccess;
 import dev.jordi.senda.transaction.TransactionRepository;
 import org.junit.jupiter.api.Test;
@@ -321,13 +322,37 @@ class CategoryServiceTest {
         when(categoryRepository.findBySpaceId(7L)).thenReturn(List.of(cat));
         when(categoryBalanceRepository.findByCategoryIdIn(List.of(3L))).thenReturn(List.of());
         when(transactionRepository.sumExpenseByCategoryForSpace(eq(7L), any(), any())).thenReturn(List.of());
-        when(accountRepository.sumActiveBalanceBySpaceIds(List.of(7L))).thenReturn(new BigDecimal("300.00"));
+        when(transactionRepository.netBalanceForSpace(7L)).thenReturn(new BigDecimal("300.00"));
 
         CategoryBudgetResponse budget = categoryService.budget(USER_ID, 7L);
 
         verify(spaceAccess).assertActiveMember(USER_ID, 7L);
         assertThat(budget.totalAccounts()).isEqualByComparingTo("300.00");
         assertThat(budget.categories()).hasSize(1);
+    }
+
+    @Test
+    void budgetForSpaceTakesMoneyFromMovementsNotFromTheManualAccountBalance() {
+        // 815 contributed, 77.89 spent on groceries, 500 assigned to groceries.
+        // The joint account balance was never updated by hand, so it must not matter.
+        Category groceries = new Category(USER_ID, "Súper", TransactionType.EXPENSE, "#EF4444");
+        ReflectionTestUtils.setField(groceries, "id", 3L);
+        groceries.setSpaceId(7L);
+        CategoryBalance envelope = new CategoryBalance(3L, USER_ID);
+        envelope.setBalance(new BigDecimal("500.00"));
+        when(categoryRepository.findBySpaceIdAndActiveTrue(7L)).thenReturn(List.of(groceries));
+        when(categoryRepository.findBySpaceId(7L)).thenReturn(List.of(groceries));
+        when(categoryBalanceRepository.findByCategoryIdIn(List.of(3L))).thenReturn(List.of(envelope));
+        when(transactionRepository.sumExpenseByCategoryForSpace(eq(7L), any(), any())).thenReturn(List.of());
+        when(transactionRepository.sumExpenseByCategoryAllTimeForSpace(7L))
+                .thenReturn(List.of(new CategorySpent(3L, new BigDecimal("77.89"))));
+        when(transactionRepository.netBalanceForSpace(7L)).thenReturn(new BigDecimal("737.11"));
+
+        CategoryBudgetResponse budget = categoryService.budget(USER_ID, 7L);
+
+        // contributed - assigned: the 315 still waiting for an envelope
+        assertThat(budget.toAssign()).isEqualByComparingTo("315.00");
+        verify(accountRepository, never()).sumActiveBalanceBySpaceIds(any());
     }
 
     @Test
@@ -342,7 +367,7 @@ class CategoryServiceTest {
         when(categoryRepository.findBySpaceId(7L)).thenReturn(List.of(cat));
         when(categoryBalanceRepository.findByCategoryIdIn(any())).thenReturn(List.of());
         when(transactionRepository.sumExpenseByCategoryForSpace(eq(7L), any(), any())).thenReturn(List.of());
-        when(accountRepository.sumActiveBalanceBySpaceIds(List.of(7L))).thenReturn(new BigDecimal("100.00"));
+        when(transactionRepository.netBalanceForSpace(7L)).thenReturn(new BigDecimal("100.00"));
 
         categoryService.assign(USER_ID, 3L, 7L, new AssignRequest(new BigDecimal("50.00")));
 

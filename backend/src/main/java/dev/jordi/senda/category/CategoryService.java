@@ -174,7 +174,10 @@ public class CategoryService {
                     .collect(Collectors.toMap(CategorySpent::categoryId, CategorySpent::spent));
             spentAllTime = transactionRepository.sumExpenseByCategoryAllTimeForSpace(spaceId).stream()
                     .collect(Collectors.toMap(CategorySpent::categoryId, CategorySpent::spent));
-            totalAccounts = accountRepository.sumActiveBalanceBySpaceIds(List.of(spaceId));
+            // A space's account balance is only edited by hand, so a new contribution
+            // would never reach "to assign". The movements are the source of truth here:
+            // the shared account started at zero together with the space.
+            totalAccounts = transactionRepository.netBalanceForSpace(spaceId);
         }
         if (totalAccounts == null) {
             totalAccounts = ZERO;
