@@ -20,6 +20,13 @@ describe('SpendingPace', () => {
     expect(screen.getByTestId('projected')).toHaveAttribute('data-value', '900')
   })
 
+  it('adds fixed spending once instead of extrapolating it', () => {
+    // 990 rent + 100 groceries by day 10: only the 100 keeps a daily pace -> 990 + 300
+    render(<SpendingPace spent={1090} fixed={990} assigned={1500} year={2026} month={9} />)
+
+    expect(screen.getByTestId('projected')).toHaveAttribute('data-value', '1290')
+  })
+
   it('warns when the projection overruns what is assigned', () => {
     render(<SpendingPace spent={500} assigned={1000} year={2026} month={9} />)
 

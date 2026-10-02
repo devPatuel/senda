@@ -193,6 +193,7 @@ export default function SpaceSummary({ spaceId }) {
       {budget && (
         <SpendingPace
           spent={totalExpense}
+          fixed={summary.fixedExpenseTotal}
           assigned={budget.totalAssigned}
           year={year}
           month={month}

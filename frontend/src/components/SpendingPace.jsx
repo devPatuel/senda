@@ -3,7 +3,7 @@
 // projects to 1500 against 1000 assigned is what lets you change course.
 import { formatCurrency } from '../lib/format'
 
-export default function SpendingPace({ spent, assigned, year, month }) {
+export default function SpendingPace({ spent, fixed = 0, assigned, year, month }) {
   const now = new Date()
   const isCurrentMonth = now.getFullYear() === year && now.getMonth() + 1 === month
   const daysInMonth = new Date(year, month, 0).getDate()
@@ -11,9 +11,15 @@ export default function SpendingPace({ spent, assigned, year, month }) {
   const daysLeft = daysInMonth - dayOfMonth
 
   const spentNumber = Number(spent)
+  const fixedNumber = Number(fixed)
   const assignedNumber = Number(assigned)
+  // Fixed spending (rent, insurance) is paid once a month, so it counts as is;
+  // only the variable part has a daily pace worth extrapolating. Otherwise rent
+  // paid on day 2 projects as if it were paid every other day.
   // Projecting a month that is already over would just restate its total.
-  const projected = isCurrentMonth ? (spentNumber / dayOfMonth) * daysInMonth : null
+  const projected = isCurrentMonth
+    ? fixedNumber + ((spentNumber - fixedNumber) / dayOfMonth) * daysInMonth
+    : null
   const status = projected != null && assignedNumber > 0 && projected > assignedNumber ? 'over' : 'ok'
 
   return (
