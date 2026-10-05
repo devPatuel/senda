@@ -49,6 +49,10 @@ La interfaz está en español y trabaja en euros.
 | ![Lista de movimientos por categoría](docs/capturas/movimientos.png) | ![Resumen de inversiones con ganancia y reparto](docs/capturas/inversiones.png) |
 | **Patrimonio** | **Pagos recurrentes** |
 | ![Patrimonio neto con su desglose](docs/capturas/patrimonio.png) | ![Pagos recurrentes con su coste mensual](docs/capturas/recurrentes.png) |
+| **Presupuesto por sobres** | **Reparto del sueldo** |
+| ![Categorías con lo asignado, lo gastado y lo que queda en cada sobre](docs/capturas/categorias.png) | ![Plan de reparto del sueldo por porcentajes](docs/capturas/reparto.png) |
+| **Espacio compartido** | **Importar un extracto** |
+| ![Resumen del espacio Pareja con lo aportado y el gasto por categoría](docs/capturas/pareja.png) | ![Previsualización de un extracto con duplicados detectados](docs/capturas/importar.png) |
 
 </details>
 
