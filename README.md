@@ -8,8 +8,8 @@ ni conexión con el banco.
 > [!WARNING]
 > **Senda no está terminada y puede tener fallos.** La hago para mi propio uso, así que
 > es posible que no encaje con tu forma de llevar las cuentas. Por eso el código está a
-> la vista: puedes usarlo y cambiarlo como quieras para ti. Lo que no puedes hacer es
-> distribuirlo ni cobrar por él.
+> la vista: puedes usarlo y cambiarlo como quieras, sin fines comerciales. Lo que no
+> puedes hacer es cobrar por él ni usarlo en un negocio. Detalles en [Licencia](#licencia).
 
 Es un proyecto personal, en uso real desde septiembre de 2026 y hecho también para
 aprender. Está pensado para una persona o una pareja, no para dar servicio a terceros.
@@ -151,3 +151,10 @@ cd frontend && npm test
   olvida.
 - El espacio compartido cubre categorías, cuentas y movimientos. Deudas, inversiones
   y pagos recurrentes son siempre personales.
+
+## Licencia
+
+[PolyForm Noncommercial 1.0.0](LICENSE). Puedes usar, modificar y compartir Senda sin
+ánimo de lucro, siempre que acompañes el código con la licencia y su aviso de copyright.
+Cualquier uso comercial (venderla, cobrar por instalarla o usarla en una empresa)
+necesita mi permiso.

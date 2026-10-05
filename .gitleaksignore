@@ -1,0 +1,7 @@
+# Reviewed false positives (30/09/2026)
+# Placeholder token in an API doc example
+64a2627bef8d363a3e687347dba74ddc27f6846b:docs/api.md:generic-api-key:46
+# Example curl with a placeholder bearer token
+56a87842fe9616a07b071c0bdcf83c3d187419ae:docs/api.md:curl-auth-header:761
+# Fixed signing key used only by unit tests
+7c07c6ccb22ccbd14bb22b07b2c340f80de792fb:backend/src/test/java/dev/jordi/senda/common/JwtServiceTest.java:generic-api-key:12
