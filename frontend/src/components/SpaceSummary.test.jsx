@@ -27,7 +27,7 @@ const SUMMARY = {
   totalIncome: 0,
   totalExpense: 388.05,
   balance: -388.05,
-  fixedExpenseTotal: 58.90,
+  fixedExpenseTotal: 58.9,
   variableExpenseTotal: 329.15,
   fixedExpensePercentage: null,
   transfersIn: 1800,
@@ -40,7 +40,7 @@ const SUMMARY = {
     { categoryId: 64, categoryName: 'Aportaciones', categoryColor: '#14b8a6', type: 'INCOME', total: 1800, fixed: false, transfer: true },
     { categoryId: 78, categoryName: 'Supermercados', categoryColor: '#10b981', type: 'EXPENSE', total: 236.4, fixed: false, transfer: false },
     { categoryId: 82, categoryName: 'Parking', categoryColor: '#0ea5e9', type: 'EXPENSE', total: 92.75, fixed: false, transfer: false },
-    { categoryId: 81, categoryName: 'Seguros', categoryColor: '#64748b', type: 'EXPENSE', total: 58.90, fixed: true, transfer: false },
+    { categoryId: 81, categoryName: 'Seguros', categoryColor: '#64748b', type: 'EXPENSE', total: 58.9, fixed: true, transfer: false },
   ],
 }
 
@@ -107,7 +107,7 @@ describe('SpaceSummary', () => {
       'Supermercados', 'Parking', 'Seguros',
     ])
     // 236.40 of 388.05 spent
-    expect(rows[0]).toHaveAttribute('data-share', '45')
+    expect(rows[0]).toHaveAttribute('data-share', '61')
   })
 
   it('moves to the previous month on demand', async () => {
