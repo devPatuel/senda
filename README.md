@@ -15,6 +15,8 @@ Es un proyecto personal, en uso real desde septiembre de 2026 y hecho también p
 aprender. Está pensado para una persona o una pareja, no para dar servicio a terceros.
 La interfaz está en español y trabaja en euros.
 
+![Inicio de Senda: patrimonio, tendencias de los últimos meses y próximos pagos](docs/capturas/inicio.png)
+
 ## Qué hace
 
 - **Movimientos**: gastos e ingresos por categoría, con filtros, resumen del mes,
@@ -38,6 +40,17 @@ La interfaz está en español y trabaja en euros.
 - **Tokens personales**: para apuntar un gasto desde un atajo de iOS o un script sin
   usar tu contraseña. Solo sirven para eso: no pueden leer tus datos.
 - **Lista de deseos**.
+
+<details>
+<summary>Más capturas (datos inventados)</summary>
+
+| Movimientos | Inversiones |
+|---|---|
+| ![Lista de movimientos por categoría](docs/capturas/movimientos.png) | ![Resumen de inversiones con ganancia y reparto](docs/capturas/inversiones.png) |
+| **Patrimonio** | **Pagos recurrentes** |
+| ![Patrimonio neto con su desglose](docs/capturas/patrimonio.png) | ![Pagos recurrentes con su coste mensual](docs/capturas/recurrentes.png) |
+
+</details>
 
 ## Con qué está hecha
 

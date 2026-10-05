@@ -530,7 +530,7 @@ alfanumérico.
 | GET | `/api/investments/holdings/{id}` | Una posición |
 | POST | `/api/investments/holdings/{id}/buys` | Registra una compra (`201`): recalcula cantidad y coste medio y guarda un lote. Body: `quantity`, `unitPrice`, `date` y `kind` opcional (`BUY` \| `REWARD`, por defecto `BUY`; otro valor → `400`) |
 | GET | `/api/investments/holdings/{id}/lots` | Histórico de lotes, del más reciente al más antiguo; cada uno con `kind` |
-| PUT | `/api/investments/holdings/{id}/price` | Fija el precio a mano (MANUAL/FUND/METAL). Body: `price` |
+| PUT | `/api/investments/holdings/{id}/price` | Fija el precio a mano (MANUAL/FUND/METAL). Body: `currentPrice` |
 | DELETE | `/api/investments/holdings/{id}` | Borra la posición y sus lotes (`204`) |
 | POST | `/api/investments/refresh-prices` | Refresca los precios CRYPTO de las posiciones y devuelve la lista actualizada |
 
