@@ -70,6 +70,8 @@ La interfaz está en español y trabaja en euros.
 
 Necesitas **Java 21**, **Node 22 o superior** y **Docker**.
 
+> Mi instalación de uso diario vive en un servidor casero, con CI/CD. Lo de esta sección es para desarrollar o probar en local.
+
 En macOS basta un doble clic en `start.command` (o `./start.command` desde la
 terminal): levanta la base de datos, la API y la web, y abre el navegador en
 <http://localhost:5173>. `stop.command` lo apaga todo. Los datos se conservan entre
