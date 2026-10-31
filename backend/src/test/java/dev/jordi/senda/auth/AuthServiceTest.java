@@ -133,7 +133,7 @@ class AuthServiceTest {
 
     @Test
     void loginWithValidCredentialsReturnsTokenAndUser() {
-        when(userRepository.findByEmail("jordi@example.com")).thenReturn(Optional.of(savedUser()));
+        when(userRepository.findByEmailAndDeletedAtIsNull("jordi@example.com")).thenReturn(Optional.of(savedUser()));
         when(passwordEncoder.matches("password123", "hashed")).thenReturn(true);
         when(jwtService.generateToken(7L, 0)).thenReturn("jwt-token");
 
@@ -145,7 +145,7 @@ class AuthServiceTest {
 
     @Test
     void loginWithWrongPasswordThrowsBadCredentials() {
-        when(userRepository.findByEmail("jordi@example.com")).thenReturn(Optional.of(savedUser()));
+        when(userRepository.findByEmailAndDeletedAtIsNull("jordi@example.com")).thenReturn(Optional.of(savedUser()));
         when(passwordEncoder.matches("wrongpass", "hashed")).thenReturn(false);
 
         assertThatThrownBy(() -> authService.login(new LoginRequest("jordi@example.com", "wrongpass")))
@@ -154,7 +154,7 @@ class AuthServiceTest {
 
     @Test
     void loginWithUnknownEmailThrowsBadCredentials() {
-        when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailAndDeletedAtIsNull("nobody@example.com")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.login(new LoginRequest("nobody@example.com", "password123")))
                 .isInstanceOf(BadCredentialsException.class);
@@ -162,7 +162,7 @@ class AuthServiceTest {
 
     @Test
     void loginWithUnknownEmailStillPaysForAPasswordCheck() {
-        when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailAndDeletedAtIsNull("nobody@example.com")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.login(new LoginRequest("nobody@example.com", "password123")))
                 .isInstanceOf(BadCredentialsException.class);

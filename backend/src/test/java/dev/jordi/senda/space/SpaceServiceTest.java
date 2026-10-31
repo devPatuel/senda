@@ -102,7 +102,7 @@ class SpaceServiceTest {
                 .thenReturn(true);
         User invited = new User("her@example.com", "hash", "Ella");
         ReflectionTestUtils.setField(invited, "id", 2L);
-        when(userRepository.findByEmail("her@example.com")).thenReturn(Optional.of(invited));
+        when(userRepository.findByEmailAndDeletedAtIsNull("her@example.com")).thenReturn(Optional.of(invited));
         when(memberRepository.findBySpaceIdAndUserId(10L, 2L)).thenReturn(Optional.empty());
 
         SpaceMemberResponse response = service.addMember(USER_ID, 10L,
@@ -129,7 +129,7 @@ class SpaceServiceTest {
     void addMemberThrows404WhenEmailUnknown() {
         when(memberRepository.existsBySpaceIdAndUserIdAndStatus(10L, USER_ID, MemberStatus.ACTIVE))
                 .thenReturn(true);
-        when(userRepository.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailAndDeletedAtIsNull("ghost@example.com")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.addMember(USER_ID, 10L, new AddMemberRequest("ghost@example.com")))
                 .isInstanceOf(NotFoundException.class);
@@ -141,7 +141,7 @@ class SpaceServiceTest {
                 .thenReturn(true);
         User invited = new User("her@example.com", "hash", "Ella");
         ReflectionTestUtils.setField(invited, "id", 2L);
-        when(userRepository.findByEmail("her@example.com")).thenReturn(Optional.of(invited));
+        when(userRepository.findByEmailAndDeletedAtIsNull("her@example.com")).thenReturn(Optional.of(invited));
         when(memberRepository.findBySpaceIdAndUserId(10L, 2L))
                 .thenReturn(Optional.of(new SpaceMember(10L, 2L, MemberStatus.PENDING)));
 

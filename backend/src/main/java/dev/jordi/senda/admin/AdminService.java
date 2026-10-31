@@ -26,7 +26,7 @@ public class AdminService {
     @Transactional(readOnly = true)
     public List<AdminUserResponse> listUsers(Long requesterId) {
         requireAdmin(requesterId);
-        return userRepository.findAll(Sort.by("createdAt", "id")).stream()
+        return userRepository.findByDeletedAtIsNull(Sort.by("createdAt", "id")).stream()
                 .map(AdminUserResponse::from)
                 .toList();
     }
@@ -43,9 +43,26 @@ public class AdminService {
         if (requesterId.equals(targetId)) {
             throw new UnprocessableEntityException("Use the password page to change your own password");
         }
-        User target = userRepository.findById(targetId)
+        activeUser(targetId).changePassword(passwordEncoder.encode(request.newPassword()));
+    }
+
+    /**
+     * Soft-deletes an account. Administrators are refused, the requester included: the
+     * panel must not be able to remove the only way into itself.
+     */
+    @Transactional
+    public void deleteUser(Long requesterId, Long targetId) {
+        requireAdmin(requesterId);
+        User target = activeUser(targetId);
+        if (target.isAdmin()) {
+            throw new UnprocessableEntityException("Administrator accounts cannot be deleted");
+        }
+        target.softDelete();
+    }
+
+    private User activeUser(Long id) {
+        return userRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new NotFoundException("User not found"));
-        target.changePassword(passwordEncoder.encode(request.newPassword()));
     }
 
     // Read from the database on every call, so revoking the flag takes effect at once.

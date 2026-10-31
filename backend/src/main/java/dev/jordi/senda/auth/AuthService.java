@@ -69,7 +69,7 @@ public class AuthService {
     public AuthResponse login(LoginRequest request) {
         // Same exception AND same work for unknown email and wrong password: neither
         // the message nor the response time reveals whether the account exists.
-        Optional<User> found = userRepository.findByEmail(request.email());
+        Optional<User> found = userRepository.findByEmailAndDeletedAtIsNull(request.email());
         String hash = found.map(User::getPasswordHash).orElse(dummyPasswordHash);
         boolean matches = passwordEncoder.matches(request.password(), hash);
         if (found.isEmpty() || !matches) {

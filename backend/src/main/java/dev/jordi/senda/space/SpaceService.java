@@ -70,7 +70,7 @@ public class SpaceService {
         if (!memberRepository.existsBySpaceIdAndUserIdAndStatus(spaceId, userId, MemberStatus.ACTIVE)) {
             throw new NotFoundException("Space not found");
         }
-        User invited = userRepository.findByEmail(request.email())
+        User invited = userRepository.findByEmailAndDeletedAtIsNull(request.email())
                 .orElseThrow(() -> new NotFoundException("User not found"));
         if (memberRepository.findBySpaceIdAndUserId(spaceId, invited.getId()).isPresent()) {
             throw new ConflictException("User already has a membership or pending invitation for this space");
@@ -119,6 +119,11 @@ public class SpaceService {
                         members.stream().map(SpaceMember::getUserId).toList()).stream()
                 .collect(Collectors.toMap(User::getId, u -> u));
         return members.stream()
+                // A deleted account stays a member in the data, but nobody can reach it.
+                .filter(m -> {
+                    User u = usersById.get(m.getUserId());
+                    return u == null || !u.isDeleted();
+                })
                 .map(m -> {
                     User u = usersById.get(m.getUserId());
                     return new SpaceMemberResponse(m.getUserId(),

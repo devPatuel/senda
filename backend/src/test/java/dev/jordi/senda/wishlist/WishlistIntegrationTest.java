@@ -27,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class WishlistIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
+    @Autowired private jakarta.persistence.EntityManager entityManager;
     private String tokenA, tokenB;
 
     @BeforeEach
@@ -98,5 +99,81 @@ class WishlistIntegrationTest {
     @Test
     void requestWithoutTokenReturns401() throws Exception {
         mockMvc.perform(get("/api/wishlist")).andExpect(status().isUnauthorized());
+    }
+
+    private long createList(String token, String name) throws Exception {
+        String body = mockMvc.perform(post("/api/wishlist/lists").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return ((Number) JsonPath.read(body, "$.id")).longValue();
+    }
+
+    private org.springframework.test.web.servlet.ResultActions createWish(String token, String name, String price, Long listId)
+            throws Exception {
+        return mockMvc.perform(post("/api/wishlist").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"" + name + "\",\"price\":" + price + ",\"listId\":" + listId + "}"));
+    }
+
+    @Test
+    void listsCarryTheirOwnTotalAndTheGlobalStays() throws Exception {
+        long office = createList(tokenA, "Oficina");
+        createWish(tokenA, "Mesa", "100.00", office).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.listId").value(office));
+        createWish(tokenA, "NAS", "400.50", office).andExpect(status().isCreated());
+        createWish(tokenA, "Viaje", "50.00", null).andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/wishlist").header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(550.50))
+                .andExpect(jsonPath("$.unlistedTotal").value(50.00))
+                .andExpect(jsonPath("$.lists[0].name").value("Oficina"))
+                .andExpect(jsonPath("$.lists[0].itemCount").value(2))
+                .andExpect(jsonPath("$.lists[0].total").value(500.50));
+    }
+
+    @Test
+    void anotherUsersListCannotBeUsedOrTouched() throws Exception {
+        long foreign = createList(tokenB, "Ajena");
+
+        createWish(tokenA, "Intruso", "1.00", foreign).andExpect(status().isNotFound());
+        mockMvc.perform(delete("/api/wishlist/lists/" + foreign).header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(put("/api/wishlist/lists/" + foreign).header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Mia\"}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/wishlist").header("Authorization", "Bearer " + tokenA))
+                .andExpect(jsonPath("$.lists.length()").value(0));
+    }
+
+    @Test
+    void duplicateListNameIsRejectedIgnoringCase() throws Exception {
+        createList(tokenA, "Oficina");
+        long other = createList(tokenA, "Casa");
+
+        mockMvc.perform(post("/api/wishlist/lists").header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"oficina\"}"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(put("/api/wishlist/lists/" + other).header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"OFICINA\"}"))
+                .andExpect(status().isConflict());
+        createList(tokenB, "Oficina");
+    }
+
+    @Test
+    void deletingAListKeepsItsWishes() throws Exception {
+        long office = createList(tokenA, "Oficina");
+        createWish(tokenA, "Mesa", "100.00", office).andExpect(status().isCreated());
+
+        mockMvc.perform(delete("/api/wishlist/lists/" + office).header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isNoContent());
+        entityManager.flush();
+        entityManager.clear();
+
+        mockMvc.perform(get("/api/wishlist").header("Authorization", "Bearer " + tokenA))
+                .andExpect(jsonPath("$.items[0].name").value("Mesa"))
+                .andExpect(jsonPath("$.items[0].listId").doesNotExist())
+                .andExpect(jsonPath("$.unlistedTotal").value(100.00))
+                .andExpect(jsonPath("$.lists.length()").value(0));
     }
 }

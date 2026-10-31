@@ -69,7 +69,7 @@ existentes.
 | `dev.jordi.senda.investment` | Clases de activo, posiciones (coste medio), lotes, NFTs y servicio de precios |
 | `dev.jordi.senda.allocation` | Reparto de sueldo por porcentajes (suman 100%) sobre las categorías de gasto |
 | `dev.jordi.senda.networth` | Patrimonio neto: agrega cuentas, inversiones y deudas, y guarda una foto diaria para el histórico |
-| `dev.jordi.senda.wishlist` | Lista de deseos (nombre, foto, enlace, precio estimado) |
+| `dev.jordi.senda.wishlist` | Deseos (nombre, foto, enlace, precio estimado) agrupables en listas con su total |
 | `dev.jordi.senda.common` | Config, seguridad compartida, manejo global de errores |
 
 ### Manejo de errores
@@ -178,7 +178,9 @@ api_tokens          id, user_id (FK ON DELETE CASCADE), token_hash (SHA-256, UNI
                     name, created_at, last_used_at, revoked_at                            (V19)
 
 wishlist_items      id, user_id, space_id (nullable), name, image_url, product_url,
-                    comment, price, priority, created_at                                  (V22)
+                    comment, price, priority, created_at, list_id (nullable)         (V22, V34)
+
+wish_lists          id, user_id (FK ON DELETE CASCADE), name (único por usuario), created_at (V34)
 ```
 
 Las tablas del primer reparto por sobres (`allocation_envelopes`, `envelope_balances`)
@@ -211,7 +213,8 @@ Reglas de dominio de finanzas:
 - **Recurrentes**: la próxima fecha se calcula al consultar, no se guarda. Un día que
   no existe en el mes (el 31 en febrero) se ajusta al último día. Cada cambio de importe
   deja una entrada en el historial para mostrar cuánto ha subido.
-- **Deseos** (`wishlist`): lista simple de cosas que quieres comprar, sin cálculo asociado.
+- **Deseos** (`wishlist`): cosas que quieres comprar, opcionalmente en una lista con su total.
+  Un deseo está como mucho en una lista; borrarla no borra sus deseos.
 
 Reglas de dominio:
 
@@ -294,6 +297,11 @@ Ver [ADR 0002](adr/0002-jwt-stateless.md).
   solo muestra datos de la cuenta, nunca finanzas. Cambiar la contraseña de otra persona
   cierra sus sesiones, pero no revoca sus tokens personales; la propia se cambia siempre
   sabiendo la actual.
+- **Baja lógica de cuentas** (`users.deleted_at`): `JwtAuthFilter` rechaza las sesiones y
+  los tokens personales de una cuenta eliminada, y el login responde igual que con un
+  email inexistente. Los datos se quedan y el email sigue ocupado. En un espacio deja de
+  aparecer entre los miembros y no se la puede invitar. Se restaura con SQL:
+  `UPDATE users SET deleted_at = NULL WHERE email = '...';`
 - **Tokens personales** (`apitoken`): para clientes que no pueden hacer login, como un
   atajo de iOS. Van en la misma cabecera `Authorization: Bearer` y se distinguen del JWT
   por el prefijo `senda_pat_`. El valor se muestra una sola vez al crearlo; en la base
@@ -318,7 +326,9 @@ React + Vite + Tailwind con componentes propios, en JavaScript sin TypeScript
   pagos y recordatorios de baja), Pareja (espacio
   compartido); Movimientos, Recurrentes, Importar; Reparto, Categorías (con el
   presupuesto por sobres), Deseos; Cuentas, Inversiones, Deudas; Tokens, Contraseña y
-  Administración (solo administradores). Pareja solo sale en el menú con un espacio o una
+  Administración (solo administradores). Movimientos (con Recurrentes e Importar), Activos
+  (Cuentas, Inversiones, Deudas) y Planificación (Reparto, Categorías, Deseos) son entradas
+  del menú con pestañas horizontales; cada pestaña conserva su propia dirección. Pareja solo sale en el menú con un espacio o una
   invitación pendiente; sin ellos, Inicio ofrece crearlo.
 - Los extractos se leen en el navegador: `lib/csv.js` para CSV y `lib/xlsx.js` para
   Excel (librería `read-excel-file`, cargada solo al importar un `.xlsx`).

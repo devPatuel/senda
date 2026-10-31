@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -28,14 +28,18 @@ beforeEach(() => {
 })
 
 describe('Layout sidebar', () => {
-  it('agrupa la navegación con cabeceras de sección', () => {
+  it('agrupa las secciones personales y deja Planificación la última', () => {
     renderLayout()
-    // "General", "Planificación" y "Activos y pasivos" son cabeceras únicas.
-    expect(screen.getByText('General')).toBeInTheDocument()
-    expect(screen.getByText('Planificación')).toBeInTheDocument()
-    expect(screen.getByText('Activos y pasivos')).toBeInTheDocument()
-    // "Movimientos" aparece dos veces: como cabecera de sección y como enlace.
-    expect(screen.getAllByText('Movimientos').length).toBeGreaterThanOrEqual(2)
+    const nav = screen.getAllByRole('navigation', { name: 'Principal' })[0]
+    const labels = within(nav).getAllByRole('link').map((l) => l.textContent)
+    expect(labels).toEqual(['Inicio', 'Movimientos', 'Activos', 'Planificación'])
+  })
+
+  it('Importar y las pantallas con pestaña ya no están en el menú', () => {
+    renderLayout()
+    for (const label of [/Importar/i, /Recurrentes/i, /Cuentas/i, /Inversiones/i, /Deudas/i, /Reparto/i, /Categorías/i, /Deseos/i]) {
+      expect(screen.queryByRole('link', { name: label })).not.toBeInTheDocument()
+    }
   })
 
   it('muestra el logo en la marca que lleva a Inicio', () => {
@@ -103,18 +107,31 @@ describe('Layout sidebar', () => {
 
   it('el toggle colapsa y persiste en localStorage', async () => {
     renderLayout()
-    expect(screen.getByText('General')).toBeInTheDocument()
+    expect(screen.getAllByText('Planificación').length).toBeGreaterThan(0)
 
     await userEvent.click(screen.getByRole('button', { name: /colapsar menú/i }))
 
     expect(localStorage.getItem('senda_sidebar_collapsed')).toBe('true')
   })
 
+  it('el toggle se puede volver a expandir y anuncia su estado', async () => {
+    localStorage.setItem('senda_sidebar_collapsed', 'true')
+    renderLayout()
+    const toggle = screen.getByRole('button', { name: /expandir menú/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle.parentElement).toHaveClass('flex-col')
+
+    await userEvent.click(toggle)
+
+    expect(screen.getByRole('button', { name: /colapsar menú/i })).toHaveAttribute('aria-expanded', 'true')
+    expect(localStorage.getItem('senda_sidebar_collapsed')).toBe('false')
+  })
+
   it('arranca colapsado si localStorage lo indica', () => {
     localStorage.setItem('senda_sidebar_collapsed', 'true')
     renderLayout()
     // Collapsed: section headers are not rendered
-    expect(screen.queryByText('General')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Planificación' })).toHaveLength(1)
   })
 
   it('el drawer móvil se abre con el botón de menú', async () => {

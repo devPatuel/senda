@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { listUsers, resetUserPassword } from '../api/admin'
+import { deleteUser, listUsers, resetUserPassword } from '../api/admin'
 import { useAuth } from '../auth/useAuth'
 import { Field, FormError, SubmitButton } from '../components/form'
-import { ErrorState, LoadingState, Modal, Notice } from '../components/ui'
+import { ConfirmDialog, ErrorState, LoadingState, Modal, Notice } from '../components/ui'
 import { formatDate } from '../lib/format'
 
 function ResetPasswordModal({ target, onClose, onDone }) {
@@ -60,6 +60,9 @@ export default function AdminPage() {
   const [reloadKey, setReloadKey] = useState(0)
   const [target, setTarget] = useState(null)
   const [notice, setNotice] = useState(null)
+  const [toDelete, setToDelete] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [actionError, setActionError] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -79,6 +82,21 @@ export default function AdminPage() {
     }
   }, [reloadKey])
 
+  async function confirmDelete() {
+    setDeleting(true)
+    setActionError(null)
+    try {
+      await deleteUser(toDelete.id)
+      setNotice(`Cuenta de ${toDelete.name} eliminada.`)
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      setActionError(err.message || 'No se ha podido eliminar la cuenta')
+    } finally {
+      setDeleting(false)
+      setToDelete(null)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Administración</h1>
@@ -87,6 +105,12 @@ export default function AdminPage() {
       {notice && (
         <Notice tone="success" onClose={() => setNotice(null)}>
           {notice}
+        </Notice>
+      )}
+
+      {actionError && (
+        <Notice tone="error" onClose={() => setActionError(null)}>
+          {actionError}
         </Notice>
       )}
 
@@ -105,18 +129,40 @@ export default function AdminPage() {
                 <p className="truncate text-xs text-slate-500">{u.email}</p>
                 <p className="text-xs text-slate-400">Alta: {formatDate(u.createdAt.slice(0, 10))}</p>
               </div>
-              {u.id !== user?.id && (
-                <button
-                  type="button"
-                  onClick={() => setTarget(u)}
-                  className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
-                >
-                  Cambiar contraseña
-                </button>
-              )}
+              <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                {u.id !== user?.id && (
+                  <button
+                    type="button"
+                    onClick={() => setTarget(u)}
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+                  >
+                    Cambiar contraseña
+                  </button>
+                )}
+                {!u.admin && (
+                  <button
+                    type="button"
+                    onClick={() => setToDelete(u)}
+                    className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 transition-colors hover:border-red-300 hover:text-red-700"
+                  >
+                    Eliminar
+                  </button>
+                )}
+              </div>
             </li>
           ))}
         </ul>
+      )}
+
+      {toDelete && (
+        <ConfirmDialog
+          title={`¿Eliminar la cuenta de ${toDelete.name}?`}
+          message="No podrá volver a entrar y dejará de aparecer aquí. Sus datos no se borran y su email no se podrá usar en otra cuenta."
+          confirmLabel="Eliminar cuenta"
+          loading={deleting}
+          onCancel={() => setToDelete(null)}
+          onConfirm={confirmDelete}
+        />
       )}
 
       {target && (

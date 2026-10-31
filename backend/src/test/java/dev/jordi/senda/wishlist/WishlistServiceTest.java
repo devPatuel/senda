@@ -15,7 +15,8 @@ import static org.mockito.Mockito.when;
 class WishlistServiceTest {
 
     private final WishlistItemRepository repo = mock(WishlistItemRepository.class);
-    private final WishlistService service = new WishlistService(repo);
+    private final WishListRepository listRepo = mock(WishListRepository.class);
+    private final WishlistService service = new WishlistService(repo, listRepo);
 
     @Test
     void get_sumsPricesSkippingNulls_andSortsByPriority() {

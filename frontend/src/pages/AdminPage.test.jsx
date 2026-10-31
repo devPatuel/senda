@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AdminPage from './AdminPage'
-import { listUsers, resetUserPassword } from '../api/admin'
+import { deleteUser, listUsers, resetUserPassword } from '../api/admin'
 
-vi.mock('../api/admin', () => ({ listUsers: vi.fn(), resetUserPassword: vi.fn() }))
+vi.mock('../api/admin', () => ({ deleteUser: vi.fn(), listUsers: vi.fn(), resetUserPassword: vi.fn() }))
 vi.mock('../auth/useAuth', () => ({ useAuth: () => ({ user: { id: 1, name: 'Admin' } }) }))
 
 const USERS = [
@@ -17,6 +17,7 @@ describe('AdminPage', () => {
     vi.clearAllMocks()
     listUsers.mockResolvedValue(USERS)
     resetUserPassword.mockResolvedValue(null)
+    deleteUser.mockResolvedValue(null)
   })
 
   it('lists accounts and offers the reset only for other people', async () => {
@@ -49,6 +50,32 @@ describe('AdminPage', () => {
 
     await waitFor(() => expect(resetUserPassword).toHaveBeenCalledWith(2, 'nuevaclave123'))
     expect(await screen.findByText('Contraseña de Persona cambiada.')).toBeInTheDocument()
+  })
+
+  it('offers deleting only non-admin accounts and asks first', async () => {
+    const user = userEvent.setup()
+    render(<AdminPage />)
+
+    const buttons = await screen.findAllByRole('button', { name: 'Eliminar' })
+    expect(buttons).toHaveLength(1)
+    await user.click(buttons[0])
+    expect(deleteUser).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Eliminar cuenta' }))
+
+    await waitFor(() => expect(deleteUser).toHaveBeenCalledWith(2))
+    expect(await screen.findByText('Cuenta de Persona eliminada.')).toBeInTheDocument()
+    await waitFor(() => expect(listUsers).toHaveBeenCalledTimes(2))
+  })
+
+  it('does nothing when the deletion is cancelled', async () => {
+    const user = userEvent.setup()
+    render(<AdminPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Eliminar' }))
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(deleteUser).not.toHaveBeenCalled()
   })
 
   it('explains a forbidden response', async () => {

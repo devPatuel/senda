@@ -20,6 +20,11 @@ export function listUsers() {
   return http.get('/admin/users')
 }
 
+/** @param {number} userId @returns {Promise<null>} */
+export function deleteUser(userId) {
+  return http.delete(`/admin/users/${userId}`)
+}
+
 /** @param {number} userId @param {string} newPassword @returns {Promise<null>} */
 export function resetUserPassword(userId, newPassword) {
   return http.post(`/admin/users/${userId}/password`, { newPassword })

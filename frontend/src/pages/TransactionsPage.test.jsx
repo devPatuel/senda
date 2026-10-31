@@ -73,9 +73,24 @@ describe('TransactionsPage', () => {
     listTransactions.mockResolvedValue(EMPTY_PAGE)
   })
 
+  it('offers importing only in the personal area', async () => {
+    listTransactions.mockResolvedValue(PAGE_WITH_ONE)
+    const { unmount } = renderPage()
+    expect(await screen.findByRole('link', { name: 'Importar' })).toHaveAttribute('href', '/importar')
+    unmount()
+
+    render(
+      <MemoryRouter>
+        <TransactionsPage spaceId={1} />
+      </MemoryRouter>,
+    )
+    await screen.findByTestId('transaction-row-7')
+    expect(screen.queryByRole('link', { name: 'Importar' })).not.toBeInTheDocument()
+  })
+
   it('tints each row with the colour of its category', async () => {
     listTransactions.mockResolvedValue(PAGE_WITH_ONE)
-    render(<TransactionsPage />)
+    renderPage()
 
     const row = await screen.findByTestId('transaction-row-7')
     // A faint wash of the category colour, not the colour itself: the row still

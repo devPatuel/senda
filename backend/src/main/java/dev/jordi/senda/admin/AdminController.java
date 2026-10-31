@@ -3,6 +3,7 @@ package dev.jordi.senda.admin;
 import dev.jordi.senda.common.CurrentUser;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,6 +27,12 @@ public class AdminController {
     @GetMapping
     public List<AdminUserResponse> list() {
         return adminService.listUsers(CurrentUser.id());
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        adminService.deleteUser(CurrentUser.id(), id);
     }
 
     @PostMapping("/{id}/password")

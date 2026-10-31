@@ -48,7 +48,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             // Personal access tokens carry a fixed prefix; everything else is a JWT.
             boolean personalToken = credential.startsWith(ApiTokenService.PREFIX);
             Optional<Long> userId = personalToken
-                    ? apiTokenService.resolveUserId(credential)
+                    // Sessions of a deleted account already fail the token version check.
+                    ? apiTokenService.resolveUserId(credential).filter(userRepository::existsByIdAndDeletedAtIsNull)
                     : currentSessionUserId(credential);
             String role = personalToken ? ROLE_TOKEN : ROLE_USER;
             userId.ifPresent(id -> {

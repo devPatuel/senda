@@ -1,5 +1,6 @@
 package dev.jordi.senda.wishlist;
 
+import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.NotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,9 +13,11 @@ import java.util.List;
 public class WishlistService {
 
     private final WishlistItemRepository repository;
+    private final WishListRepository listRepository;
 
-    public WishlistService(WishlistItemRepository repository) {
+    public WishlistService(WishlistItemRepository repository, WishListRepository listRepository) {
         this.repository = repository;
+        this.listRepository = listRepository;
     }
 
     // priority asc (nulls last), then case-insensitive name
@@ -30,17 +33,67 @@ public class WishlistService {
                 .sorted(ORDER)
                 .map(WishlistItemResponse::from)
                 .toList();
-        BigDecimal total = all.stream()
+        List<WishListSummary> lists = listRepository.findByUserIdOrderByNameAsc(userId).stream()
+                .map(list -> summarize(list, all))
+                .toList();
+        BigDecimal unlistedTotal = sumPrices(all.stream().filter(i -> i.getListId() == null).toList());
+        return new WishlistResponse(items, sumPrices(all), lists, unlistedTotal);
+    }
+
+    @Transactional
+    public WishListSummary createList(Long userId, WishListRequest req) {
+        String name = req.name().trim();
+        if (listRepository.existsByUserIdAndNameIgnoreCase(userId, name)) {
+            throw new ConflictException("A wish list with that name already exists");
+        }
+        WishList saved = listRepository.save(new WishList(userId, name));
+        return new WishListSummary(saved.getId(), name, 0, BigDecimal.ZERO);
+    }
+
+    @Transactional
+    public WishListSummary renameList(Long userId, Long id, WishListRequest req) {
+        WishList list = findOwnedList(userId, id);
+        String name = req.name().trim();
+        if (listRepository.existsByUserIdAndNameIgnoreCaseAndIdNot(userId, name, id)) {
+            throw new ConflictException("A wish list with that name already exists");
+        }
+        list.setName(name);
+        return summarize(list, repository.findByUserId(userId));
+    }
+
+    /** The wishes stay: the foreign key leaves them without a list (ON DELETE SET NULL). */
+    @Transactional
+    public void deleteList(Long userId, Long id) {
+        listRepository.delete(findOwnedList(userId, id));
+    }
+
+    private static WishListSummary summarize(WishList list, List<WishlistItem> all) {
+        List<WishlistItem> inList = all.stream().filter(i -> list.getId().equals(i.getListId())).toList();
+        return new WishListSummary(list.getId(), list.getName(), inList.size(), sumPrices(inList));
+    }
+
+    private static BigDecimal sumPrices(List<WishlistItem> items) {
+        return items.stream()
                 .map(WishlistItem::getPrice)
                 .filter(p -> p != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new WishlistResponse(items, total);
+    }
+
+    private WishList findOwnedList(Long userId, Long id) {
+        return listRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new NotFoundException("Wish list not found"));
+    }
+
+    // Without this check a wish could point at a list of another user.
+    private Long ownedListId(Long userId, Long listId) {
+        return listId == null ? null : findOwnedList(userId, listId).getId();
     }
 
     @Transactional
     public WishlistItemResponse create(Long userId, WishlistItemRequest req) {
         WishlistItem item = new WishlistItem(userId, req.name(), blankToNull(req.imageUrl()),
                 blankToNull(req.productUrl()), blankToNull(req.comment()), req.price(), req.priority());
+        item.setListId(ownedListId(userId, req.listId()));
         return WishlistItemResponse.from(repository.save(item));
     }
 
@@ -53,6 +106,7 @@ public class WishlistService {
         item.setComment(blankToNull(req.comment()));
         item.setPrice(req.price());
         item.setPriority(req.priority());
+        item.setListId(ownedListId(userId, req.listId()));
         return WishlistItemResponse.from(item);
     }
 

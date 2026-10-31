@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { listCategories } from '../api/categories'
 import { listTransactions, removeTransaction } from '../api/transactions'
 import { formatCurrency, formatDate } from '../lib/format'
@@ -145,6 +146,15 @@ export default function TransactionsPage({ spaceId }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Movimientos</h1>
+        <div className="flex items-center gap-2">
+        {spaceId == null && (
+          <Link
+            to="/importar"
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+          >
+            Importar
+          </Link>
+        )}
         <button
           type="button"
           onClick={openCreate}
@@ -155,6 +165,7 @@ export default function TransactionsPage({ spaceId }) {
           </svg>
           Nuevo movimiento
         </button>
+        </div>
       </div>
 
       <div>

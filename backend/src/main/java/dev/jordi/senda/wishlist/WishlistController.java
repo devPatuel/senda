@@ -34,6 +34,23 @@ public class WishlistController {
         return service.create(CurrentUser.id(), request);
     }
 
+    @PostMapping("/lists")
+    @ResponseStatus(HttpStatus.CREATED)
+    public WishListSummary createList(@Valid @RequestBody WishListRequest request) {
+        return service.createList(CurrentUser.id(), request);
+    }
+
+    @PutMapping("/lists/{id}")
+    public WishListSummary renameList(@PathVariable Long id, @Valid @RequestBody WishListRequest request) {
+        return service.renameList(CurrentUser.id(), id, request);
+    }
+
+    @DeleteMapping("/lists/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteList(@PathVariable Long id) {
+        service.deleteList(CurrentUser.id(), id);
+    }
+
     @PutMapping("/{id}")
     public WishlistItemResponse update(@PathVariable Long id,
                                        @Valid @RequestBody WishlistItemRequest request) {

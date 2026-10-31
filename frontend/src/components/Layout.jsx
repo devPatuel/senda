@@ -23,19 +23,13 @@ const ICONS = {
     </svg>
   ),
   movimientos: svg('M7 4v13', 'm3.5 13.5 3.5 3.5 3.5-3.5', 'M17 20V7', 'm13.5 10.5 3.5-3.5 3.5 3.5'),
-  recurrentes: svg('M17 2l4 4-4 4', 'M3 11V9a4 4 0 0 1 4-4h14', 'M7 22l-4-4 4-4', 'M21 13v2a4 4 0 0 1-4 4H3'),
-  importar: svg('M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4', 'M7 10l5 5 5-5', 'M12 15V3'),
   reparto: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
       <circle cx="12" cy="12" r="9" />
       <path d="M12 3v9l6 4" />
     </svg>
   ),
-  categorias: svg('M4 7h16', 'M4 12h16', 'M4 17h10'),
-  deseos: svg('M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z'),
   cuentas: svg('M3 21h18', 'M5 21V9l7-5 7 5v12', 'M9 21v-6h6v6'),
-  inversiones: svg('M3 17l6-6 4 4 8-8', 'M17 7h4v4'),
-  deudas: svg('M16 8a6 6 0 1 0-8 5.66', 'M12 6v6l3 2', 'M16 16h6', 'M19 13v6'),
   contrasena: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
       <rect x="4" y="11" width="16" height="10" rx="2" />
@@ -50,38 +44,18 @@ const ICONS = {
   ),
 }
 
-const NAV_GROUPS = [
+// Each section opens on its first tab; `paths` keeps its entry lit on the other tabs.
+const NAV_ITEMS = [
+  { to: '/', label: 'Inicio', end: true, icon: ICONS.inicio },
+  { to: '/pareja', label: 'Pareja', icon: ICONS.pareja },
   {
-    title: 'General',
-    items: [
-      { to: '/', label: 'Inicio', end: true, icon: ICONS.inicio },
-      { to: '/pareja', label: 'Pareja', icon: ICONS.pareja },
-    ],
+    to: '/movimientos',
+    label: 'Movimientos',
+    icon: ICONS.movimientos,
+    paths: ['/movimientos', '/recurrentes', '/importar'],
   },
-  {
-    title: 'Movimientos',
-    items: [
-      { to: '/movimientos', label: 'Movimientos', icon: ICONS.movimientos },
-      { to: '/recurrentes', label: 'Recurrentes', icon: ICONS.recurrentes },
-      { to: '/importar', label: 'Importar', icon: ICONS.importar },
-    ],
-  },
-  {
-    title: 'Planificación',
-    items: [
-      { to: '/reparto', label: 'Reparto', icon: ICONS.reparto },
-      { to: '/categorias', label: 'Categorías', icon: ICONS.categorias },
-      { to: '/deseos', label: 'Deseos', icon: ICONS.deseos },
-    ],
-  },
-  {
-    title: 'Activos y pasivos',
-    items: [
-      { to: '/cuentas', label: 'Cuentas', icon: ICONS.cuentas },
-      { to: '/inversiones', label: 'Inversiones', icon: ICONS.inversiones },
-      { to: '/deudas', label: 'Deudas', icon: ICONS.deudas },
-    ],
-  },
+  { to: '/cuentas', label: 'Activos', icon: ICONS.cuentas, paths: ['/cuentas', '/inversiones', '/deudas'] },
+  { to: '/reparto', label: 'Planificación', icon: ICONS.reparto, paths: ['/reparto', '/categorias', '/deseos'] },
 ]
 
 const TOKENS_ITEM = { to: '/tokens', label: 'Tokens', icon: ICONS.tokens }
@@ -110,14 +84,18 @@ function navLinkClasses({ isActive }, base) {
 }
 
 function SidebarLink({ item, collapsed, onNavigate }) {
+  const { pathname } = useLocation()
   return (
     <NavLink
       to={item.to}
       end={item.end}
       onClick={onNavigate}
       title={collapsed ? item.label : undefined}
-      className={(state) =>
-        navLinkClasses(state, 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors')
+      className={({ isActive }) =>
+        navLinkClasses(
+          { isActive: isActive || Boolean(item.paths?.includes(pathname)) },
+          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+        )
       }
     >
       <span className="shrink-0">{item.icon}</span>
@@ -139,17 +117,8 @@ function Brand({ collapsed }) {
 function NavGroups({ collapsed, showCouple, onNavigate }) {
   return (
     <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-2" aria-label="Principal">
-      {NAV_GROUPS.map((group) => (
-        <div key={group.title}>
-          {!collapsed && (
-            <p className="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-              {group.title}
-            </p>
-          )}
-          {group.items.filter((item) => item.to !== '/pareja' || showCouple).map((item) => (
-            <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
-          ))}
-        </div>
+      {NAV_ITEMS.filter((item) => item.to !== '/pareja' || showCouple).map((item) => (
+        <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
       ))}
     </nav>
   )
@@ -223,12 +192,19 @@ export default function Layout() {
           collapsed ? 'w-16' : 'w-60'
         }`}
       >
-        <div className="flex h-14 items-center justify-between border-b border-slate-200 px-3">
+        {/* A 64px rail cannot fit the logo and the button side by side: stack them. */}
+        <div
+          className={[
+            'flex border-b border-slate-200',
+            collapsed ? 'flex-col items-center gap-1 py-2' : 'h-14 items-center justify-between px-3',
+          ].join(' ')}
+        >
           <Brand collapsed={collapsed} />
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
-            aria-label="Colapsar menú"
+            aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
+            aria-expanded={!collapsed}
             className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">

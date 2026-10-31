@@ -5,10 +5,11 @@ import java.time.Instant;
 
 public record WishlistItemResponse(
         Long id, String name, String imageUrl, String productUrl,
-        String comment, BigDecimal price, Integer priority, Instant createdAt) {
+        String comment, BigDecimal price, Integer priority, Instant createdAt, Long listId) {
 
     static WishlistItemResponse from(WishlistItem i) {
         return new WishlistItemResponse(i.getId(), i.getName(), i.getImageUrl(),
-                i.getProductUrl(), i.getComment(), i.getPrice(), i.getPriority(), i.getCreatedAt());
+                i.getProductUrl(), i.getComment(), i.getPrice(), i.getPriority(), i.getCreatedAt(),
+                i.getListId());
     }
 }

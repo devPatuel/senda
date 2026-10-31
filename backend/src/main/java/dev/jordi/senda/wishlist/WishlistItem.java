@@ -44,6 +44,9 @@ public class WishlistItem {
     @Column
     private Integer priority;
 
+    @Column(name = "list_id")
+    private Long listId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -72,6 +75,7 @@ public class WishlistItem {
     public String getComment() { return comment; }
     public BigDecimal getPrice() { return price; }
     public Integer getPriority() { return priority; }
+    public Long getListId() { return listId; }
     public Instant getCreatedAt() { return createdAt; }
 
     public void setName(String name) { this.name = name; }
@@ -80,4 +84,5 @@ public class WishlistItem {
     public void setComment(String comment) { this.comment = comment; }
     public void setPrice(BigDecimal price) { this.price = price; }
     public void setPriority(Integer priority) { this.priority = priority; }
+    public void setListId(Long listId) { this.listId = listId; }
 }

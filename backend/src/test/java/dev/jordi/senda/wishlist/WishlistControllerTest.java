@@ -69,7 +69,7 @@ class WishlistControllerTest {
     void postValidReturns201() throws Exception {
         when(wishlistService.create(eq(USER_ID), any(WishlistItemRequest.class))).thenReturn(
                 new WishlistItemResponse(7L, "NAS", null, "https://x", "nota",
-                        new BigDecimal("500.00"), 1, Instant.parse("2026-07-11T10:00:00Z")));
+                        new BigDecimal("500.00"), 1, Instant.parse("2026-07-11T10:00:00Z"), null));
         mockMvc.perform(post("/api/wishlist")
                         .header("Authorization", bearer)
                         .contentType(MediaType.APPLICATION_JSON)

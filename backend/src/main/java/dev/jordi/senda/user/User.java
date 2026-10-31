@@ -37,6 +37,9 @@ public class User {
     @Column(nullable = false, updatable = false, insertable = false)
     private boolean admin;
 
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     protected User() {
         // JPA only
     }
@@ -80,6 +83,15 @@ public class User {
 
     public boolean isAdmin() {
         return admin;
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    /** Keeps the row and its data; JwtAuthFilter stops accepting any of its credentials. */
+    public void softDelete() {
+        this.deletedAt = Instant.now();
     }
 
     /**

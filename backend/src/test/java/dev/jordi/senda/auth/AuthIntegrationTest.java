@@ -45,7 +45,7 @@ class AuthIntegrationTest {
                 .andExpect(jsonPath("$.token").isNotEmpty())
                 .andExpect(jsonPath("$.user.email").value("jordi@example.com"));
 
-        var user = userRepository.findByEmail("jordi@example.com").orElseThrow();
+        var user = userRepository.findByEmailAndDeletedAtIsNull("jordi@example.com").orElseThrow();
         assertThat(user.getPasswordHash()).isNotEqualTo("password123");
         assertThat(categoryRepository.findByUserIdAndSpaceIdIsNull(user.getId())).hasSize(9);
     }

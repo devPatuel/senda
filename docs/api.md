@@ -632,10 +632,12 @@ puede activarlo.
 | Método | Ruta | Qué hace |
 |---|---|---|
 | GET | `/api/admin/users` | Cuentas: `id`, `email`, `name`, `createdAt`, `admin`. Sin datos financieros |
+| DELETE | `/api/admin/users/{id}` | Baja lógica de una cuenta que no sea de administrador (`204`). Deja de poder entrar, conserva sus datos y su email sigue ocupado |
 | POST | `/api/admin/users/{id}/password` | Cambia la contraseña de otra persona sin saber la actual y cierra sus sesiones (`204`). Body: `{ "newPassword": "..." }` |
 
 Errores: `400` contraseña no válida, `403` sin permiso de administrador o token personal,
-`404` cuenta inexistente, `422` intento de cambiar la propia (se hace en `/api/auth/password`).
+`404` cuenta inexistente o eliminada, `422` intento de cambiar la propia contraseña (se hace
+en `/api/auth/password`) o de eliminar a un administrador.
 
 ---
 
@@ -686,20 +688,25 @@ o ya miembro, o invitación ya aceptada.
 
 ## Lista de deseos
 
-`GET /api/wishlist` devuelve los deseos y la suma de sus precios:
+`GET /api/wishlist` devuelve los deseos, la suma de sus precios y sus listas con su total:
 
 ```json
 {
   "items": [ { "id": 1, "name": "Auriculares", "imageUrl": null, "productUrl": "https://...",
-               "comment": null, "price": 89.00, "priority": 2, "createdAt": "..." } ],
-  "total": 89.00
+               "comment": null, "price": 89.00, "priority": 2, "createdAt": "...", "listId": 3 } ],
+  "total": 89.00,
+  "lists": [ { "id": 3, "name": "Oficina", "itemCount": 1, "total": 89.00 } ],
+  "unlistedTotal": 0
 }
 ```
 
 | Método | Ruta | Descripción |
 |---|---|---|
 | POST | `/api/wishlist` | Crea (`201`). Solo `name` es obligatorio; `priority` va de 1 a 5; `imageUrl` y `productUrl` deben empezar por `http://` o `https://` (`400` si no) |
-| PUT | `/api/wishlist/{id}` | Edita |
+| PUT | `/api/wishlist/{id}` | Edita. Sin `listId`, el deseo queda sin lista |
+| POST | `/api/wishlist/lists` | Crea una lista (`201`). Body: `{ "name": "..." }`. `409` si ya tienes una con ese nombre |
+| PUT | `/api/wishlist/lists/{id}` | Renombra |
+| DELETE | `/api/wishlist/lists/{id}` | Borra la lista (`204`); sus deseos quedan sin lista |
 | DELETE | `/api/wishlist/{id}` | Borra (`204`) |
 
 ---
