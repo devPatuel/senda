@@ -25,9 +25,9 @@ management:
 
 senda:
   auth:
-    # Self-service sign-up. Closed by default: Senda is single-user in practice and
-    # any deployment is reachable by every device on its network. Open it (true) only
-    # long enough to create the first account, then close it again.
+    # Self-service sign-up. Closed by default: any deployment is reachable by every
+    # device on its network. Keep it open (true) only where that network is private
+    # and everyone on it is welcome to an account, such as a Tailscale tailnet.
     registration-enabled: ${SENDA_REGISTRATION_ENABLED:false}
     rate-limit:
       # Header carrying the real client address, ONLY when a reverse proxy in front

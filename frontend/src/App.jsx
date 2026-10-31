@@ -4,13 +4,13 @@ import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
+import AdminPage from './pages/AdminPage'
 import TransactionsPage from './pages/TransactionsPage'
 import CategoriesPage from './pages/CategoriesPage'
 import AccountsPage from './pages/AccountsPage'
 import DebtsPage from './pages/DebtsPage'
 import InvestmentsPage from './pages/InvestmentsPage'
 import AllocationPage from './pages/AllocationPage'
-import NetWorthPage from './pages/NetWorthPage'
 import RecurringPage from './pages/RecurringPage'
 import ImportPage from './pages/ImportPage'
 import SpacePage from './pages/SpacePage'
@@ -35,11 +35,11 @@ export default function App() {
           <Route path="/reparto" element={<AllocationPage />} />
           <Route path="/recurrentes" element={<RecurringPage />} />
           <Route path="/importar" element={<ImportPage />} />
-          <Route path="/patrimonio" element={<NetWorthPage />} />
           <Route path="/deseos" element={<WishlistPage />} />
           <Route path="/pareja" element={<SpacePage />} />
           <Route path="/tokens" element={<TokensPage />} />
           <Route path="/contrasena" element={<PasswordPage />} />
+          <Route path="/admin" element={<AdminPage />} />
         </Route>
       </Route>
 

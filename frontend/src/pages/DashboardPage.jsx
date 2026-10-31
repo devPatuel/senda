@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getSummary, getTrends } from '../api/transactions'
+import { listSpaces } from '../api/spaces'
 import { getNetWorth, getNetWorthHistory } from '../api/networth'
 import { getRecurring } from '../api/recurring'
 import { listCategories } from '../api/categories'
-import { getAlerts } from '../api/alerts'
 import { formatCurrency, formatMonthLabel, formatDate } from '../lib/format'
 import { EmptyState, ErrorState, LoadingState } from '../components/ui'
 import TransactionForm from '../components/TransactionForm'
@@ -121,7 +121,7 @@ function CategoryBreakdown({ title, items, prevById, type }) {
 }
 
 // Small labelled figure used in the net-worth breakdown row.
-function NetWorthStat({ label, value, tone = 'neutral' }) {
+function NetWorthStat({ label, value, tone = 'neutral', children }) {
   const valueClasses = {
     positive: 'text-emerald-600',
     negative: 'text-red-600',
@@ -133,6 +133,7 @@ function NetWorthStat({ label, value, tone = 'neutral' }) {
       <p className={['mt-0.5 text-sm font-semibold tabular-nums', valueClasses].join(' ')}>
         {formatCurrency(value)}
       </p>
+      {children}
     </div>
   )
 }
@@ -149,7 +150,7 @@ export default function DashboardPage() {
   const [categories, setCategories] = useState([])
   const [trends, setTrends] = useState(null)
   const [history, setHistory] = useState(null)
-  const [alerts, setAlerts] = useState(null)
+  const [spaces, setSpaces] = useState(null)
   const [nowError, setNowError] = useState(null)
 
   // Monthly summary — depends on the selected month. We also fetch the previous
@@ -185,9 +186,10 @@ export default function DashboardPage() {
     getNetWorthHistory(30)
       .then((hist) => { if (!cancelled) setHistory(hist) })
       .catch(() => { if (!cancelled) setHistory(null) })
-    getAlerts()
-      .then((al) => { if (!cancelled) setAlerts(al) })
-      .catch(() => { if (!cancelled) setAlerts(null) })
+    // Secondary too: a failure only hides the invitation to create a couple space.
+    listSpaces()
+      .then((list) => { if (!cancelled) setSpaces(list) })
+      .catch(() => { if (!cancelled) setSpaces(null) })
     return () => {
       cancelled = true
     }
@@ -241,10 +243,6 @@ export default function DashboardPage() {
     : null
   const upcoming = upcomingWithin(recurring, 30)
   const cancellations = endingWithin(recurring, 14)
-  const antExpenses = alerts?.antExpenses ?? []
-  const forgotten = alerts?.forgottenSubscriptions ?? []
-  const hasAlerts = antExpenses.length + forgotten.length > 0
-  const debtsNet = netWorth ? Number(netWorth.debtsInFavor) - Number(netWorth.debtsAgainst) : 0
   // Half of the couple accounts' balance is part of the net worth. Hiding it made
   // the breakdown fail to add up to the headline figure.
   const coupleShare = netWorth ? Number(netWorth.coupleShare ?? 0) : 0
@@ -287,12 +285,19 @@ export default function DashboardPage() {
             ].join(' ')}
           >
             <NetWorthStat label="Líquido" value={netWorth.liquid} />
+            <NetWorthStat label="Inversiones" value={netWorth.investments}>
+              <p className="mt-1 text-xs tabular-nums text-slate-400">
+                Holdings {formatCurrency(netWorth.investmentsHoldings)}
+              </p>
+              <p className="text-xs tabular-nums text-slate-400">
+                NFTs {formatCurrency(netWorth.investmentsNfts)}
+              </p>
+            </NetWorthStat>
             {coupleShare !== 0 && <NetWorthStat label="Pareja (50%)" value={coupleShare} />}
-            <NetWorthStat
-              label="Deudas"
-              value={debtsNet}
-              tone={debtsNet < 0 ? 'negative' : debtsNet > 0 ? 'positive' : 'neutral'}
-            />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <NetWorthStat label="Deudas a favor" value={netWorth.debtsInFavor} tone="positive" />
+            <NetWorthStat label="Deudas en contra" value={netWorth.debtsAgainst} tone="negative" />
           </div>
         </section>
       )}
@@ -302,6 +307,16 @@ export default function DashboardPage() {
 
       {/* Income vs expense trends */}
       {!nowError && trends && trends.length > 0 && <TrendsChart trends={trends} />}
+
+      {/* Way in for accounts with no couple space: the menu entry only appears once there is one */}
+      {spaces && spaces.length === 0 && (
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+          <p className="min-w-0 flex-1 text-sm text-slate-600">¿Lleváis gastos a medias? Crea un espacio compartido.</p>
+          <Link to="/pareja" className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700">
+            Crear espacio de pareja
+          </Link>
+        </section>
+      )}
 
       {/* Cancellation reminders */}
       {cancellations.length > 0 && (
@@ -321,51 +336,6 @@ export default function DashboardPage() {
                   Cancelar <span className="font-medium">«{p.name}»</span> antes del {formatDate(p.endDate)}
                 </p>
                 <Link to="/recurrentes" className="shrink-0 text-xs font-medium text-amber-700 hover:text-amber-900">
-                  Ver
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {/* Spending alerts (ant expenses + forgotten subscriptions) */}
-      {hasAlerts && (
-        <section className="overflow-hidden rounded-2xl border border-amber-200 bg-white">
-          <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-amber-500" aria-hidden="true">
-              <path d="M12 9v4" />
-              <path d="M12 17h.01" />
-              <circle cx="12" cy="12" r="9" />
-            </svg>
-            <h2 className="text-sm font-semibold text-slate-700">Avisos</h2>
-          </div>
-          <ul className="divide-y divide-slate-100">
-            {antExpenses.map((a) => (
-              <li key={`ant-${a.categoryId}`} className="flex items-center gap-3 px-4 py-3">
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: a.categoryColor }}
-                  aria-hidden="true"
-                />
-                <p className="min-w-0 flex-1 text-sm text-slate-700">
-                  Muchos gastos pequeños en <span className="font-medium">{a.categoryName}</span>:{' '}
-                  {a.count} por {formatCurrency(a.total)} este mes
-                </p>
-              </li>
-            ))}
-            {forgotten.map((f) => (
-              <li key={`forgotten-${f.recurringId}`} className="flex items-center gap-3 px-4 py-3">
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: f.categoryColor }}
-                  aria-hidden="true"
-                />
-                <p className="min-w-0 flex-1 text-sm text-slate-700">
-                  Pagas <span className="font-medium">«{f.name}»</span> pero no usas {f.categoryName} (sin
-                  gastos en 2 meses)
-                </p>
-                <Link to="/recurrentes" className="shrink-0 text-xs font-medium text-emerald-600 hover:text-emerald-700">
                   Ver
                 </Link>
               </li>

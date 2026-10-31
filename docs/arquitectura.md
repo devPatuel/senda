@@ -56,13 +56,13 @@ existentes.
 | Paquete | Contenido |
 |---|---|
 | `dev.jordi.senda.auth` | Registro, login, emisión de JWT |
+| `dev.jordi.senda.admin` | Panel de administración: lista de cuentas y cambio de contraseña de otros |
 | `dev.jordi.senda.apitoken` | Tokens personales de acceso (atajos, scripts): se guarda solo su hash |
 | `dev.jordi.senda.user` | Entidad y repositorio de usuario |
 | `dev.jordi.senda.category` | CRUD de categorías, set por defecto al registrarse y presupuesto por sobres (saldo asignado a cada categoría de gasto) |
 | `dev.jordi.senda.transaction` | CRUD de movimientos, listado paginado, resumen mensual y anual, tendencia y captura rápida |
 | `dev.jordi.senda.imports` | Importación de extractos: previsualización con detección de duplicados y alta en lote |
 | `dev.jordi.senda.recurring` | Pagos recurrentes (semanal, mensual, trimestral, anual): próxima fecha, coste mensual equivalente e historial de cambios de importe |
-| `dev.jordi.senda.alerts` | Avisos del Inicio: gastos hormiga y suscripciones sin uso (solo lectura, sin tablas) |
 | `dev.jordi.senda.space` | Espacios compartidos, sus miembros y la guardia de acceso `SpaceAccess` |
 | `dev.jordi.senda.account` | Cuentas de dinero líquido (banco/efectivo), saldo manual, archivado, saldo total |
 | `dev.jordi.senda.debt` | Deudas (me deben / debo) con abonos fraccionados y pendiente calculado |
@@ -86,8 +86,8 @@ Convención de códigos: 201 en alta, 400 validación, 401 credenciales o token 
 404 recurso inexistente **o de otro usuario** (nunca 403, para no revelar existencia),
 409 conflicto de estado (email ya registrado, nombre de categoría duplicado para ese
 usuario y tipo, categoría inactiva al crear/editar un movimiento), 429 demasiados
-intentos en `/api/auth/**`. El único 403 de la API es el registro cerrado, que no
-depende de ningún recurso.
+intentos en `/api/auth/**`. Los 403 de la API son el registro cerrado y la administración
+sin permiso, que no dependen de ningún recurso del usuario.
 
 ### Dinero y fechas
 
@@ -211,9 +211,6 @@ Reglas de dominio de finanzas:
 - **Recurrentes**: la próxima fecha se calcula al consultar, no se guarda. Un día que
   no existe en el mes (el 31 en febrero) se ajusta al último día. Cada cambio de importe
   deja una entrada en el historial para mostrar cuánto ha subido.
-- **Avisos**: reglas conservadoras calculadas al vuelo. Gasto hormiga: una categoría
-  con 8 o más compras en el mes, de 10 € de media como máximo, que suman 50 € o más.
-  Suscripción olvidada: un pago recurrente cuya categoría lleva dos meses sin gastos.
 - **Deseos** (`wishlist`): lista simple de cosas que quieres comprar, sin cálculo asociado.
 
 Reglas de dominio:
@@ -288,8 +285,15 @@ Ver [ADR 0002](adr/0002-jwt-stateless.md).
 - **Aislamiento multiusuario**: toda consulta filtra por el `user_id` extraído del token,
   nunca por parámetros del cliente. Un recurso de otro usuario responde 404.
 - **Registro cerrado por defecto** (`SENDA_REGISTRATION_ENABLED`): cualquier despliegue
-  es alcanzable por toda su red, así que el alta solo se abre para crear las cuentas.
-  El perfil `local` lo trae abierto.
+  es alcanzable por toda su red, así que solo se deja abierto donde esa red es privada
+  y quien está en ella puede tener cuenta, como un tailnet. El perfil `local` lo trae
+  abierto.
+- **Administración** (`admin`): `users.admin` no se puede activar desde la API; se concede
+  con SQL en el servidor. Cada petición lo comprueba en la base de datos, así que retirarlo
+  surte efecto al momento, y los tokens personales no llegan a estos endpoints. El panel
+  solo muestra datos de la cuenta, nunca finanzas. Cambiar la contraseña de otra persona
+  cierra sus sesiones, pero no revoca sus tokens personales; la propia se cambia siempre
+  sabiendo la actual.
 - **Tokens personales** (`apitoken`): para clientes que no pueden hacer login, como un
   atajo de iOS. Van en la misma cabecera `Authorization: Bearer` y se distinguen del JWT
   por el prefijo `senda_pat_`. El valor se muestra una sola vez al crearlo; en la base
@@ -310,9 +314,12 @@ React + Vite + Tailwind con componentes propios, en JavaScript sin TypeScript
 - Base URL de la API: `import.meta.env.VITE_API_URL` (default `http://localhost:8080/api`;
   en producción se construye con `/api` y nginx hace de proxy).
 - Pantallas: Login y Registro; Inicio (resumen del mes, ritmo de gasto, comparación
-  con el mes anterior, tendencia, vista anual y avisos), Patrimonio, Pareja (espacio
+  con el mes anterior, tendencia, vista anual, patrimonio con su desglose, próximos
+  pagos y recordatorios de baja), Pareja (espacio
   compartido); Movimientos, Recurrentes, Importar; Reparto, Categorías (con el
-  presupuesto por sobres), Deseos; Cuentas, Inversiones, Deudas; Tokens y Contraseña.
+  presupuesto por sobres), Deseos; Cuentas, Inversiones, Deudas; Tokens, Contraseña y
+  Administración (solo administradores). Pareja solo sale en el menú con un espacio o una
+  invitación pendiente; sin ellos, Inicio ofrece crearlo.
 - Los extractos se leen en el navegador: `lib/csv.js` para CSV y `lib/xlsx.js` para
   Excel (librería `read-excel-file`, cargada solo al importar un `.xlsx`).
 - Importes formateados con `Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })`.

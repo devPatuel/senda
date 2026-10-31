@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { getMe } from '../api/admin'
+import { listSpaces } from '../api/spaces'
 import { useAuth } from '../auth/useAuth'
 
 const svg = (...paths) => (
@@ -12,7 +14,6 @@ const svg = (...paths) => (
 
 const ICONS = {
   inicio: svg('M3 10.5 12 3l9 7.5', 'M5 9.5V21h14V9.5'),
-  patrimonio: svg('M3 3v18h18', 'M7 15v3', 'M12 9v9', 'M17 5v13'),
   pareja: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -54,7 +55,6 @@ const NAV_GROUPS = [
     title: 'General',
     items: [
       { to: '/', label: 'Inicio', end: true, icon: ICONS.inicio },
-      { to: '/patrimonio', label: 'Patrimonio', icon: ICONS.patrimonio },
       { to: '/pareja', label: 'Pareja', icon: ICONS.pareja },
     ],
   },
@@ -86,6 +86,11 @@ const NAV_GROUPS = [
 
 const TOKENS_ITEM = { to: '/tokens', label: 'Tokens', icon: ICONS.tokens }
 const PASSWORD_ITEM = { to: '/contrasena', label: 'Contraseña', icon: ICONS.contrasena }
+const ADMIN_ITEM = {
+  to: '/admin',
+  label: 'Administración',
+  icon: svg('M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6z'),
+}
 
 const STORAGE_KEY = 'senda_sidebar_collapsed'
 
@@ -124,15 +129,14 @@ function SidebarLink({ item, collapsed, onNavigate }) {
 function Brand({ collapsed }) {
   return (
     <NavLink to="/" className="flex items-center gap-2 px-1">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-sm font-bold text-white">
-        S
-      </span>
+      {/* Collapsed, the logo is the link's only content, so it must carry the name. */}
+      <img src="/logo.svg" alt={collapsed ? 'Senda' : ''} className="h-8 w-8 shrink-0 object-contain" />
       {!collapsed && <span className="text-lg font-semibold tracking-tight">Senda</span>}
     </NavLink>
   )
 }
 
-function NavGroups({ collapsed, onNavigate }) {
+function NavGroups({ collapsed, showCouple, onNavigate }) {
   return (
     <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-2" aria-label="Principal">
       {NAV_GROUPS.map((group) => (
@@ -142,7 +146,7 @@ function NavGroups({ collapsed, onNavigate }) {
               {group.title}
             </p>
           )}
-          {group.items.map((item) => (
+          {group.items.filter((item) => item.to !== '/pareja' || showCouple).map((item) => (
             <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
           ))}
         </div>
@@ -151,9 +155,10 @@ function NavGroups({ collapsed, onNavigate }) {
   )
 }
 
-function SidebarFooter({ collapsed, user, logout, onNavigate }) {
+function SidebarFooter({ collapsed, user, isAdmin, logout, onNavigate }) {
   return (
     <div className="border-t border-slate-200 px-2 py-2">
+      {isAdmin && <SidebarLink item={ADMIN_ITEM} collapsed={collapsed} onNavigate={onNavigate} />}
       <SidebarLink item={TOKENS_ITEM} collapsed={collapsed} onNavigate={onNavigate} />
       <SidebarLink item={PASSWORD_ITEM} collapsed={collapsed} onNavigate={onNavigate} />
       <div className={`flex items-center gap-2 px-3 py-2 ${collapsed ? 'justify-center' : 'justify-between'}`}>
@@ -175,6 +180,32 @@ export default function Layout() {
   const { user, logout } = useAuth()
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [showCouple, setShowCouple] = useState(false)
+  const { pathname } = useLocation()
+
+  // Only adapts the menu: the server authorizes every admin and space request.
+  useEffect(() => {
+    let cancelled = false
+    getMe()
+      .then((me) => { if (!cancelled) setIsAdmin(Boolean(me?.admin)) })
+      .catch(() => { if (!cancelled) setIsAdmin(false) })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Re-read on navigation so an invitation shows up without logging in again. If the
+  // request fails, keep the entry visible: a hiccup must not hide someone's space.
+  useEffect(() => {
+    let cancelled = false
+    listSpaces()
+      .then((spaces) => { if (!cancelled) setShowCouple(spaces.length > 0) })
+      .catch(() => { if (!cancelled) setShowCouple(true) })
+    return () => {
+      cancelled = true
+    }
+  }, [pathname])
 
   useEffect(() => {
     try {
@@ -207,8 +238,8 @@ export default function Layout() {
             </svg>
           </button>
         </div>
-        <NavGroups collapsed={collapsed} />
-        <SidebarFooter collapsed={collapsed} user={user} logout={logout} />
+        <NavGroups collapsed={collapsed} showCouple={showCouple} />
+        <SidebarFooter collapsed={collapsed} isAdmin={isAdmin} user={user} logout={logout} />
       </aside>
 
       {/* Mobile top bar */}
@@ -258,9 +289,9 @@ export default function Layout() {
                 </svg>
               </button>
             </div>
-            <NavGroups collapsed={false} onNavigate={() => setDrawerOpen(false)} />
+            <NavGroups collapsed={false} showCouple={showCouple} onNavigate={() => setDrawerOpen(false)} />
             <SidebarFooter
-              collapsed={false}
+              collapsed={false} isAdmin={isAdmin}
               user={user}
               logout={logout}
               onNavigate={() => setDrawerOpen(false)}

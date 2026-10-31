@@ -622,22 +622,20 @@ inexistente o ajena.
 
 ---
 
-## Avisos
+## Administración
 
-`GET /api/alerts` — avisos heurísticos para el Inicio. Las dos listas suelen venir
-vacías.
+`GET /api/users/me` — datos de la cuenta actual: `{ "id", "email", "name", "admin" }`.
 
-```json
-{
-  "antExpenses": [ { "categoryId": 3, "categoryName": "Cafés", "categoryColor": "#F59E0B", "count": 12, "total": 64.80 } ],
-  "forgottenSubscriptions": [ { "recurringId": 1, "name": "Gimnasio", "categoryId": 5, "categoryName": "Salud", "categoryColor": "#10B981" } ]
-}
-```
+Solo para administradores. `admin` se concede con SQL en el servidor; ninguna petición
+puede activarlo.
 
-- **Gasto hormiga**: categoría con 8 o más compras este mes, de 10 € de media como
-  máximo, que suman 50 € o más.
-- **Suscripción olvidada**: pago recurrente cuya categoría no tiene gastos desde hace
-  dos meses.
+| Método | Ruta | Qué hace |
+|---|---|---|
+| GET | `/api/admin/users` | Cuentas: `id`, `email`, `name`, `createdAt`, `admin`. Sin datos financieros |
+| POST | `/api/admin/users/{id}/password` | Cambia la contraseña de otra persona sin saber la actual y cierra sus sesiones (`204`). Body: `{ "newPassword": "..." }` |
+
+Errores: `400` contraseña no válida, `403` sin permiso de administrador o token personal,
+`404` cuenta inexistente, `422` intento de cambiar la propia (se hace en `/api/auth/password`).
 
 ---
 

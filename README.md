@@ -35,8 +35,6 @@ La interfaz está en español y trabaja en euros.
 - **Espacio compartido**: una cuenta conjunta con tu pareja, con sus propias
   categorías y movimientos, separada de lo personal de cada uno.
 - **Traspasos**: mover dinero entre cuentas propias no cuenta como ingreso ni gasto.
-- **Avisos**: gastos pequeños que suman mucho y suscripciones que sigues pagando sin
-  usar.
 - **Tokens personales**: para apuntar un gasto desde un atajo de iOS o un script sin
   usar tu contraseña. Solo sirven para eso: no pueden leer tus datos.
 - **Lista de deseos**.
@@ -47,12 +45,12 @@ La interfaz está en español y trabaja en euros.
 | Movimientos | Inversiones |
 |---|---|
 | ![Lista de movimientos por categoría](docs/capturas/movimientos.png) | ![Resumen de inversiones con ganancia y reparto](docs/capturas/inversiones.png) |
-| **Patrimonio** | **Pagos recurrentes** |
-| ![Patrimonio neto con su desglose](docs/capturas/patrimonio.png) | ![Pagos recurrentes con su coste mensual](docs/capturas/recurrentes.png) |
-| **Presupuesto por sobres** | **Reparto del sueldo** |
-| ![Categorías con lo asignado, lo gastado y lo que queda en cada sobre](docs/capturas/categorias.png) | ![Plan de reparto del sueldo por porcentajes](docs/capturas/reparto.png) |
-| **Espacio compartido** | **Importar un extracto** |
-| ![Resumen del espacio Pareja con lo aportado y el gasto por categoría](docs/capturas/pareja.png) | ![Previsualización de un extracto con duplicados detectados](docs/capturas/importar.png) |
+| **Pagos recurrentes** | **Presupuesto por sobres** |
+| ![Pagos recurrentes con su coste mensual](docs/capturas/recurrentes.png) | ![Categorías con lo asignado, lo gastado y lo que queda en cada sobre](docs/capturas/categorias.png) |
+| **Reparto del sueldo** | **Espacio compartido** |
+| ![Plan de reparto del sueldo por porcentajes](docs/capturas/reparto.png) | ![Resumen del espacio Pareja con lo aportado y el gasto por categoría](docs/capturas/pareja.png) |
+| **Importar un extracto** | |
+| ![Previsualización de un extracto con duplicados detectados](docs/capturas/importar.png) | |
 
 </details>
 
@@ -120,13 +118,16 @@ queda fijada la primera vez que arranca.
 | `SENDA_CORS_ORIGINS` | Si no entras por `http://localhost:8088` | Direcciones desde las que se abre la app, con su puerto y separadas por comas. Si falta la tuya, podrás ver los datos pero no guardar nada (error 403) |
 | `SENDA_REGISTRATION_ENABLED` | No | `true` permite crear cuentas. Por defecto está cerrado |
 
-Dos cosas que conviene hacer bien:
+Tres cosas que conviene hacer bien:
 
 1. **Crear la primera cuenta.** El registro viene cerrado, porque cualquiera que
    llegue a la app por tu red podría darse de alta. Arranca una vez con
    `SENDA_REGISTRATION_ENABLED=true`, crea tu cuenta (y la de tu pareja) y vuelve a
-   arrancar sin la variable.
-2. **No la publiques en internet.** La pila sirve HTTP sin cifrar. Para entrar desde
+   arrancar sin la variable, o déjala puesta si solo se llega por una red privada en la
+   que todos pueden tener cuenta.
+2. **Nombrar a quien administra.** Da acceso al panel de cuentas, y se hace en el servidor
+   a propósito: `UPDATE users SET admin = true WHERE email = 'tu@correo';`
+3. **No la publiques en internet.** La pila sirve HTTP sin cifrar. Para entrar desde
    fuera de casa, usa una VPN privada: el paso a paso con Tailscale está en
    [docs/runbook-acceso-remoto-tailscale.md](docs/runbook-acceso-remoto-tailscale.md).
 

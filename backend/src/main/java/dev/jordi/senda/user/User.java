@@ -33,6 +33,10 @@ public class User {
     @Column(name = "token_version", nullable = false)
     private int tokenVersion;
 
+    // Read-only on purpose: granted with SQL on the server, never through the app.
+    @Column(nullable = false, updatable = false, insertable = false)
+    private boolean admin;
+
     protected User() {
         // JPA only
     }
@@ -72,6 +76,10 @@ public class User {
 
     public int getTokenVersion() {
         return tokenVersion;
+    }
+
+    public boolean isAdmin() {
+        return admin;
     }
 
     /**

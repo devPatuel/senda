@@ -1,13 +1,17 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import Layout from './Layout'
+import { getMe } from '../api/admin'
+import { listSpaces } from '../api/spaces'
 
 // Layout calls useAuth(); mock it to avoid mounting the real provider.
 vi.mock('../auth/useAuth', () => ({
-  useAuth: () => ({ user: { name: 'Jordi' }, logout: vi.fn() }),
+  useAuth: () => ({ user: { name: 'Persona' }, logout: vi.fn() }),
 }))
+vi.mock('../api/admin', () => ({ getMe: vi.fn() }))
+vi.mock('../api/spaces', () => ({ listSpaces: vi.fn() }))
 
 function renderLayout() {
   return render(
@@ -19,6 +23,8 @@ function renderLayout() {
 
 beforeEach(() => {
   localStorage.clear()
+  getMe.mockResolvedValue({ admin: false })
+  listSpaces.mockResolvedValue([])
 })
 
 describe('Layout sidebar', () => {
@@ -32,9 +38,45 @@ describe('Layout sidebar', () => {
     expect(screen.getAllByText('Movimientos').length).toBeGreaterThanOrEqual(2)
   })
 
-  it('enlaza la pantalla de Patrimonio', () => {
+  it('muestra el logo en la marca que lleva a Inicio', () => {
+    const { container } = renderLayout()
+    const logo = container.querySelector('img[src="/logo.svg"]')
+    expect(logo).toBeInTheDocument()
+    expect(logo.closest('a')).toHaveAttribute('href', '/')
+  })
+
+  it('oculta Pareja a quien no tiene espacio ni invitación', async () => {
     renderLayout()
-    expect(screen.getAllByRole('link', { name: /Patrimonio/i })[0]).toHaveAttribute('href', '/patrimonio')
+    await waitFor(() => expect(listSpaces).toHaveBeenCalled())
+    expect(screen.queryByRole('link', { name: /Pareja/i })).not.toBeInTheDocument()
+  })
+
+  it('muestra Pareja con una invitación pendiente', async () => {
+    listSpaces.mockResolvedValue([{ id: 1, name: 'Pareja', myStatus: 'PENDING' }])
+    renderLayout()
+    expect((await screen.findAllByRole('link', { name: /Pareja/i }))[0]).toHaveAttribute('href', '/pareja')
+  })
+
+  it('mantiene Pareja visible si no se pueden cargar los espacios', async () => {
+    listSpaces.mockRejectedValue(new Error('caído'))
+    renderLayout()
+    expect((await screen.findAllByRole('link', { name: /Pareja/i })).length).toBeGreaterThan(0)
+  })
+
+  it('solo ofrece Administración a un administrador', async () => {
+    renderLayout()
+    await waitFor(() => expect(getMe).toHaveBeenCalled())
+    expect(screen.queryByRole('link', { name: /Administración/i })).not.toBeInTheDocument()
+
+    cleanup()
+    getMe.mockResolvedValue({ admin: true })
+    renderLayout()
+    expect((await screen.findAllByRole('link', { name: /Administración/i }))[0]).toHaveAttribute('href', '/admin')
+  })
+
+  it('ya no ofrece Patrimonio: su detalle vive en Inicio', () => {
+    renderLayout()
+    expect(screen.queryByRole('link', { name: /Patrimonio/i })).not.toBeInTheDocument()
   })
 
   it('no ofrece los modulos retirados (Compra, Productos, Reglas, Habitos)', () => {

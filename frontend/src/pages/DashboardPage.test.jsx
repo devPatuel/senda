@@ -7,7 +7,7 @@ import { getSummary, createTransaction, getTrends } from '../api/transactions'
 import { getNetWorth, getNetWorthHistory } from '../api/networth'
 import { getRecurring } from '../api/recurring'
 import { listCategories } from '../api/categories'
-import { getAlerts } from '../api/alerts'
+import { listSpaces } from '../api/spaces'
 import { formatCurrency, formatMonthLabel } from '../lib/format'
 
 vi.mock('../api/transactions', () => ({
@@ -18,9 +18,8 @@ vi.mock('../api/transactions', () => ({
 vi.mock('../api/networth', () => ({ getNetWorth: vi.fn(), getNetWorthHistory: vi.fn() }))
 vi.mock('../api/recurring', () => ({ getRecurring: vi.fn() }))
 vi.mock('../api/categories', () => ({ listCategories: vi.fn() }))
-vi.mock('../api/alerts', () => ({ getAlerts: vi.fn() }))
+vi.mock('../api/spaces', () => ({ listSpaces: vi.fn() }))
 
-const NO_ALERTS = { antExpenses: [], forgottenSubscriptions: [] }
 
 const TRENDS = [
   { year: 2026, month: 1, income: 1000, expense: 400, balance: 600 },
@@ -95,24 +94,7 @@ describe('DashboardPage', () => {
     listCategories.mockResolvedValue(CATEGORIES)
     getTrends.mockResolvedValue(TRENDS)
     getNetWorthHistory.mockResolvedValue([])
-    getAlerts.mockResolvedValue(NO_ALERTS)
-  })
-
-  it('shows the spending alerts section when there are alerts', async () => {
-    getAlerts.mockResolvedValue({
-      antExpenses: [
-        { categoryId: 1, categoryName: 'Comida', categoryColor: '#ef4444', count: 8, total: 56 },
-      ],
-      forgottenSubscriptions: [
-        { recurringId: 5, name: 'Revista', categoryId: 3, categoryName: 'Ocio', categoryColor: '#f59e0b' },
-      ],
-    })
-    renderDashboard()
-
-    expect(await screen.findByText('Avisos')).toBeInTheDocument()
-    expect(screen.getByText(/Muchos gastos pequeños en/)).toBeInTheDocument()
-    expect(screen.getByText(/Pagas/)).toBeInTheDocument()
-    expect(screen.getByText('«Revista»')).toBeInTheDocument()
+    listSpaces.mockResolvedValue([{ id: 1, name: 'Pareja', myStatus: 'ACTIVE' }])
   })
 
   it('renders the income/expense trends chart', async () => {
@@ -275,8 +257,47 @@ describe('DashboardPage', () => {
     const headline = await screen.findByText('Patrimonio sin inversiones')
     expect(headline.parentElement).toHaveTextContent(visibleCurrency(1000))
     expect(screen.getByText(/Con inversiones/).parentElement).toHaveTextContent(visibleCurrency(2360))
-    // The breakdown no longer repeats investments: its figures add up to the headline
-    expect(screen.queryByText('Inversiones')).not.toBeInTheDocument()
+  })
+
+  it('shows the full net worth detail: investments split and debts apart', async () => {
+    getNetWorth.mockResolvedValue({
+      ...NET_WORTH,
+      investments: 1360,
+      investmentsHoldings: 1300,
+      investmentsNfts: 60,
+      debtsInFavor: 250,
+      debtsAgainst: 75,
+      net: 2535,
+    })
+    renderDashboard()
+
+    expect(await screen.findByText('Inversiones')).toBeInTheDocument()
+    expect(screen.getByText(visibleCurrency(1360))).toBeInTheDocument()
+    expect(screen.getByText(`Holdings ${visibleCurrency(1300)}`)).toBeInTheDocument()
+    expect(screen.getByText(`NFTs ${visibleCurrency(60)}`)).toBeInTheDocument()
+    expect(screen.getByText('Deudas a favor').parentElement).toHaveTextContent(visibleCurrency(250))
+    expect(screen.getByText('Deudas en contra').parentElement).toHaveTextContent(visibleCurrency(75))
+  })
+
+  it('no longer asks for the removed spending alerts', async () => {
+    renderDashboard()
+
+    await screen.findByText(formatMonthLabel(year, month))
+    expect(screen.queryByText('Avisos')).not.toBeInTheDocument()
+  })
+
+  it('offers creating a couple space only to accounts without any', async () => {
+    listSpaces.mockResolvedValue([])
+    renderDashboard()
+    expect(await screen.findByRole('link', { name: 'Crear espacio de pareja' })).toHaveAttribute('href', '/pareja')
+  })
+
+  it('hides the create button when the user already has a space or an invitation', async () => {
+    listSpaces.mockResolvedValue([{ id: 1, name: 'Pareja', myStatus: 'PENDING' }])
+    renderDashboard()
+    await waitFor(() => expect(listSpaces).toHaveBeenCalled())
+    await screen.findByText(formatMonthLabel(year, month))
+    expect(screen.queryByRole('link', { name: 'Crear espacio de pareja' })).not.toBeInTheDocument()
   })
 
   it('omits the couple share when the user has no couple space', async () => {

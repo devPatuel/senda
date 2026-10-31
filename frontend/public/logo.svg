@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="460 385 1010 1160" role="img" aria-label="Senda">
+  <defs>
+    <linearGradient id="senda" gradientUnits="userSpaceOnUse" x1="520" y1="1460" x2="1420" y2="440">
+      <stop offset="0" stop-color="#0B6B52"/>
+      <stop offset=".3" stop-color="#23875F"/>
+      <stop offset=".65" stop-color="#9AA05A"/>
+      <stop offset="1" stop-color="#EDAF4D"/>
+    </linearGradient>
+  </defs>
+  <path fill="none" stroke="url(#senda)" stroke-width="82" stroke-linecap="round" stroke-linejoin="round" d="M541 1465V1340C541 1262 603 1202 680 1202H1250A118 118 0 0 0 1250 966H668A118 118 0 0 1 668 730H975"/>
+  <path fill="url(#senda)" d="M975 689C1006 689 1035 685 1063 678C1054 560 1110 480 1190 450C1260 418 1345 418 1415 442C1440 520 1440 600 1420 650C1395 735 1310 800 1220 790C1193 787 1166 785 1142 778C1180 762 1210 738 1233 709C1290 702 1330 670 1345 610C1355 580 1355 545 1348 509C1260 490 1180 510 1155 570C1147 592 1144 625 1144 654C1200 632 1250 595 1291 555C1270 625 1225 680 1170 720C1115 755 1045 771 975 771Z"/>
+</svg>
