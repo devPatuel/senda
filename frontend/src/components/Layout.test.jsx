@@ -28,6 +28,11 @@ beforeEach(() => {
 })
 
 describe('Layout sidebar', () => {
+  it('la barra lateral mide lo que la ventana, no lo que la página', () => {
+    const { container } = renderLayout()
+    expect(container.querySelector('aside')).toHaveClass('sticky', 'top-0', 'h-screen')
+  })
+
   it('ordena el menú con Pareja al final', async () => {
     listSpaces.mockResolvedValue([{ id: 1, name: 'Pareja', myStatus: 'ACTIVE' }])
     renderLayout()

@@ -186,9 +186,9 @@ export default function Layout() {
 
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900">
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar: as tall as the window, not the page, so its footer stays in reach. */}
       <aside
-        className={`hidden shrink-0 flex-col border-r border-slate-200 bg-white transition-all md:flex ${
+        className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-slate-200 bg-white transition-all md:flex ${
           collapsed ? 'w-16' : 'w-60'
         }`}
       >
