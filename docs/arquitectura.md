@@ -326,8 +326,8 @@ React + Vite + Tailwind con componentes propios, en JavaScript sin TypeScript
   pagos y recordatorios de baja), Pareja (espacio
   compartido); Movimientos, Recurrentes, Importar; Reparto, Categorías (con el
   presupuesto por sobres), Deseos; Cuentas, Inversiones, Deudas; Tokens, Contraseña y
-  Administración (solo administradores). Movimientos (con Recurrentes e Importar), Activos
-  (Cuentas, Inversiones, Deudas) y Planificación (Reparto, Categorías, Deseos) son entradas
+  Administración (solo administradores). Activos (Cuentas, Inversiones, Deudas), Movimientos
+  (con Recurrentes e Importar) y Planificación (Categorías, Deseos, Reparto) son entradas
   del menú con pestañas horizontales; cada pestaña conserva su propia dirección. Pareja solo sale en el menú con un espacio o una
   invitación pendiente; sin ellos, Inicio ofrece crearlo.
 - Los extractos se leen en el navegador: `lib/csv.js` para CSV y `lib/xlsx.js` para

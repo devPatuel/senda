@@ -28,11 +28,14 @@ beforeEach(() => {
 })
 
 describe('Layout sidebar', () => {
-  it('agrupa las secciones personales y deja Planificación la última', () => {
+  it('ordena el menú con Pareja al final', async () => {
+    listSpaces.mockResolvedValue([{ id: 1, name: 'Pareja', myStatus: 'ACTIVE' }])
     renderLayout()
     const nav = screen.getAllByRole('navigation', { name: 'Principal' })[0]
+    await within(nav).findByRole('link', { name: 'Pareja' })
     const labels = within(nav).getAllByRole('link').map((l) => l.textContent)
-    expect(labels).toEqual(['Inicio', 'Movimientos', 'Activos', 'Planificación'])
+    expect(labels).toEqual(['Inicio', 'Activos', 'Movimientos', 'Planificación', 'Pareja'])
+    expect(within(nav).getByRole('link', { name: 'Planificación' })).toHaveAttribute('href', '/categorias')
   })
 
   it('Importar y las pantallas con pestaña ya no están en el menú', () => {

@@ -6,6 +6,7 @@ import {
   removeRecurring,
 } from '../api/recurring'
 import { listCategories } from '../api/categories'
+import { getNetWorth } from '../api/networth'
 import { formatCurrency, formatDate } from '../lib/format'
 import { Field, FormError, SubmitButton } from '../components/form'
 import { ConfirmDialog, EmptyState, ErrorState, LoadingState, Modal, Notice, SelectField } from '../components/ui'
@@ -232,6 +233,30 @@ function RecurringForm({ payment, categories, onClose, onSaved }) {
   )
 }
 
+function todayIso() {
+  const d = new Date()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${month}-${day}`
+}
+
+// One category per chip, biggest cost first.
+function summarizeByCategory(payments) {
+  const byId = new Map()
+  for (const p of payments) {
+    const current = byId.get(p.categoryId) ?? { id: p.categoryId, name: p.categoryName, color: p.categoryColor, total: 0 }
+    current.total += Number(p.monthlyEquivalent)
+    byId.set(p.categoryId, current)
+  }
+  return [...byId.values()].sort((a, b) => b.total - a.total)
+}
+
+// Rounded down: this is a safety margin, so it must never promise a month that isn't there.
+function monthsLabel(money, monthlyCost) {
+  const months = Math.max(0, Math.floor((money / monthlyCost) * 10) / 10)
+  return months.toLocaleString('es-ES', { maximumFractionDigits: 1 })
+}
+
 export default function RecurringPage() {
   const [payments, setPayments] = useState(null)
   const [categories, setCategories] = useState([])
@@ -244,10 +269,16 @@ export default function RecurringPage() {
   const [editing, setEditing] = useState(null)
   const [toDelete, setToDelete] = useState(null)
   const [deleting, setDeleting] = useState(false)
+  const [netWorth, setNetWorth] = useState(null)
+  const [selectedCategories, setSelectedCategories] = useState([])
 
   useEffect(() => {
     let cancelled = false
     const key = reloadKey
+    // Secondary: without it only the months of margin disappear, not the payments.
+    getNetWorth()
+      .then((result) => { if (!cancelled) setNetWorth(result) })
+      .catch(() => { if (!cancelled) setNetWorth(null) })
     Promise.all([getRecurring(), listCategories({ type: 'EXPENSE' })])
       .then(([list, cats]) => {
         if (!cancelled) {
@@ -288,7 +319,24 @@ export default function RecurringPage() {
     }
   }
 
-  const monthlyTotal = (payments ?? []).reduce((sum, p) => sum + Number(p.monthlyEquivalent), 0)
+  // A payment whose end date has passed no longer costs anything.
+  const today = todayIso()
+  const activePayments = (payments ?? []).filter((p) => !p.endDate || p.endDate >= today)
+  const fixedMonthly = activePayments.reduce((sum, p) => sum + Number(p.monthlyEquivalent), 0)
+  const categorySummary = summarizeByCategory(activePayments)
+  // Ignore a selected category that has just lost its last payment.
+  const activeFilter = selectedCategories.filter((id) => categorySummary.some((c) => c.id === id))
+  const matchesFilter = (p) => activeFilter.length === 0 || activeFilter.includes(p.categoryId)
+  const visiblePayments = (payments ?? []).filter(matchesFilter)
+  const monthlyTotal = activePayments.filter(matchesFilter).reduce((sum, p) => sum + Number(p.monthlyEquivalent), 0)
+  const showMonths = netWorth && fixedMonthly > 0
+
+  function toggleCategory(id) {
+    setSelectedCategories(
+      activeFilter.includes(id) ? activeFilter.filter((c) => c !== id) : [...activeFilter, id],
+    )
+  }
+
   const noCategories = !loading && categories.length === 0
 
   return (
@@ -313,12 +361,56 @@ export default function RecurringPage() {
 
       {payments && payments.length > 0 && (
         <section className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
-          <p className="text-sm text-slate-500">Coste mensual equivalente</p>
+          <p className="text-sm text-slate-500">
+            {activeFilter.length > 0 ? 'Coste mensual de lo seleccionado' : 'Gastos fijos al mes'}
+          </p>
           <p className="mt-1 text-4xl font-bold tracking-tight text-slate-900">
             {formatCurrency(monthlyTotal)}
           </p>
           <p className="mt-1 text-xs text-slate-400">Los pagos anuales cuentan como su importe / 12</p>
+          {showMonths && (
+            <div data-testid="fixed-cost-runway" className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-4">
+              <div>
+                <p className="text-2xl font-semibold tabular-nums text-slate-900">
+                  {monthsLabel(Number(netWorth.liquid), fixedMonthly)} meses
+                </p>
+                <p className="text-xs text-slate-500">de gastos fijos, sin inversiones</p>
+              </div>
+              <div>
+                <p className="text-2xl font-semibold tabular-nums text-slate-900">
+                  {monthsLabel(Number(netWorth.liquid) + Number(netWorth.investments), fixedMonthly)} meses
+                </p>
+                <p className="text-xs text-slate-500">de gastos fijos, con inversiones</p>
+              </div>
+            </div>
+          )}
         </section>
+      )}
+
+      {categorySummary.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filtrar por categoría">
+          {categorySummary.map((c) => {
+            const selected = activeFilter.includes(c.id)
+            return (
+              <button
+                key={c.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => toggleCategory(c.id)}
+                className={[
+                  'flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors',
+                  selected ? 'border-emerald-600 bg-emerald-50 text-emerald-900' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300',
+                ].join(' ')}
+              >
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: c.color }} aria-hidden="true" />
+                <span>
+                  <span className="block max-w-40 truncate font-medium">{c.name}</span>
+                  <span className="block text-xs tabular-nums text-slate-500">{formatCurrency(c.total)}/mes</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
       )}
 
       {actionError && (
@@ -349,7 +441,7 @@ export default function RecurringPage() {
 
       {!error && payments && payments.length > 0 && (
         <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          {payments.map((p) => (
+          {visiblePayments.map((p) => (
             <li key={p.id} className="flex items-center gap-3 px-4 py-3">
               <span
                 className="h-5 w-5 shrink-0 rounded-full border border-slate-200"

@@ -29,9 +29,9 @@ const ASSET_TABS = [
   { to: '/deudas', label: 'Deudas' },
 ]
 const PLANNING_TABS = [
-  { to: '/reparto', label: 'Reparto' },
   { to: '/categorias', label: 'Categorías' },
   { to: '/deseos', label: 'Deseos' },
+  { to: '/reparto', label: 'Reparto' },
 ]
 
 export default function App() {

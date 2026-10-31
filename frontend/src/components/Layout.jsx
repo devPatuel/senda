@@ -47,15 +47,15 @@ const ICONS = {
 // Each section opens on its first tab; `paths` keeps its entry lit on the other tabs.
 const NAV_ITEMS = [
   { to: '/', label: 'Inicio', end: true, icon: ICONS.inicio },
-  { to: '/pareja', label: 'Pareja', icon: ICONS.pareja },
+  { to: '/cuentas', label: 'Activos', icon: ICONS.cuentas, paths: ['/cuentas', '/inversiones', '/deudas'] },
   {
     to: '/movimientos',
     label: 'Movimientos',
     icon: ICONS.movimientos,
     paths: ['/movimientos', '/recurrentes', '/importar'],
   },
-  { to: '/cuentas', label: 'Activos', icon: ICONS.cuentas, paths: ['/cuentas', '/inversiones', '/deudas'] },
-  { to: '/reparto', label: 'Planificación', icon: ICONS.reparto, paths: ['/reparto', '/categorias', '/deseos'] },
+  { to: '/categorias', label: 'Planificación', icon: ICONS.reparto, paths: ['/categorias', '/deseos', '/reparto'] },
+  { to: '/pareja', label: 'Pareja', icon: ICONS.pareja },
 ]
 
 const TOKENS_ITEM = { to: '/tokens', label: 'Tokens', icon: ICONS.tokens }
