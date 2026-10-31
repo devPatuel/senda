@@ -209,6 +209,8 @@ Los tres devuelven el presupuesto completo, para refrescar la pantalla de una ve
   "totalAvailable": 900.00,
   "overspent": 0.00,
   "toAssign": 1100.00,
+  "realAccounts": null,
+  "discrepancy": null,
   "categories": [
     { "id": 3, "name": "Comida", "color": "#EF4444", "balance": 400.00,
       "spentThisMonth": 120.00, "spent": 250.00, "available": 150.00,
@@ -226,6 +228,9 @@ Los tres devuelven el presupuesto completo, para refrescar la pantalla de una ve
   sino lo que dejan sus movimientos: todo lo que entra, aportaciones incluidas, menos todo
   lo que sale. Así cada aportación aparece sola en `toAssign`. Supone que la cuenta común
   empezó a cero con el espacio.
+- `realAccounts` es la suma de los saldos manuales de las cuentas del espacio y
+  `discrepancy = realAccounts − totalAccounts`: si no es cero, falta o sobra algún
+  movimiento. Ambos son `null` en el presupuesto personal y en un espacio sin cuentas.
 - Los traspasos no cuentan como gasto de ningún sobre. En un espacio sí entran en
   `totalAccounts`: una aportación es dinero que llega a la cuenta común.
 

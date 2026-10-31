@@ -15,6 +15,13 @@ import java.util.List;
  * money in accounts. It is larger than {@code totalAccounts} when some category
  * is overspent: {@code overspent} is that debt, money that has to be assigned to
  * bring the red categories back to zero.
+ *
+ * <p>{@code realAccounts} is the balance typed by hand on the space's accounts
+ * and {@code discrepancy} = realAccounts - totalAccounts. In a space
+ * {@code totalAccounts} is derived from movements, so a gap here means a
+ * movement is missing or wrong. Both are null for the personal budget, where
+ * {@code totalAccounts} already is the manual balance, and for a space without
+ * accounts, where there is nothing to compare.
  */
 public record CategoryBudgetResponse(
         BigDecimal totalAccounts,
@@ -22,5 +29,7 @@ public record CategoryBudgetResponse(
         BigDecimal totalAvailable,
         BigDecimal overspent,
         BigDecimal toAssign,
+        BigDecimal realAccounts,
+        BigDecimal discrepancy,
         List<CategoryBudgetLine> categories) {
 }

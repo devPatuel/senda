@@ -210,6 +210,29 @@ describe('CategoriesPage', () => {
     expect(header).toHaveTextContent('890')
   })
 
+  it('warns when the real account and the movements do not match', async () => {
+    getBudget.mockResolvedValue({ ...BUDGET, totalAccounts: 100, realAccounts: 120, discrepancy: 20 })
+    render(<CategoriesPage spaceId={1} />)
+
+    const warning = await screen.findByTestId('account-discrepancy')
+    expect(warning).toHaveTextContent('120,00')
+    expect(warning).toHaveTextContent('100,00')
+    expect(warning).toHaveTextContent('20,00')
+  })
+
+  it('stays quiet without a gap, or with nothing to compare', async () => {
+    getBudget.mockResolvedValue({ ...BUDGET, totalAccounts: 100, realAccounts: 100, discrepancy: 0 })
+    const { unmount } = render(<CategoriesPage spaceId={1} />)
+    await screen.findByTestId('budget-header')
+    expect(screen.queryByTestId('account-discrepancy')).not.toBeInTheDocument()
+    unmount()
+
+    getBudget.mockResolvedValue({ ...BUDGET, realAccounts: null, discrepancy: null })
+    render(<CategoriesPage />)
+    await screen.findByTestId('budget-header')
+    expect(screen.queryByTestId('account-discrepancy')).not.toBeInTheDocument()
+  })
+
   it('calls out how much is overspent', async () => {
     getBudget.mockResolvedValue({
       ...BUDGET, totalAccounts: 1412.35, totalAssigned: 0, totalAvailable: -523.4,

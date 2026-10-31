@@ -597,6 +597,17 @@ export default function CategoriesPage({ spaceId }) {
             </div>
           </section>
 
+          {budget.discrepancy != null && Math.abs(Number(budget.discrepancy)) >= 0.005 && (
+            <p
+              data-testid="account-discrepancy"
+              className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2 text-sm text-amber-800"
+            >
+              Descuadre: la cuenta real marca {formatCurrency(budget.realAccounts)} y los
+              movimientos suman {formatCurrency(budget.totalAccounts)}. Diferencia{' '}
+              {formatCurrency(budget.discrepancy)}: falta o sobra algún movimiento.
+            </p>
+          )}
+
           {Number(budget.overspent) > 0 && (
             <p
               data-testid="overspent-total"

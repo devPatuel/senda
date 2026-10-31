@@ -221,4 +221,42 @@ class CoupleBudgetIntegrationTest {
                         .header("Authorization", "Bearer " + tokenC))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    void reportsTheGapBetweenTheRealAccountAndTheMovements() throws Exception {
+        String token = register("descuadre@example.com", "User A");
+        long spaceId = createSpace(token, "Pareja");
+        createAccount(token, "Comun", "120.00", spaceId);
+        contribute(token, spaceId, "100.00");
+
+        String body = budget(token, spaceId);
+
+        assertThat(((Number) JsonPath.read(body, "$.realAccounts")).doubleValue()).isEqualTo(120.00);
+        assertThat(((Number) JsonPath.read(body, "$.totalAccounts")).doubleValue()).isEqualTo(100.00);
+        assertThat(((Number) JsonPath.read(body, "$.discrepancy")).doubleValue()).isEqualTo(20.00);
+    }
+
+    @Test
+    void reportsNoGapWhenTheAccountMatches() throws Exception {
+        String token = register("cuadra@example.com", "User A");
+        long spaceId = createSpace(token, "Pareja");
+        createAccount(token, "Comun", "100.00", spaceId);
+        contribute(token, spaceId, "100.00");
+
+        assertThat(((Number) JsonPath.read(budget(token, spaceId), "$.discrepancy")).doubleValue()).isEqualTo(0.00);
+    }
+
+    @Test
+    void reportsNothingWithoutAccountsOrInThePersonalBudget() throws Exception {
+        String token = register("sincuentas@example.com", "User A");
+        long spaceId = createSpace(token, "Pareja");
+        contribute(token, spaceId, "100.00");
+        createAccount(token, "Personal", "500.00", null);
+
+        Object spaceGap = JsonPath.read(budget(token, spaceId), "$.discrepancy");
+        Object personalGap = JsonPath.read(budget(token, null), "$.discrepancy");
+
+        assertThat(spaceGap).isNull();
+        assertThat(personalGap).isNull();
+    }
 }

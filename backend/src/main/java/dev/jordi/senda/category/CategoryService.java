@@ -1,5 +1,6 @@
 package dev.jordi.senda.category;
 
+import dev.jordi.senda.account.Account;
 import dev.jordi.senda.account.AccountRepository;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.NotFoundException;
@@ -226,8 +227,22 @@ public class CategoryService {
 
         BigDecimal toAssign = totalAccounts.subtract(totalAvailable);
 
+        BigDecimal realAccounts = null;
+        BigDecimal discrepancy = null;
+        if (spaceId != null) {
+            List<Account> accounts = accountRepository.findBySpaceIdAndArchivedFalse(spaceId);
+            // A space with no accounts has no real balance to compare against: reporting
+            // "the account says 0" would be a false alarm on every movement.
+            if (!accounts.isEmpty()) {
+                realAccounts = accounts.stream()
+                        .map(Account::getBalance)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                discrepancy = realAccounts.subtract(totalAccounts);
+            }
+        }
+
         return new CategoryBudgetResponse(totalAccounts, totalAssigned, totalAvailable,
-                overspent, toAssign, lines);
+                overspent, toAssign, realAccounts, discrepancy, lines);
     }
 
     /**
