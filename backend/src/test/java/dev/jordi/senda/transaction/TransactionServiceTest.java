@@ -37,6 +37,11 @@ class TransactionServiceTest {
     @Mock
     private SpaceAccess spaceAccess;
 
+    @Mock
+    private dev.jordi.senda.account.AccountRepository accountRepository;
+    @Mock
+    private dev.jordi.senda.account.PersonalBaselineRepository personalBaselineRepository;
+
     private TransactionService service;
 
     private Category expenseCategory;
@@ -44,7 +49,8 @@ class TransactionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new TransactionService(transactionRepository, categoryRepository, spaceAccess);
+        service = new TransactionService(transactionRepository, categoryRepository, accountRepository,
+                personalBaselineRepository, spaceAccess);
         expenseCategory = category(5L, "Comida", TransactionType.EXPENSE, true);
         incomeCategory = category(6L, "Nómina", TransactionType.INCOME, true);
     }
@@ -66,7 +72,7 @@ class TransactionServiceTest {
 
     private static TransactionRequest expenseRequest(Long categoryId) {
         return new TransactionRequest(categoryId, TransactionType.EXPENSE,
-                new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch", null);
+                new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch", null, null);
     }
 
     // --- create ---
@@ -133,7 +139,7 @@ class TransactionServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         service.create(USER_ID, new TransactionRequest(3L, TransactionType.EXPENSE,
-                new BigDecimal("20.00"), LocalDate.now(), "Cena", 7L));
+                new BigDecimal("20.00"), LocalDate.now(), "Cena", 7L, null));
 
         verify(spaceAccess).assertActiveMember(USER_ID, 7L);
         ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
@@ -148,7 +154,7 @@ class TransactionServiceTest {
         when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(3L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.create(USER_ID, new TransactionRequest(3L, TransactionType.EXPENSE,
-                new BigDecimal("20.00"), LocalDate.now(), "x", null)))
+                new BigDecimal("20.00"), LocalDate.now(), "x", null, null)))
                 .isInstanceOf(NotFoundException.class);
         verify(transactionRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
@@ -164,7 +170,7 @@ class TransactionServiceTest {
         when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(6L, USER_ID)).thenReturn(Optional.of(incomeCategory));
 
         TransactionRequest request = new TransactionRequest(6L, TransactionType.INCOME,
-                new BigDecimal("1500.00"), LocalDate.of(2026, 6, 1), null, null);
+                new BigDecimal("1500.00"), LocalDate.of(2026, 6, 1), null, null, null);
         TransactionResponse response = service.update(USER_ID, 10L, request);
 
         assertThat(response.categoryId()).isEqualTo(6L);
@@ -190,7 +196,7 @@ class TransactionServiceTest {
 
         // Request tries to move it to personal scope (spaceId=null)
         TransactionRequest request = new TransactionRequest(3L, TransactionType.EXPENSE,
-                new BigDecimal("25.00"), LocalDate.of(2026, 6, 11), "Cena", null);
+                new BigDecimal("25.00"), LocalDate.of(2026, 6, 11), "Cena", null, null);
         service.update(USER_ID, 10L, request);
 
         // Scope is immutable: still in space 7, resolved via the space query
@@ -212,7 +218,7 @@ class TransactionServiceTest {
         when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.of(inactive));
 
         TransactionRequest request = new TransactionRequest(5L, TransactionType.EXPENSE,
-                new BigDecimal("20.00"), LocalDate.of(2026, 6, 11), "Lunch", null);
+                new BigDecimal("20.00"), LocalDate.of(2026, 6, 11), "Lunch", null, null);
         TransactionResponse response = service.update(USER_ID, 10L, request);
 
         assertThat(response.categoryId()).isEqualTo(5L);

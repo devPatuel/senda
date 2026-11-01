@@ -68,7 +68,7 @@ class TransactionControllerTest {
     private static final TransactionResponse SAMPLE = new TransactionResponse(
             10L, 5L, "Comida", "#EF4444", "🍔", TransactionType.EXPENSE,
             new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch",
-            Instant.parse("2026-06-10T12:00:00Z"));
+            Instant.parse("2026-06-10T12:00:00Z"), null, null);
 
     private static final String VALID_BODY = """
             {"categoryId": 5, "type": "EXPENSE", "amount": 12.50, "date": "2026-06-10", "description": "Lunch"}

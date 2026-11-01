@@ -50,6 +50,9 @@ public class Transaction {
     @Column(name = "space_id")
     private Long spaceId;
 
+    @Column(name = "account_id")
+    private Long accountId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -128,6 +131,14 @@ public class Transaction {
 
     public void setSpaceId(Long spaceId) {
         this.spaceId = spaceId;
+    }
+
+    public Long getAccountId() {
+        return accountId;
+    }
+
+    public void setAccountId(Long accountId) {
+        this.accountId = accountId;
     }
 
     public Instant getCreatedAt() {

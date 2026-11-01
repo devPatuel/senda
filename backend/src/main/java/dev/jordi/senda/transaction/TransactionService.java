@@ -1,5 +1,8 @@
 package dev.jordi.senda.transaction;
 
+import dev.jordi.senda.account.Account;
+import dev.jordi.senda.account.AccountRepository;
+import dev.jordi.senda.account.PersonalBaselineRepository;
 import dev.jordi.senda.category.Category;
 import dev.jordi.senda.category.CategoryRepository;
 import dev.jordi.senda.common.ConflictException;
@@ -23,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,13 +40,19 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
+    private final AccountRepository accountRepository;
+    private final PersonalBaselineRepository personalBaselineRepository;
     private final SpaceAccess spaceAccess;
 
     public TransactionService(TransactionRepository transactionRepository,
                               CategoryRepository categoryRepository,
+                              AccountRepository accountRepository,
+                              PersonalBaselineRepository personalBaselineRepository,
                               SpaceAccess spaceAccess) {
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
+        this.accountRepository = accountRepository;
+        this.personalBaselineRepository = personalBaselineRepository;
         this.spaceAccess = spaceAccess;
     }
 
@@ -77,7 +87,14 @@ public class TransactionService {
         Transaction transaction = new Transaction(userId, category, request.type(),
                 request.amount(), request.date(), request.description());
         transaction.setSpaceId(request.spaceId());
-        return TransactionResponse.from(transactionRepository.save(transaction));
+        BigDecimal accountBalance = null;
+        if (request.accountId() != null) {
+            Account account = resolveAccount(userId, request.accountId(), request.spaceId());
+            transaction.setAccountId(account.getId());
+            applyToAccount(account, request.type(), request.amount(), 1);
+            accountBalance = account.getBalance();
+        }
+        return TransactionResponse.from(transactionRepository.save(transaction), accountBalance);
     }
 
     /**
@@ -122,18 +139,35 @@ public class TransactionService {
         // (or vice versa) via the update body.
         Category category = resolveCategory(userId, request, transaction.getSpaceId(),
                 transaction.getCategory().getId());
+        // Like the scope, the account is immutable: request.accountId() is ignored here.
+        BigDecimal accountBalance = lockedAccount(transaction)
+                .map(account -> {
+                    BigDecimal before = account.getBalance();
+                    applyToAccount(account, transaction.getType(), transaction.getAmount(), -1);
+                    applyToAccount(account, request.type(), request.amount(), 1);
+                    followBalanceChange(transaction, account.getBalance().subtract(before));
+                    return account.getBalance();
+                })
+                .orElse(null);
         transaction.setCategory(category);
         transaction.setType(request.type());
         transaction.setAmount(request.amount());
         transaction.setDate(request.date());
         transaction.setDescription(request.description());
         // Managed entity: JPA dirty checking flushes the update on commit
-        return TransactionResponse.from(transaction);
+        return TransactionResponse.from(transaction, accountBalance);
     }
 
     @Transactional
     public void delete(Long userId, Long id) {
-        transactionRepository.delete(findAccessible(userId, id));
+        Transaction transaction = findAccessible(userId, id);
+        // An archived account is still corrected; a deleted one just has nothing left to correct.
+        lockedAccount(transaction).ifPresent(account -> {
+            BigDecimal before = account.getBalance();
+            applyToAccount(account, transaction.getType(), transaction.getAmount(), -1);
+            followBalanceChange(transaction, account.getBalance().subtract(before));
+        });
+        transactionRepository.delete(transaction);
     }
 
     @Transactional(readOnly = true)
@@ -282,6 +316,51 @@ public class TransactionService {
             spaceAccess.assertActiveMember(userId, transaction.getSpaceId());
         }
         return transaction;
+    }
+
+    /**
+     * Loads the account a new movement charges: it must belong to the movement's own
+     * scope, whose membership the category check has already verified. 404 otherwise
+     * (never 403: do not reveal the resource exists).
+     */
+    private Account resolveAccount(Long userId, Long accountId, Long spaceId) {
+        Account account = accountRepository.findByIdForUpdate(accountId)
+                .orElseThrow(() -> new NotFoundException("Account not found"));
+        boolean inScope = spaceId == null
+                ? account.getSpaceId() == null && account.getUserId().equals(userId)
+                : spaceId.equals(account.getSpaceId());
+        if (!inScope) {
+            throw new NotFoundException("Account not found");
+        }
+        if (account.isArchived()) {
+            throw new ConflictException("Account is archived");
+        }
+        return account;
+    }
+
+    private Optional<Account> lockedAccount(Transaction transaction) {
+        return transaction.getAccountId() == null
+                ? Optional.empty()
+                : accountRepository.findByIdForUpdate(transaction.getAccountId());
+    }
+
+    private static void applyToAccount(Account account, TransactionType type, BigDecimal amount, int sign) {
+        BigDecimal signed = type == TransactionType.INCOME ? amount : amount.negate();
+        account.setBalance(account.getBalance().add(signed.multiply(BigDecimal.valueOf(sign))));
+    }
+
+    /**
+     * The personal discrepancy ignores movements typed before its starting point, as
+     * they are already inside it. Correcting the balance for one of them must move
+     * the starting point too, or the correction itself would show up as a gap.
+     */
+    private void followBalanceChange(Transaction transaction, BigDecimal change) {
+        if (transaction.getSpaceId() != null) {
+            return;
+        }
+        personalBaselineRepository.findById(transaction.getUserId())
+                .filter(baseline -> transaction.getCreatedAt().isBefore(baseline.getSetAt()))
+                .ifPresent(baseline -> baseline.setAmount(baseline.getAmount().add(change)));
     }
 
     private Category resolveCategory(Long userId, TransactionRequest request, Long spaceId,

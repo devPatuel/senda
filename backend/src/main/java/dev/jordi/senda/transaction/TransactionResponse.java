@@ -17,12 +17,22 @@ public record TransactionResponse(
         BigDecimal amount,
         LocalDate date,
         String description,
-        Instant createdAt) {
+        Instant createdAt,
+        Long accountId,
+        BigDecimal accountBalance) {
 
     /**
      * Must be called within an open transaction: it touches the lazy category.
      */
     public static TransactionResponse from(Transaction transaction) {
+        return from(transaction, null);
+    }
+
+    /**
+     * @param accountBalance the account's balance right after this write; null when
+     *                       nothing was charged, or on reads, where it would be stale
+     */
+    public static TransactionResponse from(Transaction transaction, BigDecimal accountBalance) {
         Category category = transaction.getCategory();
         return new TransactionResponse(
                 transaction.getId(),
@@ -34,6 +44,8 @@ public record TransactionResponse(
                 transaction.getAmount(),
                 transaction.getDate(),
                 transaction.getDescription(),
-                transaction.getCreatedAt());
+                transaction.getCreatedAt(),
+                transaction.getAccountId(),
+                accountBalance);
     }
 }
