@@ -478,7 +478,7 @@ Errores: `400` validación, categoría inactiva o de un tipo distinto al de la f
 | GET | `/api/accounts?includeArchived=false&spaceId=` | Lista las cuentas personales, o las del espacio (solo no archivadas por defecto) |
 | GET | `/api/accounts/balance` | Saldo total de las cuentas personales no archivadas: `{ "total": 1550.00 }` |
 | POST | `/api/accounts` | Crea una cuenta (`201`). Body: `name`, `type`, `balance`, `currency?`, `spaceId?` |
-| PUT | `/api/accounts/{id}` | Edita (incluye `archived` para archivar/restaurar) |
+| PUT | `/api/accounts/{id}` | Edita (incluye `archived` para archivar/restaurar). `balance` es opcional: sin él, el saldo no se toca |
 | DELETE | `/api/accounts/{id}` | Borrado físico (`204`) |
 
 Errores: `400` validación, `404` cuenta inexistente o de otro usuario.

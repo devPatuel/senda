@@ -770,4 +770,36 @@ class TransactionIntegrationTest {
         assertThat(balance(tokenA, account, null)).isEqualTo(100.00);
         assertThat(discrepancy(tokenA, null)).isZero();
     }
+
+    @Test
+    void deletingAMovementOfAnArchivedAccountOlderThanTheBaseline_keepsDiscrepancyAtZero() throws Exception {
+        long account = createAccount(tokenA, "Banco", "100.00", null);
+        long movement = expenseWithAccount(account, "10.00");
+        updateAccount(account, "90.00", true);
+        baseline(tokenA);
+
+        mockMvc.perform(delete("/api/transactions/" + movement).header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isNoContent());
+
+        // The archived balance is corrected, but it is outside the real total being compared
+        assertThat(balance(tokenA, account, null)).isEqualTo(100.00);
+        assertThat(discrepancy(tokenA, null)).isZero();
+    }
+
+    @Test
+    void updatingAnAccountWithoutBalance_keepsWhatABotSubtracted() throws Exception {
+        long account = createAccount(tokenA, "Banco", "308.26", null);
+        expenseWithAccount(account, "8.26");
+
+        // A page loaded before that expense renames the account: it must not restore 308.26
+        mockMvc.perform(put("/api/accounts/" + account)
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "Renombrada", "type": "BANK", "currency": "EUR"}
+                                """))
+                .andExpect(status().isOk());
+
+        assertThat(balance(tokenA, account, null)).isEqualTo(300.00);
+    }
 }

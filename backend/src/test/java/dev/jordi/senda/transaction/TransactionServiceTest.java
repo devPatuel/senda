@@ -166,7 +166,7 @@ class TransactionServiceTest {
         Transaction existing = new Transaction(USER_ID, expenseCategory, TransactionType.EXPENSE,
                 new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch");
         ReflectionTestUtils.setField(existing, "id", 10L);
-        when(transactionRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(transactionRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(existing));
         when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(6L, USER_ID)).thenReturn(Optional.of(incomeCategory));
 
         TransactionRequest request = new TransactionRequest(6L, TransactionType.INCOME,
@@ -191,7 +191,7 @@ class TransactionServiceTest {
                 new BigDecimal("20.00"), LocalDate.of(2026, 6, 10), "Cena");
         ReflectionTestUtils.setField(existing, "id", 10L);
         ReflectionTestUtils.setField(existing, "spaceId", 7L);
-        when(transactionRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(transactionRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(existing));
         when(categoryRepository.findByIdAndSpaceId(3L, 7L)).thenReturn(Optional.of(spaceCat));
 
         // Request tries to move it to personal scope (spaceId=null)
@@ -214,7 +214,7 @@ class TransactionServiceTest {
         Transaction existing = new Transaction(USER_ID, inactive, TransactionType.EXPENSE,
                 new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch");
         ReflectionTestUtils.setField(existing, "id", 10L);
-        when(transactionRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(transactionRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(existing));
         when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.of(inactive));
 
         TransactionRequest request = new TransactionRequest(5L, TransactionType.EXPENSE,
@@ -232,7 +232,7 @@ class TransactionServiceTest {
                 new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch");
         ReflectionTestUtils.setField(existing, "id", 10L);
         Category otherInactive = category(7L, "Caprichos", TransactionType.EXPENSE, false);
-        when(transactionRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(transactionRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(existing));
         when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(7L, USER_ID)).thenReturn(Optional.of(otherInactive));
 
         assertThatThrownBy(() -> service.update(USER_ID, 10L, expenseRequest(7L)))
@@ -241,7 +241,7 @@ class TransactionServiceTest {
 
     @Test
     void updateForeignOrMissingTransactionThrowsNotFound() {
-        when(transactionRepository.findById(99L)).thenReturn(Optional.empty());
+        when(transactionRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.update(USER_ID, 99L, expenseRequest(5L)))
                 .isInstanceOf(NotFoundException.class);
@@ -253,7 +253,7 @@ class TransactionServiceTest {
     void deleteRemovesOwnedTransaction() {
         Transaction existing = new Transaction(USER_ID, expenseCategory, TransactionType.EXPENSE,
                 new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), null);
-        when(transactionRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(transactionRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(existing));
 
         service.delete(USER_ID, 10L);
 
@@ -262,7 +262,7 @@ class TransactionServiceTest {
 
     @Test
     void deleteForeignOrMissingTransactionThrowsNotFound() {
-        when(transactionRepository.findById(99L)).thenReturn(Optional.empty());
+        when(transactionRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.delete(USER_ID, 99L))
                 .isInstanceOf(NotFoundException.class);

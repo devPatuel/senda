@@ -1,7 +1,9 @@
 package dev.jordi.senda.transaction;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,6 +17,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
         JpaSpecificationExecutor<Transaction> {
 
     Optional<Transaction> findByIdAndUserIdAndSpaceIdIsNull(Long id, Long userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from Transaction t where t.id = :id")
+    Optional<Transaction> findByIdForUpdate(@Param("id") Long id);
 
     Optional<Transaction> findByIdAndSpaceId(Long id, Long spaceId);
 

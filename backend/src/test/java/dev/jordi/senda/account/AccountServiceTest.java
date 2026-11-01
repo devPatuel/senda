@@ -88,7 +88,7 @@ class AccountServiceTest {
     @Test
     void updateChangesFieldsAndArchives() {
         Account existing = account(10L, "Banco", AccountType.BANK, "100.00", false);
-        when(accountRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(accountRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(existing));
 
         AccountResponse response = service.update(USER_ID, 10L,
                 new AccountUpdateRequest("Banco principal", AccountType.BANK,
@@ -102,7 +102,7 @@ class AccountServiceTest {
     @Test
     void updateKeepsArchivedWhenNull() {
         Account existing = account(10L, "Banco", AccountType.BANK, "100.00", true);
-        when(accountRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(accountRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(existing));
 
         AccountResponse response = service.update(USER_ID, 10L,
                 new AccountUpdateRequest("Banco", AccountType.BANK, new BigDecimal("100.00"), "EUR", null));
@@ -113,7 +113,7 @@ class AccountServiceTest {
 
     @Test
     void updateForeignOrMissingAccountThrowsNotFound() {
-        when(accountRepository.findById(99L)).thenReturn(Optional.empty());
+        when(accountRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.update(USER_ID, 99L,
                 new AccountUpdateRequest("X", AccountType.BANK, BigDecimal.ONE, null, null)))

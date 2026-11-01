@@ -67,10 +67,14 @@ public class AccountService {
 
     @Transactional
     public AccountResponse update(Long userId, Long id, AccountUpdateRequest request) {
-        Account account = findAccessible(userId, id);
+        // Locked like a movement does, so a typed balance and a charge cannot overwrite each other
+        Account account = assertAccessible(userId, accountRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new NotFoundException("Account not found")));
         account.setName(request.name());
         account.setType(request.type());
-        account.setBalance(request.balance());
+        if (request.balance() != null) {
+            account.setBalance(request.balance());
+        }
         account.setCurrency(currencyOrDefault(request.currency()));
         if (request.archived() != null) {
             account.setArchived(request.archived());
@@ -102,8 +106,11 @@ public class AccountService {
      * (never 403: do not reveal the resource exists).
      */
     private Account findAccessible(Long userId, Long id) {
-        Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Account not found"));
+        return assertAccessible(userId, accountRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Account not found")));
+    }
+
+    private Account assertAccessible(Long userId, Account account) {
         if (account.getSpaceId() == null) {
             if (!account.getUserId().equals(userId)) {
                 throw new NotFoundException("Account not found");

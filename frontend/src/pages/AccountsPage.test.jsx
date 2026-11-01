@@ -92,4 +92,34 @@ describe('AccountsPage', () => {
       ),
     )
   })
+
+  it('does not resend the balance when archiving: it may be out of date', async () => {
+    updateAccount.mockResolvedValue({ ...BANCO, archived: true })
+    render(<AccountsPage />)
+    await screen.findByText('Cuenta corriente')
+
+    await userEvent.click(screen.getAllByRole('button', { name: /archivar/i })[0])
+
+    await waitFor(() => expect(updateAccount).toHaveBeenCalled())
+    expect(updateAccount.mock.calls[0][1]).not.toHaveProperty('balance')
+  })
+
+  it('sends the balance on edit only when the person changed it', async () => {
+    updateAccount.mockResolvedValue(BANCO)
+    render(<AccountsPage />)
+    await screen.findByText('Cuenta corriente')
+
+    await userEvent.click(screen.getAllByRole('button', { name: /editar/i })[0])
+    await userEvent.click(screen.getByRole('button', { name: /guardar/i }))
+    await waitFor(() => expect(updateAccount).toHaveBeenCalledTimes(1))
+    expect(updateAccount.mock.calls[0][1]).not.toHaveProperty('balance')
+
+    await userEvent.click(screen.getAllByRole('button', { name: /editar/i })[0])
+    const balance = screen.getByLabelText(/saldo/i)
+    await userEvent.clear(balance)
+    await userEvent.type(balance, '900')
+    await userEvent.click(screen.getByRole('button', { name: /guardar/i }))
+    await waitFor(() => expect(updateAccount).toHaveBeenCalledTimes(2))
+    expect(updateAccount.mock.calls[1][1]).toMatchObject({ balance: 900 })
+  })
 })

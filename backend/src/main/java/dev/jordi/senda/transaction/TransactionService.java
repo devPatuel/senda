@@ -134,7 +134,7 @@ public class TransactionService {
 
     @Transactional
     public TransactionResponse update(Long userId, Long id, TransactionRequest request) {
-        Transaction transaction = findAccessible(userId, id);
+        Transaction transaction = findAccessibleForUpdate(userId, id);
         // The scope of an existing transaction is immutable: an edit resolves the
         // category within the transaction's own scope, never the request's. This
         // prevents re-scoping a shared movement into someone's personal ledger
@@ -147,7 +147,7 @@ public class TransactionService {
                     BigDecimal before = account.getBalance();
                     applyToAccount(account, transaction.getType(), transaction.getAmount(), -1);
                     applyToAccount(account, request.type(), request.amount(), 1);
-                    followBalanceChange(transaction, account.getBalance().subtract(before));
+                    followBalanceChange(transaction, account, account.getBalance().subtract(before));
                     return account.getBalance();
                 })
                 .orElse(null);
@@ -162,12 +162,12 @@ public class TransactionService {
 
     @Transactional
     public void delete(Long userId, Long id) {
-        Transaction transaction = findAccessible(userId, id);
+        Transaction transaction = findAccessibleForUpdate(userId, id);
         // An archived account is still corrected; a deleted one just has nothing left to correct.
         lockedAccount(transaction).ifPresent(account -> {
             BigDecimal before = account.getBalance();
             applyToAccount(account, transaction.getType(), transaction.getAmount(), -1);
-            followBalanceChange(transaction, account.getBalance().subtract(before));
+            followBalanceChange(transaction, account, account.getBalance().subtract(before));
         });
         transactionRepository.delete(transaction);
     }
@@ -308,8 +308,20 @@ public class TransactionService {
      * scope is read off the row itself.
      */
     private Transaction findAccessible(Long userId, Long id) {
-        Transaction transaction = transactionRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Transaction not found"));
+        return assertAccessible(userId, transactionRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Transaction not found")));
+    }
+
+    /**
+     * Same, holding the row until the transaction ends: an edit reverts the stored
+     * amount, so two at once must not both revert the same value from the balance.
+     */
+    private Transaction findAccessibleForUpdate(Long userId, Long id) {
+        return assertAccessible(userId, transactionRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new NotFoundException("Transaction not found")));
+    }
+
+    private Transaction assertAccessible(Long userId, Transaction transaction) {
         if (transaction.getSpaceId() == null) {
             if (!transaction.getUserId().equals(userId)) {
                 throw new NotFoundException("Transaction not found");
@@ -354,10 +366,11 @@ public class TransactionService {
     /**
      * The personal discrepancy ignores movements typed before its starting point, as
      * they are already inside it. Correcting the balance for one of them must move
-     * the starting point too, or the correction itself would show up as a gap.
+     * the starting point too, or the correction itself would show up as a gap. An
+     * archived account is outside the real total, so its corrections move neither.
      */
-    private void followBalanceChange(Transaction transaction, BigDecimal change) {
-        if (transaction.getSpaceId() != null) {
+    private void followBalanceChange(Transaction transaction, Account account, BigDecimal change) {
+        if (transaction.getSpaceId() != null || account.isArchived()) {
             return;
         }
         personalBaselineRepository.findById(transaction.getUserId())

@@ -53,9 +53,13 @@ function AccountForm({ account, spaceId, onClose, onSaved }) {
     const payload = {
       name: form.name.trim(),
       type: form.type,
-      balance: Number(form.balance.replace(',', '.')),
       currency: form.currency.trim().toUpperCase() || 'EUR',
     }
+    const balance = Number(form.balance.replace(',', '.'))
+    // Movements change the balance on their own: resending the figure this form
+    // loaded would undo any that arrived since, so it goes only if it was edited.
+    const balanceEdited = !isEdit || balance !== Number(account.balance)
+    if (balanceEdited) payload.balance = balance
 
     setSaving(true)
     try {
@@ -189,7 +193,6 @@ export default function AccountsPage({ spaceId }) {
       await updateAccount(account.id, {
         name: account.name,
         type: account.type,
-        balance: account.balance,
         currency: account.currency,
         archived,
       })
