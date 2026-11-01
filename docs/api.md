@@ -188,7 +188,9 @@ Errores: `404` si no existe o es de otro usuario, `400` validación,
 - Sin movimientos asociados → borrado físico.
 - Con movimientos → **desactivación** (`active = false`); los movimientos históricos se conservan.
 
-Respuesta `204 No Content`. Errores: `404` si no existe o es de otro usuario.
+Respuesta `204 No Content`. Errores: `404` si no existe o es de otro usuario. Si el
+movimiento tiene cuenta, el saldo se restaura, también con la cuenta archivada. Si la
+cuenta se eliminó, el movimiento se borra sin más.
 
 ### Presupuesto por sobres
 
@@ -196,7 +198,7 @@ Cada categoría de gasto tiene un "sobre": dinero asignado del que se va gastand
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| GET | `/api/categories/budget?spaceId=` | Resumen del presupuesto y una línea por categoría de gasto |
+| GET | `/api/categories/budget?spaceId=` | Resumen del presupuesto y una línea por categoría de gasto. Incluye `realAccounts`, `expectedAccounts` y `discrepancy` (ver [descuadre](#descuadre)) |
 | POST | `/api/categories/{id}/assign?spaceId=` | Suma `amount` al sobre. Puede ser negativo, para sacar dinero. Body: `{ "amount": 150.00 }` |
 | POST | `/api/categories/{id}/target?spaceId=` | Fija el objetivo del sobre. Body: `{ "targetAmount": 300.00 }`; con `null` lo quita |
 
@@ -257,6 +259,8 @@ Los tres devuelven el presupuesto completo, para refrescar la pantalla de una ve
 
 ### GET /api/transactions
 
+Admite `createdVia=<nombre del token>` para ver solo lo que ha escrito ese token.
+
 Listado paginado del usuario autenticado. Orden: `date DESC, id DESC`.
 
 | Parámetro | Tipo | Default | Descripción |
@@ -297,16 +301,30 @@ Body:
 categoría. Con `spaceId` el movimiento se crea en ese espacio y la categoría debe ser
 del mismo espacio; sin él, debe ser una categoría personal.
 
-Respuesta `201 Created`: `TransactionResponse`.
+`accountId` es opcional. Si viene, el movimiento queda ligado a esa cuenta y su saldo
+cambia en la misma transacción de base de datos: resta en un gasto, suma en un ingreso,
+y se guardan los dos o ninguno. Sin `accountId`, el saldo no se toca.
+
+Respuesta `201 Created`: `TransactionResponse`, que incluye:
+
+- `accountId`: la cuenta ligada, o `null`.
+- `accountBalance`: el saldo justo después de guardar. Solo viene al crear o editar un
+  movimiento con cuenta; en las lecturas es `null`.
+- `createdVia`: el nombre del token que lo creó, o `null` si se creó desde la web. Lo
+  pone el servidor: si viene en el body se ignora. Se conserva al revocar el token.
 
 Errores: `400` validación (importe ≤ 0, tipo que no coincide con la categoría…),
-`404` si la categoría no existe o es de otro usuario,
-`409` si la categoría está inactiva (desactivada con el DELETE de categorías).
+`404` si la categoría o la cuenta no existen, son de otro usuario o son de otro ámbito
+(cuenta personal en un movimiento de espacio, o al revés),
+`409` si la categoría está inactiva (desactivada con el DELETE de categorías) o la
+cuenta está archivada.
 
 ### PUT /api/transactions/{id}
 
 Mismo body que el POST. Respuesta `200 OK`: `TransactionResponse`. El ámbito de un
-movimiento no cambia al editarlo: el `spaceId` del body se ignora.
+movimiento no cambia al editarlo: el `spaceId` del body se ignora. Tampoco cambia su
+cuenta: el `accountId` del body se ignora. Si el movimiento tiene cuenta, se revierte lo
+anterior y se aplica lo nuevo, de modo que el saldo refleja solo la diferencia.
 
 Errores: `404` si no existe o es de otro usuario, `400` validación,
 `409` si la categoría destino está inactiva.
@@ -716,26 +734,65 @@ o ya miembro, o invitación ya aceptada.
 
 ---
 
+## Descuadre
+
+`discrepancy = realAccounts - expectedAccounts`. Si no es 0, falta o sobra algún
+movimiento. Los tres campos son `null` cuando no hay nada que comparar.
+
+- **En un espacio con cuentas**, lo esperado es el neto de todos sus movimientos.
+- **En personal**, lo esperado es el punto de partida más el neto de los movimientos
+  creados desde entonces. Cuenta cuándo se creó el movimiento, no su fecha. `totalAccounts`
+  sigue siendo el saldo real, así que «por asignar» no cambia.
+
+`POST /api/accounts/baseline` (`204`) fija el punto de partida en el total real actual:
+sirve para empezar a controlar el descuadre y para dar por bueno el saldo. Requiere sesión.
+
+Crear, archivar o eliminar una cuenta personal cambia el total real sin que haya un
+movimiento, así que aparece como descuadre hasta que se da por bueno.
+
+---
+
 ## Tokens personales
 
 Credenciales de larga duración para clientes que no pueden hacer login, como un atajo
 de iOS. Se usan igual que el JWT: `Authorization: Bearer senda_pat_...`.
 
-Un token personal **solo puede hacer dos cosas**: leer las categorías
-(`GET /api/categories`) y apuntar un gasto (`POST /api/transactions/quick`). En
-cualquier otro endpoint recibe `403`. Vive en un móvil o en un script, fuera del
-control de la app, así que si se filtra no entrega las finanzas de su dueño. Crear,
-listar y revocar tokens exige haber iniciado sesión.
+Un token vive en un móvil o en un script, fuera del control de la app, así que solo
+puede lo que indica su alcance (`scope`). Fuera de eso recibe `403`. Crear, listar y
+revocar tokens exige haber iniciado sesión.
+
+| Alcance | Puede |
+|---|---|
+| `QUICK` (por defecto) | `GET /api/categories` y `POST /api/transactions/quick` |
+| `ASSISTANT` | `GET` de `/api/transactions/summary`, `/api/categories`, `/api/categories/budget`, `/api/accounts` y `/api/spaces`, y `POST /api/transactions` |
+
+`ASSISTANT` no puede editar ni borrar nada, ni leer la lista de movimientos. Sí lee
+saldos y resúmenes, así que un token filtrado expone esas cifras: hay que guardarlo
+como un secreto y revocarlo si hay dudas.
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| POST | `/api/tokens` | Crea un token (`201`). Body: `{ "name": "Atajo iPhone" }`. Respuesta: `{ "id": 1, "name": "Atajo iPhone", "value": "senda_pat_..." }` |
-| GET | `/api/tokens` | Lista: `id`, `name`, `createdAt`, `lastUsedAt`, `revokedAt` |
+| POST | `/api/tokens` | Crea un token (`201`). Body: `{ "name": "Atajo iPhone", "scope": "QUICK" }` (`scope` es opcional). Respuesta: `{ "id": 1, "name": "Atajo iPhone", "scope": "QUICK", "value": "senda_pat_..." }` |
+| GET | `/api/tokens` | Lista: `id`, `name`, `scope`, `createdAt`, `lastUsedAt`, `revokedAt` |
 | DELETE | `/api/tokens/{id}` | Revoca el token (`204`) |
 
 `value` solo aparece en la respuesta de creación: el servidor guarda su hash SHA-256 y
 no puede volver a mostrarlo. Conviene crear uno por dispositivo y revocarlo si se
 pierde.
+
+### Crear el token del asistente
+
+La pantalla de tokens crea siempre tokens `QUICK`, así que este se crea por API, con una
+sesión iniciada. El nombre es el que aparecerá como autor de cada movimiento:
+
+```bash
+curl -X POST https://TU-SENDA/api/tokens \
+  -H "Authorization: Bearer $JWT_DE_TU_SESION" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Bot Telegram", "scope": "ASSISTANT" }'
+```
+
+Guarda `value` en el `.env` de n8n, nunca en un prompt ni en el JSON del flujo.
 
 ---
 

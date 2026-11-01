@@ -36,7 +36,11 @@ La interfaz está en español y trabaja en euros.
   categorías y movimientos, separada de lo personal de cada uno.
 - **Traspasos**: mover dinero entre cuentas propias no cuenta como ingreso ni gasto.
 - **Tokens personales**: para apuntar un gasto desde un atajo de iOS o un script sin
-  usar tu contraseña. Solo sirven para eso: no pueden leer tus datos.
+  usar tu contraseña. Solo sirven para eso: no pueden leer tus datos. Un alcance aparte,
+  `ASSISTANT`, permite a un bot leer resúmenes y saldos y crear movimientos, sin poder
+  editar ni borrar. Cada movimiento guarda qué token lo creó.
+- **Descuadre**: compara el saldo real de tus cuentas con lo que dicen los movimientos,
+  también en el presupuesto personal.
 - **Lista de deseos**.
 
 <details>
