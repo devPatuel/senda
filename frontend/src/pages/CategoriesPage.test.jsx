@@ -2,7 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CategoriesPage from './CategoriesPage'
+import { setBaseline } from '../api/accounts'
 import { listCategories, createCategory, updateCategory, removeCategory, getBudget, assignToCategory } from '../api/categories'
+
+vi.mock('../api/accounts', () => ({
+  setBaseline: vi.fn(),
+}))
 
 vi.mock('../api/categories', () => ({
   listCategories: vi.fn(),
@@ -211,13 +216,49 @@ describe('CategoriesPage', () => {
   })
 
   it('warns when the real account and the movements do not match', async () => {
-    getBudget.mockResolvedValue({ ...BUDGET, totalAccounts: 100, realAccounts: 120, discrepancy: 20 })
+    getBudget.mockResolvedValue({ ...BUDGET, totalAccounts: 100, realAccounts: 120, expectedAccounts: 100, discrepancy: 20 })
     render(<CategoriesPage spaceId={1} />)
 
     const warning = await screen.findByTestId('account-discrepancy')
     expect(warning).toHaveTextContent('120,00')
     expect(warning).toHaveTextContent('100,00')
     expect(warning).toHaveTextContent('20,00')
+  })
+
+  it('shows the expected figure, not the real total, in the personal warning', async () => {
+    getBudget.mockResolvedValue({ ...BUDGET, totalAccounts: 308.26, realAccounts: 308.26, expectedAccounts: 300, discrepancy: 8.26 })
+    render(<CategoriesPage />)
+
+    const warning = await screen.findByTestId('account-discrepancy')
+    expect(warning).toHaveTextContent('308,26')
+    expect(warning).toHaveTextContent('300,00')
+    expect(warning).toHaveTextContent('8,26')
+  })
+
+  it('starts the personal discrepancy from the button', async () => {
+    getBudget.mockResolvedValue({ ...BUDGET, realAccounts: null, expectedAccounts: null, discrepancy: null })
+    setBaseline.mockResolvedValue(null)
+    render(<CategoriesPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Empezar a controlar el descuadre' }))
+
+    expect(setBaseline).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(getBudget).toHaveBeenCalledTimes(2))
+  })
+
+  it('accepts a personal gap, but offers no such button in a space', async () => {
+    getBudget.mockResolvedValue({ ...BUDGET, realAccounts: 120, expectedAccounts: 100, discrepancy: 20 })
+    setBaseline.mockResolvedValue(null)
+    const { unmount } = render(<CategoriesPage spaceId={1} />)
+    await screen.findByTestId('account-discrepancy')
+    expect(screen.queryByRole('button', { name: 'Dar por bueno' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Empezar a controlar el descuadre' })).not.toBeInTheDocument()
+    unmount()
+
+    render(<CategoriesPage />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Dar por bueno' }))
+
+    expect(setBaseline).toHaveBeenCalledTimes(1)
   })
 
   it('stays quiet without a gap, or with nothing to compare', async () => {

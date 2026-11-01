@@ -43,6 +43,13 @@ public class AccountController {
         return accountService.create(CurrentUser.id(), request);
     }
 
+    /** Takes the current real total as correct: the personal discrepancy restarts at zero. */
+    @PostMapping("/baseline")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void baseline() {
+        accountService.setBaseline(CurrentUser.id());
+    }
+
     @PutMapping("/{id}")
     public AccountResponse update(@PathVariable Long id,
                                   @Valid @RequestBody AccountUpdateRequest request) {

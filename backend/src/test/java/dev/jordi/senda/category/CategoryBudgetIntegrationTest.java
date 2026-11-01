@@ -18,6 +18,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -348,5 +349,161 @@ class CategoryBudgetIntegrationTest {
                                 {"targetAmount": 50.00}
                                 """))
                 .andExpect(status().isNotFound());
+    }
+
+    // -------------------------------------------------------------------------
+    // Personal discrepancy
+    // -------------------------------------------------------------------------
+
+    private long createAccountReturningId(String name, String balance) throws Exception {
+        String body = mockMvc.perform(post("/api/accounts")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "%s", "type": "BANK", "balance": %s, "currency": "EUR"}
+                                """.formatted(name, balance)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return ((Number) JsonPath.read(body, "$.id")).longValue();
+    }
+
+    private void setBalance(long accountId, String name, String balance) throws Exception {
+        mockMvc.perform(put("/api/accounts/" + accountId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "%s", "type": "BANK", "balance": %s, "currency": "EUR"}
+                                """.formatted(name, balance)))
+                .andExpect(status().isOk());
+    }
+
+    private void baseline() throws Exception {
+        mockMvc.perform(post("/api/accounts/baseline")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+    }
+
+    private void movement(long categoryId, String type, String amount) throws Exception {
+        mockMvc.perform(post("/api/transactions")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"categoryId": %d, "type": "%s", "amount": %s, "date": "%s"}
+                                """.formatted(categoryId, type, amount, LocalDate.now())))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void personalWithoutBaseline_hasNoDiscrepancy() throws Exception {
+        createAccount("Banco", "308.26");
+
+        String body = budgetJson();
+
+        assertThat((Object) JsonPath.read(body, "$.discrepancy")).isNull();
+        assertThat((Object) JsonPath.read(body, "$.expectedAccounts")).isNull();
+    }
+
+    @Test
+    void personalBaseline_startsAtZero() throws Exception {
+        createAccount("Banco", "308.26");
+        baseline();
+
+        String body = budgetJson();
+
+        assertThat(num(body, "$.realAccounts")).isEqualTo(308.26);
+        assertThat(num(body, "$.expectedAccounts")).isEqualTo(308.26);
+        assertThat(num(body, "$.discrepancy")).isZero();
+    }
+
+    @Test
+    void personalExpenseWithoutBalanceChange_showsDiscrepancy() throws Exception {
+        createAccount("Banco", "308.26");
+        baseline();
+        expense(categoryId("EXPENSE", "Comida"), "8.26", LocalDate.now());
+
+        String body = budgetJson();
+
+        assertThat(num(body, "$.expectedAccounts")).isEqualTo(300.00);
+        assertThat(num(body, "$.discrepancy")).isEqualTo(8.26);
+        // The envelopes keep reading the real balance: "to assign" must not move
+        assertThat(num(body, "$.totalAccounts")).isEqualTo(308.26);
+    }
+
+    @Test
+    void personalBalanceCorrected_returnsToZero() throws Exception {
+        long account = createAccountReturningId("Banco", "308.26");
+        baseline();
+        expense(categoryId("EXPENSE", "Comida"), "8.26", LocalDate.now());
+        setBalance(account, "Banco", "300.00");
+
+        assertThat(num(budgetJson(), "$.discrepancy")).isZero();
+    }
+
+    @Test
+    void backdatedMovementCreatedAfterBaseline_counts() throws Exception {
+        createAccount("Banco", "100.00");
+        baseline();
+        expense(categoryId("EXPENSE", "Comida"), "10.00", LocalDate.now().minusYears(1));
+
+        assertThat(num(budgetJson(), "$.discrepancy")).isEqualTo(10.00);
+    }
+
+    @Test
+    void movementCreatedBeforeBaseline_ignored() throws Exception {
+        createAccount("Banco", "100.00");
+        expense(categoryId("EXPENSE", "Comida"), "10.00", LocalDate.now());
+        baseline();
+
+        assertThat(num(budgetJson(), "$.discrepancy")).isZero();
+    }
+
+    @Test
+    void transferBothLegs_noDiscrepancyChange() throws Exception {
+        createAccount("Banco", "100.00");
+        baseline();
+        movement(createTransferCategory("Traspaso sale"), "EXPENSE", "25.00");
+        movement(categoryId("INCOME", "Otros ingresos"), "INCOME", "25.00");
+
+        assertThat(num(budgetJson(), "$.discrepancy")).isZero();
+    }
+
+    @Test
+    void baselineAgain_resetsDiscrepancy() throws Exception {
+        createAccount("Banco", "100.00");
+        baseline();
+        expense(categoryId("EXPENSE", "Comida"), "10.00", LocalDate.now());
+        assertThat(num(budgetJson(), "$.discrepancy")).isEqualTo(10.00);
+
+        baseline();
+
+        assertThat(num(budgetJson(), "$.discrepancy")).isZero();
+    }
+
+    @Test
+    void spaceDiscrepancy_unchanged() throws Exception {
+        String space = mockMvc.perform(post("/api/spaces")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\": \"Pareja\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long spaceId = ((Number) JsonPath.read(space, "$.id")).longValue();
+        mockMvc.perform(post("/api/accounts")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "Comun", "type": "BANK", "balance": 20.00, "currency": "EUR", "spaceId": %d}
+                                """.formatted(spaceId)))
+                .andExpect(status().isCreated());
+
+        String body = mockMvc.perform(get("/api/categories/budget")
+                        .header("Authorization", "Bearer " + token)
+                        .param("spaceId", String.valueOf(spaceId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(num(body, "$.realAccounts")).isEqualTo(20.00);
+        assertThat(num(body, "$.expectedAccounts")).isZero();
+        assertThat(num(body, "$.discrepancy")).isEqualTo(20.00);
     }
 }

@@ -8,6 +8,7 @@ import {
   assignToCategory,
   setCategoryTarget,
 } from '../api/categories'
+import { setBaseline } from '../api/accounts'
 import { formatCurrency } from '../lib/format'
 import { Field, FormError, SubmitButton } from '../components/form'
 import { ConfirmDialog, ErrorState, LoadingState, Modal, Notice } from '../components/ui'
@@ -452,6 +453,17 @@ export default function CategoriesPage({ spaceId }) {
   // Lookup of budget data per expense category id (balance, spend, target).
   const budgetById = new Map((budget?.categories ?? []).map((c) => [c.id, c]))
 
+  async function handleBaseline() {
+    setNotice(null)
+    setActionError(null)
+    try {
+      await setBaseline()
+      setReloadKey((k) => k + 1)
+    } catch {
+      setActionError('No se ha podido fijar el punto de partida. Inténtalo de nuevo.')
+    }
+  }
+
   function handleSaved() {
     setFormOpen(false)
     setEditingCategory(null)
@@ -603,9 +615,28 @@ export default function CategoriesPage({ spaceId }) {
               className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2 text-sm text-amber-800"
             >
               Descuadre: la cuenta real marca {formatCurrency(budget.realAccounts)} y los
-              movimientos suman {formatCurrency(budget.totalAccounts)}. Diferencia{' '}
+              movimientos suman {formatCurrency(budget.expectedAccounts)}. Diferencia{' '}
               {formatCurrency(budget.discrepancy)}: falta o sobra algún movimiento.
+              {spaceId == null && (
+                <button
+                  type="button"
+                  onClick={handleBaseline}
+                  className="ml-2 font-medium underline hover:text-amber-900"
+                >
+                  Dar por bueno
+                </button>
+              )}
             </p>
+          )}
+
+          {spaceId == null && budget.expectedAccounts == null && (
+            <button
+              type="button"
+              onClick={handleBaseline}
+              className="self-start text-sm font-medium text-slate-600 underline hover:text-slate-900"
+            >
+              Empezar a controlar el descuadre
+            </button>
           )}
 
           {Number(budget.overspent) > 0 && (

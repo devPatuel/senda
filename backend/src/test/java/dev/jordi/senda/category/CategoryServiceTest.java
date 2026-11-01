@@ -44,6 +44,8 @@ class CategoryServiceTest {
 
     @Mock
     private AccountRepository accountRepository;
+    @Mock
+    private dev.jordi.senda.account.PersonalBaselineRepository personalBaselineRepository;
 
     @Mock
     private SpaceAccess spaceAccess;

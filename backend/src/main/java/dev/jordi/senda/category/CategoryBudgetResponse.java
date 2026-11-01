@@ -16,12 +16,14 @@ import java.util.List;
  * is overspent: {@code overspent} is that debt, money that has to be assigned to
  * bring the red categories back to zero.
  *
- * <p>{@code realAccounts} is the balance typed by hand on the space's accounts
- * and {@code discrepancy} = realAccounts - totalAccounts. In a space
- * {@code totalAccounts} is derived from movements, so a gap here means a
- * movement is missing or wrong. Both are null for the personal budget, where
- * {@code totalAccounts} already is the manual balance, and for a space without
- * accounts, where there is nothing to compare.
+ * <p>{@code realAccounts} is the total balance of the accounts, {@code
+ * expectedAccounts} what the movements say it should be, and {@code discrepancy}
+ * = realAccounts - expectedAccounts: a gap means a movement is missing or wrong.
+ * In a space the expected figure is {@code totalAccounts}, derived from movements.
+ * In the personal budget {@code totalAccounts} stays the real balance, so "to
+ * assign" keeps its meaning, and the expected figure is the starting point plus
+ * the net of the movements typed since. All three are null when there is nothing
+ * to compare: a space without accounts, or a personal budget with no starting point.
  */
 public record CategoryBudgetResponse(
         BigDecimal totalAccounts,
@@ -30,6 +32,7 @@ public record CategoryBudgetResponse(
         BigDecimal overspent,
         BigDecimal toAssign,
         BigDecimal realAccounts,
+        BigDecimal expectedAccounts,
         BigDecimal discrepancy,
         List<CategoryBudgetLine> categories) {
 }

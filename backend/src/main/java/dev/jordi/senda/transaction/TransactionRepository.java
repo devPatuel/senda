@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -137,6 +138,18 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             where t.spaceId = :spaceId
             """)
     BigDecimal netBalanceForSpace(@Param("spaceId") Long spaceId);
+
+    /**
+     * Net of the personal movements typed since {@code since}, whatever their date.
+     * Transfers count: each leg moves real money and the two legs cancel out.
+     */
+    @Query("""
+            select coalesce(sum(case when t.type = dev.jordi.senda.common.TransactionType.INCOME
+                                     then t.amount else -t.amount end), 0)
+            from Transaction t
+            where t.userId = :userId and t.spaceId is null and t.createdAt >= :since
+            """)
+    BigDecimal netPersonalSince(@Param("userId") Long userId, @Param("since") Instant since);
 
     /**
      * Per-(year, month, type) totals from {@code from} onward, aggregated in the

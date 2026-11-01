@@ -72,6 +72,9 @@ export function removeCategory(id) {
  * @property {number} totalAccounts
  * @property {number} totalAssigned
  * @property {number} toAssign      - totalAccounts - totalAssigned (may be negative)
+ * @property {number|null} realAccounts      - real total, null when there is nothing to compare
+ * @property {number|null} expectedAccounts  - what the movements say the total should be
+ * @property {number|null} discrepancy       - realAccounts - expectedAccounts
  * @property {CategoryBudgetLine[]} categories
  */
 

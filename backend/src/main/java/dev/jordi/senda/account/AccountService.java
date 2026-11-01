@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 
@@ -15,10 +16,14 @@ public class AccountService {
     private static final String DEFAULT_CURRENCY = "EUR";
 
     private final AccountRepository accountRepository;
+    private final PersonalBaselineRepository personalBaselineRepository;
     private final SpaceAccess spaceAccess;
 
-    public AccountService(AccountRepository accountRepository, SpaceAccess spaceAccess) {
+    public AccountService(AccountRepository accountRepository,
+                          PersonalBaselineRepository personalBaselineRepository,
+                          SpaceAccess spaceAccess) {
         this.accountRepository = accountRepository;
+        this.personalBaselineRepository = personalBaselineRepository;
         this.spaceAccess = spaceAccess;
     }
 
@@ -77,6 +82,18 @@ public class AccountService {
     @Transactional
     public void delete(Long userId, Long id) {
         accountRepository.delete(findAccessible(userId, id));
+    }
+
+    @Transactional
+    public void setBaseline(Long userId) {
+        BigDecimal total = accountRepository.sumActiveBalance(userId);
+        BigDecimal amount = total != null ? total : BigDecimal.ZERO.setScale(2);
+        Instant now = Instant.now();
+        PersonalBaseline baseline = personalBaselineRepository.findById(userId)
+                .orElseGet(() -> new PersonalBaseline(userId, amount, now));
+        baseline.setAmount(amount);
+        baseline.setSetAt(now);
+        personalBaselineRepository.save(baseline);
     }
 
     /**

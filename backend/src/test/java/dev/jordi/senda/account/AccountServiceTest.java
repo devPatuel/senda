@@ -28,6 +28,8 @@ class AccountServiceTest {
 
     @Mock
     private AccountRepository accountRepository;
+    @Mock
+    private PersonalBaselineRepository personalBaselineRepository;
 
     @Mock
     private SpaceAccess spaceAccess;
@@ -36,7 +38,7 @@ class AccountServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AccountService(accountRepository, spaceAccess);
+        service = new AccountService(accountRepository, personalBaselineRepository, spaceAccess);
     }
 
     private static Account account(Long id, String name, AccountType type, String balance, boolean archived) {

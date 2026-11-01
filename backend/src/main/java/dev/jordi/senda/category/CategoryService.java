@@ -2,6 +2,8 @@ package dev.jordi.senda.category;
 
 import dev.jordi.senda.account.Account;
 import dev.jordi.senda.account.AccountRepository;
+import dev.jordi.senda.account.PersonalBaseline;
+import dev.jordi.senda.account.PersonalBaselineRepository;
 import dev.jordi.senda.common.ConflictException;
 import dev.jordi.senda.common.NotFoundException;
 import dev.jordi.senda.common.TransactionType;
@@ -29,17 +31,20 @@ public class CategoryService {
     private final TransactionRepository transactionRepository;
     private final CategoryBalanceRepository categoryBalanceRepository;
     private final AccountRepository accountRepository;
+    private final PersonalBaselineRepository personalBaselineRepository;
     private final SpaceAccess spaceAccess;
 
     public CategoryService(CategoryRepository categoryRepository,
                            TransactionRepository transactionRepository,
                            CategoryBalanceRepository categoryBalanceRepository,
                            AccountRepository accountRepository,
+                           PersonalBaselineRepository personalBaselineRepository,
                            SpaceAccess spaceAccess) {
         this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
         this.categoryBalanceRepository = categoryBalanceRepository;
         this.accountRepository = accountRepository;
+        this.personalBaselineRepository = personalBaselineRepository;
         this.spaceAccess = spaceAccess;
     }
 
@@ -228,8 +233,19 @@ public class CategoryService {
         BigDecimal toAssign = totalAccounts.subtract(totalAvailable);
 
         BigDecimal realAccounts = null;
+        BigDecimal expectedAccounts = null;
         BigDecimal discrepancy = null;
-        if (spaceId != null) {
+        if (spaceId == null) {
+            // Without a starting point there is nothing to compare: an old gap would
+            // otherwise be reported as a fresh error the day the feature appears.
+            PersonalBaseline baseline = personalBaselineRepository.findById(userId).orElse(null);
+            if (baseline != null) {
+                realAccounts = totalAccounts;
+                expectedAccounts = baseline.getAmount()
+                        .add(transactionRepository.netPersonalSince(userId, baseline.getSetAt()));
+                discrepancy = realAccounts.subtract(expectedAccounts);
+            }
+        } else {
             List<Account> accounts = accountRepository.findBySpaceIdAndArchivedFalse(spaceId);
             // A space with no accounts has no real balance to compare against: reporting
             // "the account says 0" would be a false alarm on every movement.
@@ -237,12 +253,13 @@ public class CategoryService {
                 realAccounts = accounts.stream()
                         .map(Account::getBalance)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
-                discrepancy = realAccounts.subtract(totalAccounts);
+                expectedAccounts = totalAccounts;
+                discrepancy = realAccounts.subtract(expectedAccounts);
             }
         }
 
         return new CategoryBudgetResponse(totalAccounts, totalAssigned, totalAvailable,
-                overspent, toAssign, realAccounts, discrepancy, lines);
+                overspent, toAssign, realAccounts, expectedAccounts, discrepancy, lines);
     }
 
     /**

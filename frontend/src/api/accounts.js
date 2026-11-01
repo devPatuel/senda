@@ -61,3 +61,11 @@ export function updateAccount(id, data) {
 export function removeAccount(id) {
   return http.delete(`/accounts/${id}`)
 }
+
+/**
+ * Takes the current real total as correct: the personal discrepancy restarts at zero.
+ * @returns {Promise<null>}
+ */
+export function setBaseline() {
+  return http.post('/accounts/baseline')
+}
