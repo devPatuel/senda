@@ -2,6 +2,8 @@ package dev.jordi.senda.apitoken;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -26,6 +28,10 @@ public class ApiToken {
     @Column(nullable = false, length = 80)
     private String name;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private TokenScope scope = TokenScope.QUICK;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -38,7 +44,8 @@ public class ApiToken {
     protected ApiToken() {
     }
 
-    public ApiToken(Long userId, String tokenHash, String name) {
+    public ApiToken(Long userId, String tokenHash, String name, TokenScope scope) {
+        this.scope = scope;
         this.userId = userId;
         this.tokenHash = tokenHash;
         this.name = name;
@@ -59,6 +66,10 @@ public class ApiToken {
 
     public String getName() {
         return name;
+    }
+
+    public TokenScope getScope() {
+        return scope;
     }
 
     public Instant getCreatedAt() {

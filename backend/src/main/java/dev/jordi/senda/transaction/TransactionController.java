@@ -40,8 +40,9 @@ public class TransactionController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long categoryId,
-            @RequestParam(required = false) TransactionType type) {
-        return transactionService.list(CurrentUser.id(), spaceId, page, size, from, to, categoryId, type);
+            @RequestParam(required = false) TransactionType type,
+            @RequestParam(required = false) String createdVia) {
+        return transactionService.list(CurrentUser.id(), spaceId, page, size, from, to, categoryId, type, createdVia);
     }
 
     @GetMapping("/summary")
@@ -69,13 +70,13 @@ public class TransactionController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public TransactionResponse create(@Valid @RequestBody TransactionRequest request) {
-        return transactionService.create(CurrentUser.id(), request);
+        return transactionService.create(CurrentUser.id(), request, CurrentUser.tokenName().orElse(null));
     }
 
     @PostMapping("/quick")
     @ResponseStatus(HttpStatus.CREATED)
     public TransactionResponse quick(@Valid @RequestBody QuickTransactionRequest request) {
-        return transactionService.quickCreate(CurrentUser.id(), request);
+        return transactionService.quickCreate(CurrentUser.id(), request, CurrentUser.tokenName().orElse(null));
     }
 
     @PutMapping("/{id}")

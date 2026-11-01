@@ -19,7 +19,8 @@ public record TransactionResponse(
         String description,
         Instant createdAt,
         Long accountId,
-        BigDecimal accountBalance) {
+        BigDecimal accountBalance,
+        String createdVia) {
 
     /**
      * Must be called within an open transaction: it touches the lazy category.
@@ -46,6 +47,7 @@ public record TransactionResponse(
                 transaction.getDescription(),
                 transaction.getCreatedAt(),
                 transaction.getAccountId(),
-                accountBalance);
+                accountBalance,
+                transaction.getCreatedVia());
     }
 }

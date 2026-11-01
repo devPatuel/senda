@@ -50,7 +50,7 @@ import { http } from './http'
  * @param {{page?: number, size?: number, from?: string, to?: string, categoryId?: number|string, type?: TransactionType, spaceId?: number}} [options]
  * @returns {Promise<TransactionPage>}
  */
-export function listTransactions({ page = 0, size = 20, from, to, categoryId, type, spaceId } = {}) {
+export function listTransactions({ page = 0, size = 20, from, to, categoryId, type, spaceId, createdVia } = {}) {
   const params = new URLSearchParams()
   params.set('page', String(page))
   params.set('size', String(size))
@@ -59,6 +59,7 @@ export function listTransactions({ page = 0, size = 20, from, to, categoryId, ty
   if (categoryId) params.set('categoryId', String(categoryId))
   if (type) params.set('type', type)
   if (spaceId != null) params.set('spaceId', String(spaceId))
+  if (createdVia) params.set('createdVia', createdVia)
   return http.get(`/transactions?${params.toString()}`)
 }
 

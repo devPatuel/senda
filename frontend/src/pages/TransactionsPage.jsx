@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listCategories } from '../api/categories'
+import { listTokens } from '../api/tokens'
 import { listTransactions, removeTransaction } from '../api/transactions'
 import { formatCurrency, formatDate } from '../lib/format'
 import { Field } from '../components/form'
@@ -14,7 +15,7 @@ import {
 } from '../components/ui'
 import TransactionForm from '../components/TransactionForm'
 
-const EMPTY_FILTERS = { from: '', to: '', categoryId: '', type: '' }
+const EMPTY_FILTERS = { from: '', to: '', categoryId: '', type: '', createdVia: '' }
 
 /**
  * A category colour washed down to a row background. The colour itself would
@@ -32,6 +33,7 @@ function tint(hex) {
 export default function TransactionsPage({ spaceId }) {
   const [categories, setCategories] = useState([])
   const [filters, setFilters] = useState(EMPTY_FILTERS)
+  const [tokenNames, setTokenNames] = useState([])
   const [showFilters, setShowFilters] = useState(false)
   const [page, setPage] = useState(0)
   const [data, setData] = useState(null)
@@ -64,6 +66,21 @@ export default function TransactionsPage({ spaceId }) {
       cancelled = true
     }
   }, [spaceId])
+
+  useEffect(() => {
+    let cancelled = false
+    // Revoked tokens stay in the list: what they wrote keeps their name
+    listTokens()
+      .then((tokens) => {
+        if (!cancelled) setTokenNames([...new Set(tokens.map((t) => t.name))])
+      })
+      .catch(() => {
+        // The filter simply offers no tokens; the list itself still loads
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -233,6 +250,19 @@ export default function TransactionsPage({ spaceId }) {
                 <option value="EXPENSE">Gasto</option>
                 <option value="INCOME">Ingreso</option>
               </SelectField>
+              <SelectField
+                label="Creados por"
+                name="createdVia"
+                value={filters.createdVia}
+                onChange={handleFilterChange}
+              >
+                <option value="">Todos</option>
+                {tokenNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </SelectField>
             </div>
             {activeFilterCount > 0 && (
               <button
@@ -324,6 +354,12 @@ export default function TransactionsPage({ spaceId }) {
                   </p>
                   <p className="truncate text-xs text-slate-500">
                     {t.categoryName} · {formatDate(t.date)}
+                    {t.createdVia && (
+                      <>
+                        {' · '}
+                        <span data-testid="created-via">{t.createdVia}</span>
+                      </>
+                    )}
                   </p>
                 </div>
                 <p

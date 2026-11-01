@@ -5,6 +5,7 @@ import { http } from './http'
  * @typedef {Object} Token
  * @property {number} id
  * @property {string} name
+ * @property {'QUICK'|'ASSISTANT'} scope
  * @property {string} createdAt
  * @property {string|null} lastUsedAt
  * @property {string|null} revokedAt

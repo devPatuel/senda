@@ -68,7 +68,7 @@ class TransactionControllerTest {
     private static final TransactionResponse SAMPLE = new TransactionResponse(
             10L, 5L, "Comida", "#EF4444", "🍔", TransactionType.EXPENSE,
             new BigDecimal("12.50"), LocalDate.of(2026, 6, 10), "Lunch",
-            Instant.parse("2026-06-10T12:00:00Z"), null, null);
+            Instant.parse("2026-06-10T12:00:00Z"), null, null, null);
 
     private static final String VALID_BODY = """
             {"categoryId": 5, "type": "EXPENSE", "amount": 12.50, "date": "2026-06-10", "description": "Lunch"}
@@ -138,7 +138,7 @@ class TransactionControllerTest {
 
     @Test
     void postValidReturns201WithBody() throws Exception {
-        when(transactionService.create(eq(USER_ID), any(TransactionRequest.class))).thenReturn(SAMPLE);
+        when(transactionService.create(eq(USER_ID), any(TransactionRequest.class), isNull())).thenReturn(SAMPLE);
 
         mockMvc.perform(post("/api/transactions")
                         .header("Authorization", bearer)
@@ -158,7 +158,7 @@ class TransactionControllerTest {
 
     @Test
     void postWithTypeMismatchReturns400WithMessage() throws Exception {
-        when(transactionService.create(eq(USER_ID), any(TransactionRequest.class)))
+        when(transactionService.create(eq(USER_ID), any(TransactionRequest.class), isNull()))
                 .thenThrow(new InvalidTransactionException(
                         "Transaction type EXPENSE does not match category type INCOME"));
 
@@ -176,7 +176,7 @@ class TransactionControllerTest {
 
     @Test
     void listUsesDefaultPagination() throws Exception {
-        when(transactionService.list(eq(USER_ID), isNull(), eq(0), eq(20), isNull(), isNull(), isNull(), isNull()))
+        when(transactionService.list(eq(USER_ID), isNull(), eq(0), eq(20), isNull(), isNull(), isNull(), isNull(), isNull()))
                 .thenReturn(new PageResponse<>(List.of(SAMPLE), 0, 20, 1, 1));
 
         mockMvc.perform(get("/api/transactions").header("Authorization", bearer))
@@ -187,14 +187,14 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.totalPages").value(1));
 
-        verify(transactionService).list(USER_ID, null, 0, 20, null, null, null, null);
+        verify(transactionService).list(USER_ID, null, 0, 20, null, null, null, null, null);
     }
 
     @Test
     void listPassesFiltersToService() throws Exception {
         when(transactionService.list(eq(USER_ID), isNull(), eq(1), eq(50),
                 eq(LocalDate.of(2026, 6, 1)), eq(LocalDate.of(2026, 6, 30)),
-                eq(5L), eq(TransactionType.EXPENSE)))
+                eq(5L), eq(TransactionType.EXPENSE), isNull()))
                 .thenReturn(new PageResponse<>(List.of(), 1, 50, 0, 0));
 
         mockMvc.perform(get("/api/transactions")
@@ -205,12 +205,12 @@ class TransactionControllerTest {
                 .andExpect(status().isOk());
 
         verify(transactionService).list(USER_ID, null, 1, 50,
-                LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), 5L, TransactionType.EXPENSE);
+                LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), 5L, TransactionType.EXPENSE, null);
     }
 
     @Test
     void listWithInvalidPagingReturns400() throws Exception {
-        when(transactionService.list(eq(USER_ID), isNull(), eq(0), eq(101), isNull(), isNull(), isNull(), isNull()))
+        when(transactionService.list(eq(USER_ID), isNull(), eq(0), eq(101), isNull(), isNull(), isNull(), isNull(), isNull()))
                 .thenThrow(new InvalidTransactionException("size must be between 1 and 100"));
 
         mockMvc.perform(get("/api/transactions")

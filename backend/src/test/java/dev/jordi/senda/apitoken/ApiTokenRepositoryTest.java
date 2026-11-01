@@ -27,8 +27,8 @@ class ApiTokenRepositoryTest {
         Long userA = userRepository.save(new User("tokrepo-a@test.dev", "x", "A")).getId();
         Long userB = userRepository.save(new User("tokrepo-b@test.dev", "x", "B")).getId();
 
-        repo.save(new ApiToken(userA, "hash-a", "iPhone Jordi"));
-        repo.save(new ApiToken(userB, "hash-b", "iPhone pareja"));
+        repo.save(new ApiToken(userA, "hash-a", "iPhone Jordi", TokenScope.QUICK));
+        repo.save(new ApiToken(userB, "hash-b", "iPhone pareja", TokenScope.QUICK));
 
         assertThat(repo.findByTokenHash("hash-a")).isPresent();
         assertThat(repo.findByTokenHash("nope")).isEmpty();

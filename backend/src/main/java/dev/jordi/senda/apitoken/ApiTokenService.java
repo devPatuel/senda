@@ -29,17 +29,17 @@ public class ApiTokenService {
 
     /** Generates a token, stores ONLY its hash, and returns the clear value once. */
     @Transactional
-    public GeneratedToken generate(Long userId, String name) {
+    public GeneratedToken generate(Long userId, String name, TokenScope scope) {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         String raw = PREFIX + B64.encodeToString(bytes);
-        ApiToken saved = repository.save(new ApiToken(userId, sha256(raw), name.trim()));
-        return new GeneratedToken(saved.getId(), saved.getName(), raw);
+        ApiToken saved = repository.save(new ApiToken(userId, sha256(raw), name.trim(), scope));
+        return new GeneratedToken(saved.getId(), saved.getName(), saved.getScope(), raw);
     }
 
-    /** Validates a personal token and returns its owner, bumping last_used_at. */
+    /** Validates a personal token and returns who it acts for, bumping last_used_at. */
     @Transactional
-    public Optional<Long> resolveUserId(String rawToken) {
+    public Optional<ResolvedToken> resolve(String rawToken) {
         if (rawToken == null || !rawToken.startsWith(PREFIX)) {
             return Optional.empty();
         }
@@ -47,7 +47,7 @@ public class ApiTokenService {
                 .filter(t -> !t.isRevoked())
                 .map(t -> {
                     t.setLastUsedAt(Instant.now());
-                    return t.getUserId();
+                    return new ResolvedToken(t.getUserId(), t.getName(), t.getScope());
                 });
     }
 
@@ -78,6 +78,10 @@ public class ApiTokenService {
     }
 
     /** Result of creating a token: carries the clear value, shown only once. */
-    public record GeneratedToken(Long id, String name, String value) {
+    public record GeneratedToken(Long id, String name, TokenScope scope, String value) {
+    }
+
+    /** A valid token: its owner, its name (the author of what it writes) and its scope. */
+    public record ResolvedToken(Long userId, String name, TokenScope scope) {
     }
 }

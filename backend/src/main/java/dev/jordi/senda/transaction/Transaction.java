@@ -53,6 +53,9 @@ public class Transaction {
     @Column(name = "account_id")
     private Long accountId;
 
+    @Column(name = "created_via", length = 100, updatable = false)
+    private String createdVia;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -139,6 +142,14 @@ public class Transaction {
 
     public void setAccountId(Long accountId) {
         this.accountId = accountId;
+    }
+
+    public String getCreatedVia() {
+        return createdVia;
+    }
+
+    public void setCreatedVia(String createdVia) {
+        this.createdVia = createdVia;
     }
 
     public Instant getCreatedAt() {

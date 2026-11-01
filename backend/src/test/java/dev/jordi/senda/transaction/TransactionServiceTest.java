@@ -87,7 +87,7 @@ class TransactionServiceTest {
                     return saved;
                 });
 
-        TransactionResponse response = service.create(USER_ID, expenseRequest(5L));
+        TransactionResponse response = service.create(USER_ID, expenseRequest(5L), null);
 
         assertThat(response.id()).isEqualTo(10L);
         assertThat(response.categoryId()).isEqualTo(5L);
@@ -107,7 +107,7 @@ class TransactionServiceTest {
     void createWithForeignOrMissingCategoryThrowsNotFound() {
         when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.create(USER_ID, expenseRequest(5L)))
+        assertThatThrownBy(() -> service.create(USER_ID, expenseRequest(5L), null))
                 .isInstanceOf(NotFoundException.class);
         verify(transactionRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
@@ -116,7 +116,7 @@ class TransactionServiceTest {
     void createWithMismatchedTypeThrowsInvalidTransaction() {
         when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(6L, USER_ID)).thenReturn(Optional.of(incomeCategory));
 
-        assertThatThrownBy(() -> service.create(USER_ID, expenseRequest(6L)))
+        assertThatThrownBy(() -> service.create(USER_ID, expenseRequest(6L), null))
                 .isInstanceOf(InvalidTransactionException.class)
                 .hasMessageContaining("does not match category type");
         verify(transactionRepository, never()).save(org.mockito.ArgumentMatchers.any());
@@ -127,7 +127,7 @@ class TransactionServiceTest {
         Category inactive = category(5L, "Comida", TransactionType.EXPENSE, false);
         when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(5L, USER_ID)).thenReturn(Optional.of(inactive));
 
-        assertThatThrownBy(() -> service.create(USER_ID, expenseRequest(5L)))
+        assertThatThrownBy(() -> service.create(USER_ID, expenseRequest(5L), null))
                 .isInstanceOf(ConflictException.class);
     }
 
@@ -139,7 +139,7 @@ class TransactionServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         service.create(USER_ID, new TransactionRequest(3L, TransactionType.EXPENSE,
-                new BigDecimal("20.00"), LocalDate.now(), "Cena", 7L, null));
+                new BigDecimal("20.00"), LocalDate.now(), "Cena", 7L, null), null);
 
         verify(spaceAccess).assertActiveMember(USER_ID, 7L);
         ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
@@ -154,7 +154,7 @@ class TransactionServiceTest {
         when(categoryRepository.findByIdAndUserIdAndSpaceIdIsNull(3L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.create(USER_ID, new TransactionRequest(3L, TransactionType.EXPENSE,
-                new BigDecimal("20.00"), LocalDate.now(), "x", null, null)))
+                new BigDecimal("20.00"), LocalDate.now(), "x", null, null), null))
                 .isInstanceOf(NotFoundException.class);
         verify(transactionRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
@@ -272,15 +272,15 @@ class TransactionServiceTest {
 
     @Test
     void listRejectsNegativePage() {
-        assertThatThrownBy(() -> service.list(USER_ID, null, -1, 20, null, null, null, null))
+        assertThatThrownBy(() -> service.list(USER_ID, null, -1, 20, null, null, null, null, null))
                 .isInstanceOf(InvalidTransactionException.class);
     }
 
     @Test
     void listRejectsSizeOutOfRange() {
-        assertThatThrownBy(() -> service.list(USER_ID, null, 0, 101, null, null, null, null))
+        assertThatThrownBy(() -> service.list(USER_ID, null, 0, 101, null, null, null, null, null))
                 .isInstanceOf(InvalidTransactionException.class);
-        assertThatThrownBy(() -> service.list(USER_ID, null, 0, 0, null, null, null, null))
+        assertThatThrownBy(() -> service.list(USER_ID, null, 0, 0, null, null, null, null, null))
                 .isInstanceOf(InvalidTransactionException.class);
     }
 

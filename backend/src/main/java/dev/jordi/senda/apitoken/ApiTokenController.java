@@ -28,7 +28,8 @@ public class ApiTokenController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiTokenService.GeneratedToken create(@Valid @RequestBody CreateTokenRequest request) {
-        return service.generate(CurrentUser.id(), request.name());
+        return service.generate(CurrentUser.id(), request.name(),
+                request.scope() != null ? request.scope() : TokenScope.QUICK);
     }
 
     @GetMapping

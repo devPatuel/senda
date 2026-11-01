@@ -59,7 +59,7 @@ public class TransactionService {
     @Transactional(readOnly = true)
     public PageResponse<TransactionResponse> list(Long userId, Long spaceId, int page, int size,
                                                   LocalDate from, LocalDate to,
-                                                  Long categoryId, TransactionType type) {
+                                                  Long categoryId, TransactionType type, String createdVia) {
         if (page < 0) {
             throw new InvalidTransactionException("page must be 0 or greater");
         }
@@ -72,7 +72,7 @@ public class TransactionService {
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Order.desc("date"), Sort.Order.desc("id")));
         Page<Transaction> result = transactionRepository.findAll(
-                buildSpecification(userId, spaceId, from, to, categoryId, type), pageable);
+                buildSpecification(userId, spaceId, from, to, categoryId, type, createdVia), pageable);
         List<TransactionResponse> content = result.getContent().stream()
                 .map(TransactionResponse::from)
                 .toList();
@@ -81,12 +81,13 @@ public class TransactionService {
     }
 
     @Transactional
-    public TransactionResponse create(Long userId, TransactionRequest request) {
+    public TransactionResponse create(Long userId, TransactionRequest request, String createdVia) {
         // On create the caller chooses the scope (personal or a space they belong to).
         Category category = resolveCategory(userId, request, request.spaceId(), null);
         Transaction transaction = new Transaction(userId, category, request.type(),
                 request.amount(), request.date(), request.description());
         transaction.setSpaceId(request.spaceId());
+        transaction.setCreatedVia(createdVia);
         BigDecimal accountBalance = null;
         if (request.accountId() != null) {
             Account account = resolveAccount(userId, request.accountId(), request.spaceId());
@@ -102,10 +103,11 @@ public class TransactionService {
      * under the category the caller names (one of the user's personal categories).
      */
     @Transactional
-    public TransactionResponse quickCreate(Long userId, QuickTransactionRequest request) {
+    public TransactionResponse quickCreate(Long userId, QuickTransactionRequest request, String createdVia) {
         Category category = resolveQuickCategory(userId, request);
         Transaction transaction = new Transaction(userId, category, TransactionType.EXPENSE,
                 request.amount(), LocalDate.now(ZONE), request.description());
+        transaction.setCreatedVia(createdVia);
         // Personal scope: spaceId stays null.
         return TransactionResponse.from(transactionRepository.save(transaction));
     }
@@ -393,7 +395,8 @@ public class TransactionService {
     }
 
     private Specification<Transaction> buildSpecification(Long userId, Long spaceId, LocalDate from, LocalDate to,
-                                                          Long categoryId, TransactionType type) {
+                                                          Long categoryId, TransactionType type,
+                                                          String createdVia) {
         // Personal: scope to the user AND exclude space rows (they keep the author's
         // user_id, so without isNull(spaceId) they would leak into personal views).
         // Space: scope to the space; both members see every row regardless of author.
@@ -411,6 +414,9 @@ public class TransactionService {
         }
         if (type != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("type"), type));
+        }
+        if (createdVia != null && !createdVia.isBlank()) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("createdVia"), createdVia));
         }
         return spec;
     }

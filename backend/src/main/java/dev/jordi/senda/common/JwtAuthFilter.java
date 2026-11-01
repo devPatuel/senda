@@ -1,6 +1,8 @@
 package dev.jordi.senda.common;
 
+import dev.jordi.senda.apitoken.ApiTokenDetails;
 import dev.jordi.senda.apitoken.ApiTokenService;
+import dev.jordi.senda.apitoken.TokenScope;
 import dev.jordi.senda.user.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -27,6 +29,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     /** A personal access token: limited to the capture endpoints (see SecurityConfig). */
     public static final String ROLE_TOKEN = "ROLE_TOKEN";
 
+    /** The assistant's token: reads and creates movements, nothing else (see SecurityConfig). */
+    public static final String ROLE_ASSISTANT = "ROLE_ASSISTANT";
+
     private final JwtService jwtService;
     private final ApiTokenService apiTokenService;
     private final UserRepository userRepository;
@@ -46,21 +51,33 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
             String credential = header.substring(BEARER_PREFIX.length());
             // Personal access tokens carry a fixed prefix; everything else is a JWT.
-            boolean personalToken = credential.startsWith(ApiTokenService.PREFIX);
-            Optional<Long> userId = personalToken
-                    // Sessions of a deleted account already fail the token version check.
-                    ? apiTokenService.resolveUserId(credential).filter(userRepository::existsByIdAndDeletedAtIsNull)
-                    : currentSessionUserId(credential);
-            String role = personalToken ? ROLE_TOKEN : ROLE_USER;
-            userId.ifPresent(id -> {
-                // Principal is the user id (Long); read it back with CurrentUser.id()
-                var authentication = new UsernamePasswordAuthenticationToken(
-                        id, null, List.of(new SimpleGrantedAuthority(role)));
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-            });
+            if (credential.startsWith(ApiTokenService.PREFIX)) {
+                // Sessions of a deleted account already fail the token version check.
+                apiTokenService.resolve(credential)
+                        .filter(token -> userRepository.existsByIdAndDeletedAtIsNull(token.userId()))
+                        .ifPresent(token -> authenticate(token.userId(), roleOf(token.scope()),
+                                new ApiTokenDetails(token.name())));
+            } else {
+                currentSessionUserId(credential).ifPresent(id -> authenticate(id, ROLE_USER,
+                        new WebAuthenticationDetailsSource().buildDetails(request)));
+            }
         }
         filterChain.doFilter(request, response);
+    }
+
+    private static void authenticate(Long userId, String role, Object details) {
+        // Principal is the user id (Long); read it back with CurrentUser.id()
+        var authentication = new UsernamePasswordAuthenticationToken(
+                userId, null, List.of(new SimpleGrantedAuthority(role)));
+        authentication.setDetails(details);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+    }
+
+    private static String roleOf(TokenScope scope) {
+        return switch (scope) {
+            case QUICK -> ROLE_TOKEN;
+            case ASSISTANT -> ROLE_ASSISTANT;
+        };
     }
 
     /**

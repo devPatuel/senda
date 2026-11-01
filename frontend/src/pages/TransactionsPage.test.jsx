@@ -10,6 +10,7 @@ import {
   updateTransaction,
   removeTransaction,
 } from '../api/transactions'
+import { listTokens } from '../api/tokens'
 import { todayISO } from '../lib/format'
 
 vi.mock('../api/categories', () => ({
@@ -21,6 +22,10 @@ vi.mock('../api/transactions', () => ({
   createTransaction: vi.fn(),
   updateTransaction: vi.fn(),
   removeTransaction: vi.fn(),
+}))
+
+vi.mock('../api/tokens', () => ({
+  listTokens: vi.fn(),
 }))
 
 const CATEGORIES = [
@@ -71,6 +76,7 @@ describe('TransactionsPage', () => {
     vi.resetAllMocks()
     listCategories.mockResolvedValue(CATEGORIES)
     listTransactions.mockResolvedValue(EMPTY_PAGE)
+    listTokens.mockResolvedValue([])
   })
 
   it('offers importing only in the personal area', async () => {
@@ -322,5 +328,38 @@ describe('TransactionsPage', () => {
     )
     expect(await screen.findByText('Cena')).toBeInTheDocument()
     expect(screen.queryByText('Aún no hay movimientos')).not.toBeInTheDocument()
+  })
+
+  it('labels the movements a token created, and only those', async () => {
+    listTransactions.mockResolvedValue({
+      ...PAGE_WITH_ONE,
+      content: [
+        { ...EXISTING_TRANSACTION, createdVia: 'Bot Telegram' },
+        { ...EXISTING_TRANSACTION, id: 8, description: 'Desde la web', createdVia: null },
+      ],
+    })
+    render(<MemoryRouter><TransactionsPage /></MemoryRouter>)
+
+    expect(await screen.findByText('Bot Telegram')).toBeInTheDocument()
+    expect(screen.getAllByTestId('created-via')).toHaveLength(1)
+  })
+
+  it('filters by the token that created the movement', async () => {
+    listTokens.mockResolvedValue([
+      { id: 1, name: 'Bot Telegram' },
+      { id: 2, name: 'Bot Telegram' },
+      { id: 3, name: 'iPhone' },
+    ])
+    render(<MemoryRouter><TransactionsPage /></MemoryRouter>)
+    await waitFor(() => expect(listTransactions).toHaveBeenCalled())
+
+    await userEvent.click(screen.getByRole('button', { name: /filtros/i }))
+    const select = await screen.findByLabelText('Creados por')
+    expect(within(select).getAllByRole('option', { name: 'Bot Telegram' })).toHaveLength(1)
+    await userEvent.selectOptions(select, 'Bot Telegram')
+
+    await waitFor(() =>
+      expect(listTransactions).toHaveBeenLastCalledWith(expect.objectContaining({ createdVia: 'Bot Telegram' })),
+    )
   })
 })

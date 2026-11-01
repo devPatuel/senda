@@ -11,3 +11,11 @@ CREATE TABLE personal_balance_baselines (
 -- there is simply no balance left to correct when it is later edited or deleted.
 ALTER TABLE transactions ADD COLUMN account_id BIGINT REFERENCES accounts (id) ON DELETE SET NULL;
 CREATE INDEX idx_transactions_account ON transactions (account_id);
+
+-- What a token may do. Existing tokens become QUICK, which is exactly what they can do today.
+ALTER TABLE api_tokens ADD COLUMN scope VARCHAR(20) NOT NULL DEFAULT 'QUICK';
+
+-- Name of the token that typed the movement; null means the web. A name and not a
+-- foreign key, so the author is still known after the token is revoked or removed.
+ALTER TABLE transactions ADD COLUMN created_via VARCHAR(100);
+CREATE INDEX idx_transactions_created_via ON transactions (created_via) WHERE created_via IS NOT NULL;

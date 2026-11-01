@@ -61,7 +61,12 @@ public class SecurityConfig {
                         // only gets what capturing an expense needs: picking a category
                         // and creating the movement. Anything else requires logging in.
                         .requestMatchers(HttpMethod.POST, "/api/transactions/quick").hasAnyRole("USER", "TOKEN")
-                        .requestMatchers(HttpMethod.GET, "/api/categories").hasAnyRole("USER", "TOKEN")
+                        .requestMatchers(HttpMethod.GET, "/api/categories").hasAnyRole("USER", "TOKEN", "ASSISTANT")
+                        // The assistant reads what it answers with and creates movements.
+                        // It cannot edit or delete anything, nor read the movement list.
+                        .requestMatchers(HttpMethod.POST, "/api/transactions").hasAnyRole("USER", "ASSISTANT")
+                        .requestMatchers(HttpMethod.GET, "/api/transactions/summary", "/api/categories/budget",
+                                "/api/accounts", "/api/spaces").hasAnyRole("USER", "ASSISTANT")
                         .anyRequest().hasRole("USER"))
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(this::writeUnauthorized)
