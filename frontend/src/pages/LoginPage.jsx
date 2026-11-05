@@ -64,7 +64,7 @@ export default function LoginPage() {
           label="Email"
           name="email"
           type="email"
-          autoComplete="email"
+          autoComplete="username"
           value={form.email}
           onChange={handleChange}
           error={fieldErrors.email}

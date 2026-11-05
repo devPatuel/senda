@@ -69,4 +69,37 @@ describe('LoginPage', () => {
       'Email o contraseña incorrectos',
     )
   })
+
+  it('marks the fields so password managers recognise a login form', () => {
+    renderLogin()
+
+    // "username" (not "email") is what Proton Pass, 1Password and the browser look for
+    expect(screen.getByLabelText('Email')).toHaveAttribute('autocomplete', 'username')
+    expect(screen.getByLabelText('Contraseña')).toHaveAttribute('autocomplete', 'current-password')
+  })
+
+  it('lets the user reveal and hide the password', async () => {
+    const user = userEvent.setup()
+    renderLogin()
+    const input = screen.getByLabelText('Contraseña')
+    expect(input).toHaveAttribute('type', 'password')
+
+    await user.type(input, 'secreto1')
+    await user.click(screen.getByRole('button', { name: 'Mostrar contraseña' }))
+    expect(input).toHaveAttribute('type', 'text')
+    expect(input).toHaveValue('secreto1')
+
+    await user.click(screen.getByRole('button', { name: 'Ocultar contraseña' }))
+    expect(input).toHaveAttribute('type', 'password')
+  })
+
+  it('does not submit the form when the reveal button is pressed', async () => {
+    const user = userEvent.setup()
+    renderLogin()
+
+    await user.click(screen.getByRole('button', { name: 'Mostrar contraseña' }))
+
+    expect(fetch).not.toHaveBeenCalled()
+    expect(screen.queryByText('Introduce tu email')).not.toBeInTheDocument()
+  })
 })
