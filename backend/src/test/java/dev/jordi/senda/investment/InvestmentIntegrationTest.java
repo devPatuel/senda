@@ -1,5 +1,6 @@
 package dev.jordi.senda.investment;
 
+import org.springframework.test.util.ReflectionTestUtils;
 import com.jayway.jsonpath.JsonPath;
 import dev.jordi.senda.TestcontainersConfiguration;
 import net.minidev.json.JSONArray;
@@ -42,6 +43,17 @@ class InvestmentIntegrationTest {
 
     private String tokenA;
     private String tokenB;
+
+    @Autowired
+    private PricingService pricingService;
+
+    // PricingService is a singleton with an in-memory price cache, and Spring reuses the
+    // context across test classes: a miss cached by another class (e.g. ETH without a
+    // price) would hide this class's stubbed prices depending on the run order.
+    @BeforeEach
+    void clearPriceCache() {
+        ((Map<?, ?>) ReflectionTestUtils.getField(pricingService, "cache")).clear();
+    }
 
     @BeforeEach
     void registerUsers() throws Exception {

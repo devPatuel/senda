@@ -1,5 +1,8 @@
 package dev.jordi.senda.networth;
 
+import dev.jordi.senda.investment.PricingService;
+import java.util.Map;
+import org.springframework.test.util.ReflectionTestUtils;
 import com.jayway.jsonpath.JsonPath;
 import dev.jordi.senda.TestcontainersConfiguration;
 import dev.jordi.senda.investment.CryptoPriceProvider;
@@ -36,6 +39,17 @@ class NetWorthIntegrationTest {
 
     private String tokenA;
     private String tokenB;
+
+    @Autowired
+    private PricingService pricingService;
+
+    // PricingService is a singleton with an in-memory price cache, and Spring reuses the
+    // context across test classes: a miss cached by another class (e.g. ETH without a
+    // price) would hide this class's stubbed prices depending on the run order.
+    @BeforeEach
+    void clearPriceCache() {
+        ((Map<?, ?>) ReflectionTestUtils.getField(pricingService, "cache")).clear();
+    }
 
     @BeforeEach
     void registerUsers() throws Exception {
