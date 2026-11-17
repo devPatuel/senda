@@ -68,7 +68,7 @@ class InvestmentServiceTest {
         // newQty = 3; newAvg = (2*10000 + 1*16000) / 3 = 36000/3 = 12000
         AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
         Holding existing = holding(10L, crypto, "2", "10000");
-        when(holdingRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(holdingRepository.findByIdAndUserIdForUpdate(10L, USER_ID)).thenReturn(Optional.of(existing));
 
         HoldingResponse response = service.addBuy(USER_ID, 10L,
                 new BuyRequest(new BigDecimal("1"), new BigDecimal("16000"), LocalDate.of(2026, 6, 1), null));
@@ -91,7 +91,7 @@ class InvestmentServiceTest {
     void addBuyOnEmptyPositionSetsAvgCostToBuyPrice() {
         AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
         Holding empty = holding(10L, crypto, "0", "0");
-        when(holdingRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(empty));
+        when(holdingRepository.findByIdAndUserIdForUpdate(10L, USER_ID)).thenReturn(Optional.of(empty));
 
         HoldingResponse response = service.addBuy(USER_ID, 10L,
                 new BuyRequest(new BigDecimal("0.5"), new BigDecimal("20000"), LocalDate.of(2026, 6, 1), null));
@@ -102,7 +102,7 @@ class InvestmentServiceTest {
 
     @Test
     void addBuyOnForeignHoldingThrowsNotFound() {
-        when(holdingRepository.findByIdAndUserId(99L, USER_ID)).thenReturn(Optional.empty());
+        when(holdingRepository.findByIdAndUserIdForUpdate(99L, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.addBuy(USER_ID, 99L,
                 new BuyRequest(BigDecimal.ONE, BigDecimal.TEN, LocalDate.now(), null)))
@@ -212,7 +212,7 @@ class InvestmentServiceTest {
     void buyWithRewardKindIsStoredAsReward() {
         AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
         Holding existing = holding(10L, crypto, "2", "10000");
-        when(holdingRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(holdingRepository.findByIdAndUserIdForUpdate(10L, USER_ID)).thenReturn(Optional.of(existing));
 
         service.addBuy(USER_ID, 10L, new BuyRequest(new BigDecimal("0.1"), new BigDecimal("50000"),
                 LocalDate.of(2026, 9, 28), LotKind.REWARD));
@@ -226,7 +226,7 @@ class InvestmentServiceTest {
     void buyWithoutKindDefaultsToBuy() {
         AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
         Holding existing = holding(10L, crypto, "2", "10000");
-        when(holdingRepository.findByIdAndUserId(10L, USER_ID)).thenReturn(Optional.of(existing));
+        when(holdingRepository.findByIdAndUserIdForUpdate(10L, USER_ID)).thenReturn(Optional.of(existing));
 
         service.addBuy(USER_ID, 10L, new BuyRequest(BigDecimal.ONE, BigDecimal.TEN, LocalDate.of(2026, 9, 1), null));
 
@@ -290,6 +290,97 @@ class InvestmentServiceTest {
         verify(pricingService).pricesInEur(PricingSource.CRYPTO, List.of("BTC", "CRO"));
     }
 
+    // --- simple sell ---
+
+    @Test
+    void sellLowersQuantityAndKeepsAverageCost() {
+        AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
+        Holding existing = holding(10L, crypto, "3", "12000");
+        when(holdingRepository.findByIdAndUserIdForUpdate(10L, USER_ID)).thenReturn(Optional.of(existing));
+
+        HoldingResponse response = service.addSell(USER_ID, 10L,
+                new SellRequest(new BigDecimal("1"), new BigDecimal("20000"), LocalDate.of(2026, 11, 17)));
+
+        assertThat(response.quantity()).isEqualByComparingTo("2");
+        assertThat(response.avgCost()).isEqualByComparingTo("12000");
+        assertThat(response.cost()).isEqualByComparingTo("24000");
+        ArgumentCaptor<HoldingLot> lot = ArgumentCaptor.forClass(HoldingLot.class);
+        verify(holdingLotRepository).save(lot.capture());
+        assertThat(lot.getValue().getKind()).isEqualTo(LotKind.SELL);
+        assertThat(lot.getValue().getQuantity()).isEqualByComparingTo("1");
+        assertThat(lot.getValue().getUnitPrice()).isEqualByComparingTo("20000");
+    }
+
+    @Test
+    void sellingEverythingLeavesNoCost() {
+        AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
+        Holding existing = holding(10L, crypto, "0.5", "20000");
+        when(holdingRepository.findByIdAndUserIdForUpdate(10L, USER_ID)).thenReturn(Optional.of(existing));
+
+        HoldingResponse response = service.addSell(USER_ID, 10L,
+                new SellRequest(new BigDecimal("0.5"), new BigDecimal("30000"), LocalDate.of(2026, 11, 17)));
+
+        assertThat(response.quantity()).isEqualByComparingTo("0");
+        assertThat(response.avgCost()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void sellingMoreThanHeldIsRejected() {
+        AssetClass crypto = assetClass(5L, "Cripto", PricingSource.CRYPTO);
+        Holding existing = holding(10L, crypto, "1", "100");
+        when(holdingRepository.findByIdAndUserIdForUpdate(10L, USER_ID)).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> service.addSell(USER_ID, 10L,
+                new SellRequest(new BigDecimal("1.00000001"), BigDecimal.TEN, LocalDate.of(2026, 11, 17))))
+                .isInstanceOf(InvalidInvestmentException.class);
+        assertThat(existing.getQuantity()).isEqualByComparingTo("1");
+        verify(holdingLotRepository, never()).save(any());
+    }
+
+    @Test
+    void sellOnForeignHoldingThrowsNotFound() {
+        when(holdingRepository.findByIdAndUserIdForUpdate(99L, USER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.addSell(USER_ID, 99L,
+                new SellRequest(BigDecimal.ONE, BigDecimal.TEN, LocalDate.of(2026, 11, 17))))
+                .isInstanceOf(NotFoundException.class);
+        verify(holdingLotRepository, never()).save(any());
+    }
+
+    @Test
+    void buysEndpointRejectsSellKind() {
+        assertThatThrownBy(() -> service.addBuy(USER_ID, 10L,
+                new BuyRequest(BigDecimal.ONE, BigDecimal.TEN, LocalDate.of(2026, 11, 17), LotKind.SELL)))
+                .isInstanceOf(InvalidInvestmentException.class);
+        verify(holdingLotRepository, never()).save(any());
+    }
+
+    @Test
+    void sellKeepsTheRewardsShareOfWhatRemains() {
+        // Started with 1 unit (no lot), +1 rewarded @ 100 -> 2 units, rewards 100.
+        // Sell 1 of 2 -> half the rewards cost stays: 50. Then +1 rewarded @ 10 -> 60.
+        List<HoldingLot> lots = List.of(
+                lot(LotKind.REWARD, "1", "100"),
+                lot(LotKind.SELL, "1", "500"),
+                lot(LotKind.REWARD, "1", "10"));
+
+        assertThat(InvestmentService.rewardsCost(new BigDecimal("2"), lots)).isEqualByComparingTo("60");
+    }
+
+    @Test
+    void sellingEverythingClearsRewardsCost() {
+        List<HoldingLot> lots = List.of(
+                lot(LotKind.REWARD, "1", "100"),
+                lot(LotKind.SELL, "1", "500"));
+
+        assertThat(InvestmentService.rewardsCost(BigDecimal.ZERO, lots)).isEqualByComparingTo("0");
+    }
+
+    private static HoldingLot lot(LotKind kind, String qty, String unitPrice) {
+        return new HoldingLot(10L, USER_ID, new BigDecimal(qty), new BigDecimal(unitPrice),
+                LocalDate.of(2026, 9, 1), kind);
+    }
+
     // --- derived figures: pnl % and rewards cost ---
 
     @Test
@@ -298,8 +389,10 @@ class InvestmentServiceTest {
         Holding btc = holding(10L, crypto, "2", "10000");
         btc.setCurrentPrice(new BigDecimal("15000"));
         when(holdingRepository.findByUserId(USER_ID)).thenReturn(List.of(btc));
-        List<Object[]> rewardRows = List.<Object[]>of(new Object[] {10L, new BigDecimal("123.456")});
-        when(holdingLotRepository.sumRewardCostByHoldingIds(USER_ID, List.of(10L))).thenReturn(rewardRows);
+        // 1.9 bought + 0.1 rewarded: the holding's 2 units
+        when(holdingLotRepository.findByUserIdAndHoldingIdInOrderByIdAsc(USER_ID, List.of(10L))).thenReturn(List.of(
+                lot(LotKind.BUY, "1.9", "10000"),
+                lot(LotKind.REWARD, "0.1", "1234.56")));
 
         HoldingResponse response = service.listHoldings(USER_ID, null).get(0);
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { listLots } from '../../api/investments'
 import { formatCurrency, formatDate, formatPrice, formatQuantity } from '../../lib/format'
 
-const KIND_LABELS = { BUY: 'Compra', REWARD: 'Recompensa' }
+const KIND_LABELS = { BUY: 'Compra', REWARD: 'Recompensa', SELL: 'Venta' }
 
 /** Lots of one holding, newest first. Loaded when mounted (i.e. when expanded). */
 export default function LotHistory({ holdingId }) {
@@ -50,7 +50,7 @@ export default function LotHistory({ holdingId }) {
   }
 
   if (lots.length === 0) {
-    return <p className="px-4 py-3 text-sm text-slate-400">Sin compras registradas</p>
+    return <p className="px-4 py-3 text-sm text-slate-400">Sin movimientos registrados</p>
   }
 
   return (
@@ -68,11 +68,13 @@ export default function LotHistory({ holdingId }) {
         <tbody className="divide-y divide-slate-100">
           {lots.map((lot) => {
             const reward = lot.kind === 'REWARD'
+            const sell = lot.kind === 'SELL'
             return (
-              <tr key={lot.id} className={reward ? 'text-slate-400' : 'text-slate-700'}>
+              <tr key={lot.id} className={reward ? 'text-slate-400' : sell ? 'text-amber-700' : 'text-slate-700'}>
                 <td className="py-1.5 pr-3">{formatDate(lot.date)}</td>
                 <td className="py-1.5 pr-3">{KIND_LABELS[lot.kind] ?? lot.kind}</td>
                 <td className="py-1.5 pr-3 text-right" title={String(lot.quantity)}>
+                  {sell ? '−' : ''}
                   {formatQuantity(lot.quantity)}
                 </td>
                 <td className="py-1.5 pr-3 text-right">{formatPrice(lot.unitPrice)}</td>

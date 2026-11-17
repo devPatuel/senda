@@ -206,6 +206,63 @@ class InvestmentIntegrationTest {
                 .andExpect(jsonPath("$[0].rewardsCost").value(100.0));
     }
 
+    @Test
+    void sellLowersQuantityKeepsAverageAndIsListedAsSell() throws Exception {
+        long cripto = firstAssetClassId(tokenA, "Cripto");
+        long holding = createHolding(tokenA, cripto, "ETH", "Ethereum", "0", "0");
+        buy(tokenA, holding, "2", "1500", "BUY");
+
+        mockMvc.perform(post("/api/investments/holdings/" + holding + "/sells")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"quantity": 0.5, "unitPrice": 2000, "date": "2026-11-17"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.quantity").value(1.5))
+                .andExpect(jsonPath("$.avgCost").value(1500.0))
+                .andExpect(jsonPath("$.cost").value(2250.0));
+
+        // More than what is left (1.5)
+        mockMvc.perform(post("/api/investments/holdings/" + holding + "/sells")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"quantity": 2, "unitPrice": 2000, "date": "2026-11-17"}
+                                """))
+                .andExpect(status().isBadRequest());
+        // A sell cannot sneak in through the buys endpoint
+        mockMvc.perform(post("/api/investments/holdings/" + holding + "/buys")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"quantity": 1, "unitPrice": 2000, "date": "2026-11-17", "kind": "SELL"}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(get("/api/investments/holdings/" + holding + "/lots")
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].kind").value("SELL"))
+                .andExpect(jsonPath("$[0].unitPrice").value(2000.0));
+    }
+
+    @Test
+    void userBCannotSellUserAHolding() throws Exception {
+        long holdingA = createHolding(tokenA, firstAssetClassId(tokenA, "Cripto"), "BTC", "Bitcoin", "2", "10000");
+
+        mockMvc.perform(post("/api/investments/holdings/" + holdingA + "/sells")
+                        .header("Authorization", "Bearer " + tokenB)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"quantity": 1, "unitPrice": 1, "date": "2026-11-17"}
+                                """))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/investments/holdings/" + holdingA).header("Authorization", "Bearer " + tokenA))
+                .andExpect(jsonPath("$.quantity").value(2.0));
+    }
+
     private void buy(String token, long holdingId, String quantity, String unitPrice, String kind) throws Exception {
         mockMvc.perform(post("/api/investments/holdings/" + holdingId + "/buys")
                         .header("Authorization", "Bearer " + token)

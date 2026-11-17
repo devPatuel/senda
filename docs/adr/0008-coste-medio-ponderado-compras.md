@@ -56,3 +56,19 @@ se reciben** y entran en la media ponderada igual que una compra: es el criterio
 evita inflar la rentabilidad con unidades a coste 0. La fórmula no cambia; `kind` solo
 etiqueta el lote para mostrar qué parte del invertido vino de recompensas.
 `POST /holdings/{id}/buys` acepta `kind` opcional (omitido → `BUY`).
+
+## Actualización 2026-11-17 — venta simple
+
+Nuevo tipo de lote `SELL` (migración `V36`) y `POST /holdings/{id}/sells`. Una venta
+**resta cantidad y no toca el coste medio**: con media ponderada, cada unidad vendida
+sale al coste medio, así que lo que queda conserva su media. Si la posición llega a 0, el
+coste medio pasa a 0 (misma regla que al crear una posición vacía). El precio de venta se
+guarda en el lote solo como historial; **no se calculan plusvalías realizadas**. Se
+descartó FIFO de momento: haría falta un lote abierto por compra y solo sirve para la renta.
+
+- Vender más de lo que hay → `400`. La posición se lee con bloqueo (`PESSIMISTIC_WRITE`)
+  en compras y ventas, para que dos operaciones a la vez no pisen la cantidad.
+- `/buys` rechaza `kind: SELL` (`400`): una venta por ahí sumaría cantidad.
+- `rewardsCost` ya no es la suma bruta de las recompensas: cada venta conserva la parte
+  proporcional (`cantidad después / cantidad antes`), porque las unidades vendidas se
+  llevan su parte de recompensas. Se calcula recorriendo los lotes en orden de alta.

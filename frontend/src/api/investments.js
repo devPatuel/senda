@@ -4,7 +4,7 @@ import { http } from './http'
 
 /** @typedef {'CRYPTO'|'METAL'|'FUND'|'MANUAL'} PricingSource */
 
-/** @typedef {'BUY'|'REWARD'} LotKind */
+/** @typedef {'BUY'|'REWARD'|'SELL'} LotKind */
 
 /**
  * @typedef {Object} AssetClass
@@ -125,6 +125,17 @@ export function createHolding(data) {
  */
 export function addBuy(id, data) {
   return http.post(`/investments/holdings/${id}/buys`, data)
+}
+
+/**
+ * Sells part or all of a holding: the quantity goes down and the average cost of what
+ * remains stays the same.
+ * @param {number} id
+ * @param {{quantity: number, unitPrice: number, date: string}} data
+ * @returns {Promise<Holding>}
+ */
+export function addSell(id, data) {
+  return http.post(`/investments/holdings/${id}/sells`, data)
 }
 
 /**

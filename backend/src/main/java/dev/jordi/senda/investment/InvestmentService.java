@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -124,7 +125,11 @@ public class InvestmentService {
 
     @Transactional
     public HoldingResponse addBuy(Long userId, Long holdingId, BuyRequest request) {
-        Holding holding = findOwnedHolding(userId, holdingId);
+        // A SELL sent here would be added as a buy; sells have their own endpoint
+        if (request.kind() == LotKind.SELL) {
+            throw new InvalidInvestmentException("Use the sells endpoint to register a sell");
+        }
+        Holding holding = findOwnedHoldingForUpdate(userId, holdingId);
 
         BigDecimal oldQty = holding.getQuantity();
         BigDecimal oldAvg = holding.getAvgCost();
@@ -145,6 +150,27 @@ public class InvestmentService {
         LotKind kind = request.kind() != null ? request.kind() : LotKind.BUY;
         holdingLotRepository.save(new HoldingLot(holding.getId(), holding.getUserId(), buyQty, unitPrice,
                 request.date(), kind));
+        return toResponse(userId, holding);
+    }
+
+    /**
+     * Simple sell: lowers the quantity and keeps the average cost of what remains
+     * (weighted average, no realised gains; see ADR 0008).
+     */
+    @Transactional
+    public HoldingResponse addSell(Long userId, Long holdingId, SellRequest request) {
+        Holding holding = findOwnedHoldingForUpdate(userId, holdingId);
+        BigDecimal newQty = holding.getQuantity().subtract(request.quantity());
+        if (newQty.signum() < 0) {
+            throw new InvalidInvestmentException("Cannot sell more than the holding's quantity");
+        }
+        holding.setQuantity(newQty);
+        // Same invariant as createHolding: a position holding nothing carries no cost
+        if (newQty.signum() == 0) {
+            holding.setAvgCost(BigDecimal.ZERO);
+        }
+        holdingLotRepository.save(new HoldingLot(holding.getId(), holding.getUserId(), request.quantity(),
+                request.unitPrice(), request.date(), LotKind.SELL));
         return toResponse(userId, holding);
     }
 
@@ -250,6 +276,11 @@ public class InvestmentService {
                 .orElseThrow(() -> new NotFoundException("Holding not found"));
     }
 
+    private Holding findOwnedHoldingForUpdate(Long userId, Long id) {
+        return holdingRepository.findByIdAndUserIdForUpdate(id, userId)
+                .orElseThrow(() -> new NotFoundException("Holding not found"));
+    }
+
     private Nft findOwnedNft(Long userId, Long id) {
         return nftRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NotFoundException("NFT not found"));
@@ -259,18 +290,54 @@ public class InvestmentService {
         return toResponses(userId, List.of(holding)).get(0);
     }
 
-    /** Maps holdings to responses, fetching every holding's rewards cost in one query. */
+    /** Maps holdings to responses, fetching every holding's lots in one query. */
     private List<HoldingResponse> toResponses(Long userId, List<Holding> holdings) {
         List<Long> ids = holdings.stream().map(Holding::getId).filter(Objects::nonNull).toList();
-        Map<Long, BigDecimal> rewardsByHolding = new HashMap<>();
+        Map<Long, List<HoldingLot>> lotsByHolding = new HashMap<>();
         if (!ids.isEmpty()) {
-            for (Object[] row : holdingLotRepository.sumRewardCostByHoldingIds(userId, ids)) {
-                rewardsByHolding.put((Long) row[0], (BigDecimal) row[1]);
+            for (HoldingLot lot : holdingLotRepository.findByUserIdAndHoldingIdInOrderByIdAsc(userId, ids)) {
+                lotsByHolding.computeIfAbsent(lot.getHoldingId(), k -> new ArrayList<>()).add(lot);
             }
         }
         return holdings.stream()
-                .map(h -> toResponse(h, rewardsByHolding.getOrDefault(h.getId(), BigDecimal.ZERO)))
+                .map(h -> toResponse(h, rewardsCost(h.getQuantity(), lotsByHolding.getOrDefault(h.getId(), List.of()))))
                 .toList();
+    }
+
+    /**
+     * Part of the remaining cost that came from rewards. With a weighted average every
+     * unit sold carries the same share of rewards, so a sell keeps
+     * {@code qtyAfter / qtyBefore} of the rewards cost accumulated so far.
+     *
+     * @param currentQty the holding's quantity now
+     * @param lots       its lots in insertion order (the order the quantity was built in)
+     */
+    static BigDecimal rewardsCost(BigDecimal currentQty, List<HoldingLot> lots) {
+        // Walk backwards from the current quantity to know the quantity before each lot;
+        // the holding may have started with a quantity that has no lot behind it.
+        BigDecimal[] qtyBefore = new BigDecimal[lots.size()];
+        BigDecimal qty = currentQty;
+        for (int i = lots.size() - 1; i >= 0; i--) {
+            HoldingLot lot = lots.get(i);
+            qty = lot.getKind() == LotKind.SELL ? qty.add(lot.getQuantity()) : qty.subtract(lot.getQuantity());
+            qtyBefore[i] = qty;
+        }
+        BigDecimal rewards = BigDecimal.ZERO;
+        for (int i = 0; i < lots.size(); i++) {
+            HoldingLot lot = lots.get(i);
+            switch (lot.getKind()) {
+                case REWARD -> rewards = rewards.add(lot.getQuantity().multiply(lot.getUnitPrice()));
+                case SELL -> {
+                    BigDecimal before = qtyBefore[i];
+                    rewards = before.signum() > 0
+                            ? rewards.multiply(before.subtract(lot.getQuantity()))
+                                    .divide(before, MONEY_SCALE, RoundingMode.HALF_UP)
+                            : BigDecimal.ZERO;
+                }
+                case BUY -> { }
+            }
+        }
+        return rewards.max(BigDecimal.ZERO);
     }
 
     private static HoldingResponse toResponse(Holding holding, BigDecimal rewardsCost) {

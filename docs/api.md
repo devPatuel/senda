@@ -543,7 +543,7 @@ precio a mano). Al registrarse se siembran por defecto: Cripto, Fondos, Oro, Pla
 
 `marketValue`, `pnl` y `pnlPct` son `null` cuando no hay `currentPrice` (`pnlPct` también
 si `cost` es 0). `pnlPct` = `pnl / cost × 100` con 2 decimales. `rewardsCost` es la parte
-de `cost` que viene de lotes `REWARD` (0 si no hay). `symbol` debe ser
+de `cost` que viene de lotes `REWARD` (0 si no hay; cada venta conserva la parte proporcional a lo que queda). `symbol` debe ser
 alfanumérico.
 
 | Método | Ruta | Descripción |
@@ -551,8 +551,9 @@ alfanumérico.
 | GET | `/api/investments/holdings?assetClassId=` | Lista las posiciones (filtro opcional por clase) |
 | POST | `/api/investments/holdings` | Crea (`201`). `400` si `quantity` 0 con `avgCost` ≠ 0 |
 | GET | `/api/investments/holdings/{id}` | Una posición |
-| POST | `/api/investments/holdings/{id}/buys` | Registra una compra (`201`): recalcula cantidad y coste medio y guarda un lote. Body: `quantity`, `unitPrice`, `date` y `kind` opcional (`BUY` \| `REWARD`, por defecto `BUY`; otro valor → `400`) |
-| GET | `/api/investments/holdings/{id}/lots` | Histórico de lotes, del más reciente al más antiguo; cada uno con `kind` |
+| POST | `/api/investments/holdings/{id}/buys` | Registra una compra (`201`): recalcula cantidad y coste medio y guarda un lote. Body: `quantity`, `unitPrice`, `date` y `kind` opcional (`BUY` \| `REWARD`, por defecto `BUY`; `SELL` u otro valor → `400`) |
+| POST | `/api/investments/holdings/{id}/sells` | Registra una venta (`201`): resta cantidad y **mantiene** el coste medio (a 0 si se vende todo). Body: `quantity`, `unitPrice` (precio de venta, solo historial), `date`. `400` si `quantity` supera la de la posición. No calcula plusvalías |
+| GET | `/api/investments/holdings/{id}/lots` | Histórico de lotes, del más reciente al más antiguo; cada uno con `kind` (`BUY` \| `REWARD` \| `SELL`) |
 | PUT | `/api/investments/holdings/{id}/price` | Fija el precio a mano (MANUAL/FUND/METAL). Body: `currentPrice` |
 | DELETE | `/api/investments/holdings/{id}` | Borra la posición y sus lotes (`204`) |
 | POST | `/api/investments/refresh-prices` | Refresca los precios CRYPTO de las posiciones y devuelve la lista actualizada |

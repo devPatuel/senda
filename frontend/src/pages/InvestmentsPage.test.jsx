@@ -9,6 +9,7 @@ import {
   listLots,
   createHolding,
   addBuy,
+  addSell,
   refreshPrices,
 } from '../api/investments'
 
@@ -20,6 +21,7 @@ vi.mock('../api/investments', () => ({
   createHolding: vi.fn(),
   removeHolding: vi.fn(),
   addBuy: vi.fn(),
+  addSell: vi.fn(),
   setHoldingPrice: vi.fn(),
   refreshPrices: vi.fn(),
   createNft: vi.fn(),
@@ -173,7 +175,7 @@ describe('InvestmentsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Historial' }))
 
-    expect(await screen.findByText('Sin compras registradas')).toBeInTheDocument()
+    expect(await screen.findByText('Sin movimientos registrados')).toBeInTheDocument()
   })
 
   it('refreshes prices via the refresh endpoint', async () => {
@@ -216,6 +218,26 @@ describe('InvestmentsPage', () => {
 
     await waitFor(() =>
       expect(addBuy).toHaveBeenCalledWith(10, expect.objectContaining({ quantity: 1, unitPrice: 16000, kind: 'REWARD' })),
+    )
+  })
+
+  it('registers a sell and refuses selling more than held', async () => {
+    addSell.mockResolvedValue({ ...BTC, quantity: 1 })
+    const user = await renderLoaded()
+
+    await user.click(screen.getByRole('button', { name: 'Venta' }))
+    await user.type(screen.getByLabelText('Cantidad'), '999')
+    await user.type(screen.getByLabelText('Precio unitario'), '30000')
+    await user.click(screen.getByRole('button', { name: 'Registrar venta' }))
+    expect(await screen.findByText(/^Tienes [0-9.,]+$/)).toBeInTheDocument()
+    expect(addSell).not.toHaveBeenCalled()
+
+    await user.clear(screen.getByLabelText('Cantidad'))
+    await user.type(screen.getByLabelText('Cantidad'), '1')
+    await user.click(screen.getByRole('button', { name: 'Registrar venta' }))
+
+    await waitFor(() =>
+      expect(addSell).toHaveBeenCalledWith(10, expect.objectContaining({ quantity: 1, unitPrice: 30000 })),
     )
   })
 

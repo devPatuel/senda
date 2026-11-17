@@ -5,6 +5,7 @@ import {
   createHolding,
   removeHolding,
   addBuy,
+  addSell,
   setHoldingPrice,
   refreshPrices,
   listNfts,
@@ -264,6 +265,119 @@ function BuyForm({ holding, onClose, onSaved }) {
 
         <SubmitButton loading={saving} loadingText="Guardando…">
           Registrar compra
+        </SubmitButton>
+      </form>
+    </Modal>
+  )
+}
+
+// --- Sell ---
+
+function SellForm({ holding, onClose, onSaved }) {
+  const [form, setForm] = useState({ quantity: '', unitPrice: '', date: todayISO() })
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [error, setError] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const held = Number(holding.quantity)
+
+  function handleChange(e) {
+    const { name, value } = e.target
+    setForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  function validate() {
+    const errors = {}
+    const quantity = parseDecimal(form.quantity)
+    const unitPrice = parseDecimal(form.unitPrice)
+    if (!form.quantity.trim() || Number.isNaN(quantity) || quantity <= 0) {
+      errors.quantity = 'Cantidad mayor que 0'
+    } else if (quantity > held) {
+      errors.quantity = `Tienes ${formatQuantity(held)}`
+    }
+    if (!form.unitPrice.trim() || Number.isNaN(unitPrice) || unitPrice < 0) {
+      errors.unitPrice = 'Precio no válido'
+    }
+    if (!form.date) errors.date = 'Introduce una fecha'
+    return errors
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError(null)
+    const errors = validate()
+    setFieldErrors(errors)
+    if (Object.keys(errors).length > 0) return
+
+    setSaving(true)
+    try {
+      await addSell(holding.id, {
+        quantity: parseDecimal(form.quantity),
+        unitPrice: parseDecimal(form.unitPrice),
+        date: form.date,
+      })
+      onSaved()
+    } catch (err) {
+      setError(err.message || 'No se ha podido registrar la venta')
+      if (err.fieldErrors) setFieldErrors(err.fieldErrors)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title={`Vender · ${holding.symbol}`} onClose={onClose} dismissable={!saving}>
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <FormError message={error} />
+        <p className="text-sm text-slate-500">
+          Tienes {formatQuantity(held)} {holding.symbol}. Baja la cantidad y el coste medio de lo que
+          te queda no cambia. El precio de venta se guarda en el historial.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Field
+              label="Cantidad"
+              name="quantity"
+              type="number"
+              inputMode="decimal"
+              step="any"
+              placeholder="0"
+              value={form.quantity}
+              onChange={handleChange}
+              error={fieldErrors.quantity}
+            />
+            <button
+              type="button"
+              onClick={() => setForm((prev) => ({ ...prev, quantity: String(holding.quantity) }))}
+              className="mt-1 text-xs font-medium text-slate-500 underline hover:text-slate-700"
+            >
+              Vender todo
+            </button>
+          </div>
+          <Field
+            label="Precio unitario"
+            name="unitPrice"
+            type="number"
+            inputMode="decimal"
+            step="any"
+            placeholder="0"
+            value={form.unitPrice}
+            onChange={handleChange}
+            error={fieldErrors.unitPrice}
+          />
+        </div>
+
+        <Field
+          label="Fecha"
+          name="date"
+          type="date"
+          value={form.date}
+          onChange={handleChange}
+          error={fieldErrors.date}
+        />
+
+        <SubmitButton loading={saving} loadingText="Guardando…">
+          Registrar venta
         </SubmitButton>
       </form>
     </Modal>
@@ -564,7 +678,7 @@ function AllocationBar({ items }) {
   )
 }
 
-function HoldingRow({ holding, weightPct, onBuy, onPrice, onDelete }) {
+function HoldingRow({ holding, weightPct, onBuy, onSell, onPrice, onDelete }) {
   const [historyOpen, setHistoryOpen] = useState(false)
   const hasPrice = holding.marketValue != null
   const buttonClass =
@@ -608,6 +722,11 @@ function HoldingRow({ holding, weightPct, onBuy, onPrice, onDelete }) {
           <button type="button" onClick={() => onBuy(holding)} className={buttonClass}>
             Compra
           </button>
+          {Number(holding.quantity) > 0 && (
+            <button type="button" onClick={() => onSell(holding)} className={buttonClass}>
+              Venta
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setHistoryOpen((open) => !open)}
@@ -645,7 +764,7 @@ function byMarketValueDesc(a, b) {
   return (b.marketValue ?? -Infinity) - (a.marketValue ?? -Infinity)
 }
 
-function HoldingList({ holdings, totalValue, onBuy, onPrice, onDelete }) {
+function HoldingList({ holdings, totalValue, onBuy, onSell, onPrice, onDelete }) {
   return (
     <ul className="divide-y divide-slate-100">
       {[...holdings].sort(byMarketValueDesc).map((h) => (
@@ -654,6 +773,7 @@ function HoldingList({ holdings, totalValue, onBuy, onPrice, onDelete }) {
           holding={h}
           weightPct={totalValue > 0 && h.marketValue != null ? (Number(h.marketValue) / totalValue) * 100 : null}
           onBuy={onBuy}
+          onSell={onSell}
           onPrice={onPrice}
           onDelete={onDelete}
         />
@@ -693,6 +813,7 @@ export default function InvestmentsPage() {
 
   const [holdingFormOpen, setHoldingFormOpen] = useState(false)
   const [buying, setBuying] = useState(null)
+  const [selling, setSelling] = useState(null)
   const [pricing, setPricing] = useState(null)
   const [holdingToDelete, setHoldingToDelete] = useState(null)
   const [deletingHolding, setDeletingHolding] = useState(false)
@@ -897,6 +1018,7 @@ export default function InvestmentsPage() {
                 holdings={items}
                 totalValue={holdingsValue}
                 onBuy={setBuying}
+                onSell={setSelling}
                 onPrice={setPricing}
                 onDelete={setHoldingToDelete}
               />
@@ -926,6 +1048,7 @@ export default function InvestmentsPage() {
                   holdings={tabHoldings}
                   totalValue={holdingsValue}
                   onBuy={setBuying}
+                  onSell={setSelling}
                   onPrice={setPricing}
                   onDelete={setHoldingToDelete}
                 />
@@ -1013,6 +1136,17 @@ export default function InvestmentsPage() {
           onClose={() => setBuying(null)}
           onSaved={() => {
             setBuying(null)
+            reload()
+          }}
+        />
+      )}
+
+      {selling && (
+        <SellForm
+          holding={selling}
+          onClose={() => setSelling(null)}
+          onSaved={() => {
+            setSelling(null)
             reload()
           }}
         />

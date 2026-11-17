@@ -78,6 +78,12 @@ public class InvestmentController {
         return investmentService.addBuy(CurrentUser.id(), id, request);
     }
 
+    @PostMapping("/holdings/{id}/sells")
+    @ResponseStatus(HttpStatus.CREATED)
+    public HoldingResponse addSell(@PathVariable Long id, @Valid @RequestBody SellRequest request) {
+        return investmentService.addSell(CurrentUser.id(), id, request);
+    }
+
     @GetMapping("/holdings/{id}/lots")
     public List<HoldingLotResponse> listLots(@PathVariable Long id) {
         return investmentService.listLots(CurrentUser.id(), id);

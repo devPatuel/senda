@@ -28,7 +28,7 @@ La interfaz está en español y trabaja en euros.
   queda en cada una. El reparto del sueldo lo hace por porcentajes.
 - **Cuentas, deudas y patrimonio**: saldo de cada cuenta, lo que debes y te deben
   (con abonos parciales) y el patrimonio neto con su histórico.
-- **Inversiones**: posiciones con coste medio ponderado, historial de compras y
+- **Inversiones**: posiciones con coste medio ponderado, historial de compras, ventas y
   recompensas, y precio de las criptomonedas actualizado solo.
 - **Pagos recurrentes**: suscripciones y recibos con su próxima fecha y su coste
   mensual equivalente.
